@@ -55,11 +55,13 @@
   <ItemGroup>
     <Compile Include="CustomScheduler.cs" />
     <Compile Include="Enumeration\GroupMemberEnumeration.cs" />
+    <Compile Include="Enumeration\LocalAdminEnumeration.cs" />
     <Compile Include="OutputObjects\Extensions.cs" />
     <Compile Include="OutputObjects\GroupMember.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="Sharphound.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Wrapper.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

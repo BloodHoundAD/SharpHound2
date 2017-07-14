@@ -7,6 +7,7 @@ using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -31,26 +32,29 @@ namespace Sharphound2.Enumeration
                 BlockingCollection<Wrapper<GroupMember>> OutputQueue = new BlockingCollection<Wrapper<GroupMember>>();
                 BlockingCollection<Wrapper<SearchResultEntry>> InputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
                 
-
                 int t = 20;
 
                 LimitedConcurrencyLevelTaskScheduler scheduler = new LimitedConcurrencyLevelTaskScheduler(t);
                 TaskFactory factory = new TaskFactory(scheduler);
                 Task[] taskhandles = new Task[t];
 
+                //Get the sid for the domain once so we can save processing later. Also saves network by omitting objectsid from our searcher
+                var dsid = new SecurityIdentifier(utils.GetDomain(DomainName).GetDirectoryEntry().Properties["objectsid"].Value as byte[], 0).ToString();
 
                 Task writer = StartOutputWriter(factory, OutputQueue);
                 for (int i = 0; i < t; i++)
                 {
-                    taskhandles[i] = StartDataProcessor(factory, InputQueue, OutputQueue);
+                    taskhandles[i] = StartDataProcessor(factory, InputQueue, OutputQueue, dsid);
                 }
 
                 SearchRequest searchRequest = 
                     utils.GetSearchRequest("(|(memberof=*)(primarygroupid=*))",
-                    System.DirectoryServices.Protocols.SearchScope.Subtree,
-                    new string[] { "objectsid", "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid", "memberof", "serviceprincipalname" },
+                    SearchScope.Subtree,
+                    new string[] { "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid", "memberof", "serviceprincipalname" },
                     DomainName);
 
+                int TimeoutCount = 0;
+                TimeSpan timeout = new TimeSpan(0, 0, 30);
                 LdapConnection connection = utils.GetLdapConnection(DomainName);
 
                 if (searchRequest == null)
@@ -62,30 +66,48 @@ namespace Sharphound2.Enumeration
                 //Add our paging control
                 PageResultRequestControl prc = new PageResultRequestControl(500);
                 searchRequest.Controls.Add(prc);
-                int pagecount = 0;
                 while (true)
                 {
-                    pagecount++;
-                    SearchResponse response = (SearchResponse)connection.SendRequest(searchRequest);
-
-                    PageResultResponseControl pageResponse =
-                        (PageResultResponseControl)response.Controls[0];
-
-                    foreach (SearchResultEntry entry in response.Entries)
+                    try
                     {
-                        InputQueue.Add(new Wrapper<SearchResultEntry>()
+                        SearchResponse response = (SearchResponse)connection.SendRequest(searchRequest);
+
+                        PageResultResponseControl pageResponse =
+                            (PageResultResponseControl)response.Controls[0];
+
+                        foreach (SearchResultEntry entry in response.Entries)
                         {
-                            Item = entry
-                        });
-                    }
+                            InputQueue.Add(new Wrapper<SearchResultEntry>()
+                            {
+                                Item = entry
+                            });
+                        }
 
-                    if (pageResponse.Cookie.Length == 0)
+                        if (pageResponse.Cookie.Length == 0)
+                        {
+                            connection.Dispose();
+                            break;
+                        }
+
+                        prc.Cookie = pageResponse.Cookie;
+                    }catch (LdapException)
                     {
-                        break;
+                        //We hit a timeout. Add to a counter and add 30 seconds to the timeout
+                        TimeoutCount++;
+                        connection = utils.GetLdapConnection(DomainName);
+                        if (TimeoutCount == 3)
+                        {
+                            //If we've timed out 4 times, just abort, cause something is weird.
+                            Console.WriteLine("Aborting due to too many ldap timeouts");
+                            break;
+                        }
+                        Console.WriteLine("Hit LDAP timeout, adding 30 seconds and retrying");
+                        timeout.Add(new TimeSpan(0, 0, 30));
+                        connection.Timeout = timeout;
                     }
-
-                    prc.Cookie = pageResponse.Cookie;
                 }
+
+                connection.Dispose();
 
                 InputQueue.CompleteAdding();
                 Task.WaitAll(taskhandles);
@@ -126,11 +148,11 @@ namespace Sharphound2.Enumeration
             });
         }
 
-        Task StartDataProcessor(TaskFactory factory, BlockingCollection<Wrapper<SearchResultEntry>> input, BlockingCollection<Wrapper<GroupMember>> output)
+        Task StartDataProcessor(TaskFactory factory, BlockingCollection<Wrapper<SearchResultEntry>> input, BlockingCollection<Wrapper<GroupMember>> output, string DomainSid)
         {
             return factory.StartNew(() =>
             {
-                
+                string[] props = { "samaccountname", "distinguishedname", "samaccounttype" };
                 foreach (Wrapper<SearchResultEntry> en in input.GetConsumingEnumerable())
                 {
                     SearchResultEntry entry = en.Item;
@@ -144,6 +166,9 @@ namespace Sharphound2.Enumeration
                         continue;
                     }
 
+                    string PrincipalDomainName = Utils.ConvertDNToDomain(entry.DistinguishedName);
+                    string DistinguishedName = entry.DistinguishedName;
+
                     string ObjectType = entry.GetObjectType();
 
                     if (ObjectType.Equals("group"))
@@ -155,27 +180,29 @@ namespace Sharphound2.Enumeration
                     {
                         if (!utils.GetMap(dn, out string Group))
                         {
-                            string domainname = Utils.ConvertDNToDomain(dn);
-                            SearchResponse r = utils.GetSingleSearcher("(objectClass=group)", new string[] { "samaccountname", "distinguishedname", "samaccounttype" }, out LdapConnection conn, ADSPath: dn, DomainName: domainname);
-                            if (r.Entries.Count >= 1)
+                            SearchResponse r;
+                            using (LdapConnection conn = utils.GetLdapConnection(PrincipalDomainName))
                             {
-                                SearchResultEntry e = r.Entries[0];
-                                Group = e.ResolveBloodhoundDisplay();
-                            }
-                            else
-                            {
-                                Group = ConvertADName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
-                                if (Group != null)
+                                r = (SearchResponse)conn.SendRequest(utils.GetSearchRequest("(objectClass=group)", SearchScope.Base, props, Utils.ConvertDNToDomain(dn), dn));
+
+                                if (r.Entries.Count >= 1)
                                 {
-                                    Group = Group.Split('\\').Last();
+                                    SearchResultEntry e = r.Entries[0];
+                                    Group = e.ResolveBloodhoundDisplay();
                                 }
                                 else
                                 {
-                                    Group = dn.Substring(0, dn.IndexOf(",", StringComparison.Ordinal)).Split('=').Last();
+                                    Group = ConvertADName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
+                                    if (Group != null)
+                                    {
+                                        Group = Group.Split('\\').Last();
+                                    }
+                                    else
+                                    {
+                                        Group = dn.Substring(0, dn.IndexOf(",", StringComparison.Ordinal)).Split('=').Last();
+                                    }
                                 }
                             }
-
-                            conn.Dispose();
 
                             if (Group != null)
                             {
@@ -191,21 +218,24 @@ namespace Sharphound2.Enumeration
                     string PrimaryGroupID = entry.GetProp("primarygroupid");
                     if (PrimaryGroupID != null)
                     {
-                        string domainsid = entry.Sid().Substring(0, entry.Sid().LastIndexOf("-", StringComparison.Ordinal));
-                        string pgsid = $"{domainsid}-{PrimaryGroupID}";
+                        string pgsid = $"{DomainSid}-{PrimaryGroupID}";
                         if (!utils.GetMap(pgsid, out string Group))
                         {
-                            SearchResponse r = utils.GetSimpleSearcher($"(objectsid={pgsid})", new string[] { "samaccountname", "distinguishedname", "samaccounttype" }, out LdapConnection conn, Utils.ConvertDNToDomain(entry.DistinguishedName));
-                            if (r.Entries.Count >= 1)
+                            SearchResponse r;
+                            using (LdapConnection conn = utils.GetLdapConnection(PrincipalDomainName))
                             {
-                                SearchResultEntry e = r.Entries[0];
-                                Group = e.ResolveBloodhoundDisplay();
-                                if (Group != null)
+                                r = (SearchResponse)conn.SendRequest(utils.GetSearchRequest($"(objectsid={pgsid})", SearchScope.Subtree, props, PrincipalDomainName));
+
+                                if (r.Entries.Count >= 1)
                                 {
-                                    utils.AddMap(pgsid, Group);
+                                    SearchResultEntry e = r.Entries[0];
+                                    Group = e.ResolveBloodhoundDisplay();
+                                    if (Group != null)
+                                    {
+                                        utils.AddMap(pgsid, Group);
+                                    }
                                 }
                             }
-                            conn.Dispose();
                         }
 
                         if (Group != null)
