@@ -70,7 +70,10 @@ namespace Sharphound2.OutputObjects
                         }
                     }
                 }
-
+                if (DNSHostName == null)
+                {
+                    return null;
+                }
                 return DNSHostName.ToUpper();
             }
 
