@@ -10,16 +10,32 @@ using System.Reflection;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
+using static Sharphound2.Sharphound;
 
 namespace Sharphound2.Enumeration
 {
     class GroupMemberEnumeration
     {
         readonly Utils utils;
-        
-        public GroupMemberEnumeration()
+        readonly Options options;
+        int LastCount;
+        int CurrentCount;
+        System.Timers.Timer timer;
+
+
+        public GroupMemberEnumeration(Options opt)
         {
             utils = Utils.Instance;
+            options = opt;
+            timer = new System.Timers.Timer();
+            timer.Elapsed += (sender, e) =>
+            {
+                PrintStatus();
+            };
+
+            timer.AutoReset = false;
+            timer.Interval = options.Interval;
         }
 
         public void StartEnumeration()
@@ -31,18 +47,16 @@ namespace Sharphound2.Enumeration
 
                 BlockingCollection<Wrapper<GroupMember>> OutputQueue = new BlockingCollection<Wrapper<GroupMember>>();
                 BlockingCollection<Wrapper<SearchResultEntry>> InputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
-                
-                int t = 20;
 
-                LimitedConcurrencyLevelTaskScheduler scheduler = new LimitedConcurrencyLevelTaskScheduler(t);
+                LimitedConcurrencyLevelTaskScheduler scheduler = new LimitedConcurrencyLevelTaskScheduler(options.Threads);
                 TaskFactory factory = new TaskFactory(scheduler);
-                Task[] taskhandles = new Task[t];
+                Task[] taskhandles = new Task[options.Threads];
 
                 //Get the sid for the domain once so we can save processing later. Also saves network by omitting objectsid from our searcher
                 var dsid = new SecurityIdentifier(utils.GetDomain(DomainName).GetDirectoryEntry().Properties["objectsid"].Value as byte[], 0).ToString();
 
                 Task writer = StartOutputWriter(factory, OutputQueue);
-                for (int i = 0; i < t; i++)
+                for (int i = 0; i < options.Threads; i++)
                 {
                     taskhandles[i] = StartDataProcessor(factory, InputQueue, OutputQueue, dsid);
                 }
@@ -62,6 +76,11 @@ namespace Sharphound2.Enumeration
                     Console.WriteLine($"Unable to contact {DomainName}");
                     continue;
                 }
+
+                LastCount = 0;
+                CurrentCount = 0;
+
+                timer.Start();
 
                 //Add our paging control
                 PageResultRequestControl prc = new PageResultRequestControl(500);
@@ -108,7 +127,6 @@ namespace Sharphound2.Enumeration
                 }
 
                 connection.Dispose();
-
                 InputQueue.CompleteAdding();
                 Task.WaitAll(taskhandles);
                 OutputQueue.CompleteAdding();
@@ -117,6 +135,17 @@ namespace Sharphound2.Enumeration
                 Console.WriteLine($"{DomainName} finished in {watch.Elapsed}");
                 watch.Reset();
             }
+        }
+
+        void PrintStatus()
+        {
+            int l = LastCount;
+            int c = CurrentCount;
+            int d = CurrentCount - LastCount;
+            string ProgressStr = $"Status: {CurrentCount} objects enumerated (+{CurrentCount - LastCount} {(float)d / (options.Interval / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
+            Console.WriteLine(ProgressStr);
+            LastCount = CurrentCount;
+            timer.Start();
         }
 
         Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<GroupMember>> output)
@@ -163,6 +192,7 @@ namespace Sharphound2.Enumeration
 
                     if (PrincipalDisplayName == null)
                     {
+                        Interlocked.Increment(ref CurrentCount);
                         continue;
                     }
 
@@ -241,6 +271,7 @@ namespace Sharphound2.Enumeration
                         if (Group != null)
                             output.Add(new Wrapper<GroupMember> { Item = new GroupMember() { AccountName = PrincipalDisplayName, GroupName = Group, ObjectType = ObjectType } });
                     }
+                    Interlocked.Increment(ref CurrentCount);
                     en.Item = null;
                 }
             });

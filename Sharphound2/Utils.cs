@@ -65,7 +65,7 @@ namespace Sharphound2
 
             //Add LdapSessionOptions
             LdapSessionOptions lso = connection.SessionOptions;
-            lso.ReferralChasing = ReferralChasingOptions.All;
+            lso.ReferralChasing = ReferralChasingOptions.None;
             return connection;
         }
 

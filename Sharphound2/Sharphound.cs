@@ -16,6 +16,12 @@ namespace Sharphound2
 
             [Option('s',HelpText ="Search the entire forest", DefaultValue = false)]
             public bool SearchForest { get; set; }
+
+            [Option('t',HelpText ="Number of Threads to use", DefaultValue =20)]
+            public int Threads { get; set; }
+
+            [Option('I',HelpText ="Interval to display progress in milliseconds", DefaultValue =30000)]
+            public int Interval { get; set; }
         }
 
         static void Main(string[] args)
@@ -28,7 +34,7 @@ namespace Sharphound2
             if (Parser.Default.ParseArguments(args, options))
             {
                 Utils.CreateInstance(options);
-                GroupMemberEnumeration x = new GroupMemberEnumeration();
+                GroupMemberEnumeration x = new GroupMemberEnumeration(options);
                 x.StartEnumeration();
             }
             
