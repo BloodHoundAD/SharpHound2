@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
@@ -109,7 +110,7 @@ namespace Sharphound2.OutputObjects
             return toreturn;
         }
 
-        public static string Sid(this SearchResultEntry result)
+        public static string GetSid(this SearchResultEntry result)
         {
             if (!result.Attributes.Contains("objectsid"))
             {
@@ -117,6 +118,15 @@ namespace Sharphound2.OutputObjects
             }
 
             return new SecurityIdentifier(result.Attributes["objectsid"][0] as byte[], 0).ToString();
+        }
+
+        public static byte[] GetSid (this DirectoryEntry result)
+        {
+            if (result.Properties.Contains("objectsid"))
+            {
+                return result.Properties["objectsid"].Value as byte[];
+            }
+            return null;
         }
 
     }

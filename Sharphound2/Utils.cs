@@ -1,12 +1,13 @@
-﻿using CommandLine;
+﻿using Sharphound2.OutputObjects;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
-using System.Linq;
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
-using System.Text;
 
 namespace Sharphound2
 {
@@ -14,7 +15,13 @@ namespace Sharphound2
     {
         static Utils HelperInstance;
         readonly ConcurrentDictionary<string, Domain> DomainCache = new ConcurrentDictionary<string, Domain>();
-        ConcurrentDictionary<string, string> MapCache = new ConcurrentDictionary<string, string>();
+        readonly ConcurrentDictionary<string, string> UserCache = new ConcurrentDictionary<string, string>();
+        readonly ConcurrentDictionary<string, string> GroupCache = new ConcurrentDictionary<string, string>();
+        readonly ConcurrentDictionary<string, string> ComputerCache = new ConcurrentDictionary<string, string>();
+        readonly ConcurrentDictionary<string, string> DomainToSidCache = new ConcurrentDictionary<string, string>();
+        readonly ConcurrentDictionary<string, bool> PingCache = new ConcurrentDictionary<string, bool>();
+        readonly ConcurrentDictionary<string, string> DNSToNetbios = new ConcurrentDictionary<string, string>();
+
         Sharphound.Options options;
         List<string> DomainList;
 
@@ -42,6 +49,180 @@ namespace Sharphound2
             return dn.Substring(dn.IndexOf("DC=", StringComparison.CurrentCulture)).Replace("DC=", "").Replace(",", ".");
         }
 
+        public bool PingHost(string HostName)
+        {
+            if (options.SkipPing)
+            {
+                return true;
+            }
+
+            if (options.CollectMethod.Equals(CollectionMethod.SessionLoop))
+            {
+                return DoPing(HostName);
+            }
+
+            if (PingCache.TryGetValue(HostName, out bool HostIsUp))
+            {
+                return HostIsUp;
+            }
+            else
+            {
+                HostIsUp = DoPing(HostName);
+                PingCache.TryAdd(HostName, HostIsUp);
+                return HostIsUp;
+            }
+        }
+
+        bool DoPing(string HostName)
+        {
+            Ping ping = new Ping();
+            try
+            {
+                PingReply reply = ping.Send(HostName, options.PingTimeout);
+
+                if (reply.Status.Equals(IPStatus.Success))
+                {
+                    return true;
+                }
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public string SidToDomainName(string sid, string DomainController = null)
+        {
+            if (DomainToSidCache.TryGetValue(sid, out string DomainName))
+            {
+                return DomainName;
+            }
+
+            using (LdapConnection conn = GetGCConnection(DomainController))
+            {
+                SearchRequest request = new SearchRequest(null, $"(objectsid={sid})", SearchScope.Subtree, new string[] { "distinguishedname" });
+                SearchOptionsControl searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
+                request.Controls.Add(searchOptions);
+                SearchResponse response = (SearchResponse)conn.SendRequest(request);
+
+                if (response.Entries.Count > 0)
+                {
+                    DomainName = ConvertDNToDomain(response.Entries[0].DistinguishedName);
+                    DomainToSidCache.TryAdd(sid, DomainName);
+                    DomainToSidCache.TryAdd(DomainName, sid);
+                    return DomainName;
+                }
+
+                request = new SearchRequest(null, $"(securityidentifier={sid}", SearchScope.Subtree, new string[] { "distinguishedname " });
+                searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
+                request.Controls.Add(searchOptions);
+                response = (SearchResponse)conn.SendRequest(request);
+
+                if (response.Entries.Count > 0)
+                {
+                    DomainName = ConvertDNToDomain(response.Entries[0].DistinguishedName);
+                    DomainToSidCache.TryAdd(sid, DomainName);
+                    DomainToSidCache.TryAdd(DomainName, sid);
+                    return DomainName;
+                }
+            }
+
+            return null;
+        }
+
+        public string SidToObject(string sid, string DomainName, string[] props, string type)
+        {
+            bool found = false;
+            string resolved;
+            switch (type)
+            {
+                case "user":
+                    found = UserCache.TryGetValue(sid, out resolved);
+                    break;
+                case "group":
+                    found = GroupCache.TryGetValue(sid, out resolved);
+                    break;
+                case "computer":
+                    found = ComputerCache.TryGetValue(sid, out resolved);
+                    break;
+                case "wellknown":
+                    resolved = $"{GetWellKnownSid(sid)}@{DomainName}";
+                    found |= resolved != null;
+                    break;
+                default:
+                    resolved = null;
+                    break;
+            }
+
+            if (found)
+            {
+                return resolved.ToUpper();
+            }
+
+            using (LdapConnection conn = GetLdapConnection(DomainName))
+            {
+                SearchResponse response = (SearchResponse)conn.SendRequest(GetSearchRequest($"(objectsid={sid})", SearchScope.Subtree, props, DomainName));
+
+                if (response.Entries.Count >= 1)
+                {
+                    SearchResultEntry e = response.Entries[0];
+                    string name = e.ResolveBloodhoundDisplay();
+                    if (name != null)
+                    {
+                        AddMap(sid, type, name);
+                    }
+
+                    return name;
+                }
+            }
+            return null;
+        }
+
+        public string DNToObject(string dn, string DomainName, string[] props, string type)
+        {
+            bool found = false;
+            string resolved;
+            switch (type)
+            {
+                case "user":
+                    found = UserCache.TryGetValue(dn, out resolved);
+                    break;
+                case "group":
+                    found = GroupCache.TryGetValue(dn, out resolved);
+                    break;
+                case "computer":
+                    found = ComputerCache.TryGetValue(dn, out resolved);
+                    break;
+                default:
+                    resolved = null;
+                    break;
+            }
+
+            if (found)
+            {
+                return resolved;
+            }
+
+            using (LdapConnection conn = GetLdapConnection(DomainName))
+            {
+                SearchResponse response = (SearchResponse)conn.SendRequest(GetSearchRequest($"(objectclass=*)", SearchScope.Subtree, props, DomainName, dn));
+
+                if (response.Entries.Count >= 1)
+                {
+                    SearchResultEntry e = response.Entries[0];
+                    string name = e.ResolveBloodhoundDisplay();
+                    if (name != null)
+                    {
+                        AddMap(dn, type, name);
+                    }
+
+                    return name;
+                }
+            }
+            return null;
+        }
+
         public LdapConnection GetLdapConnection(string DomainName = null, string DomainController = null)
         {
             Domain TargetDomain;
@@ -66,6 +247,17 @@ namespace Sharphound2
             //Add LdapSessionOptions
             LdapSessionOptions lso = connection.SessionOptions;
             lso.ReferralChasing = ReferralChasingOptions.None;
+            return connection;
+        }
+
+        public LdapConnection GetGCConnection(string DomainController = null)
+        {
+            if (DomainController == null)
+            {
+                DomainController = Forest.GetCurrentForest().FindGlobalCatalog().Name;
+            }
+            LdapConnection connection = new LdapConnection(new LdapDirectoryIdentifier(DomainController, 3268));
+            
             return connection;
         }
 
@@ -155,25 +347,64 @@ namespace Sharphound2
             return DomainObj;
         }
 
-        public bool GetMap(string key, out string resolved)
+        public string GetDomainSID(string DomainName = null)
         {
-            return MapCache.TryGetValue(key, out resolved);
-        }
-
-        public void AddMap(string key, string resolved)
-        {
-            MapCache.TryAdd(key, resolved);
-        }
-
-        public string ConvertSIDToName(string sid)
-        {
-            string TrimmedCN = sid.Trim('*');
-            if (MapCache.TryGetValue(TrimmedCN, out string result))
+            string key = DomainName ?? "UNIQUENULL";
+            if (DomainToSidCache.TryGetValue(DomainName, out string sid))
             {
-                return result;
+                return sid;
             }
 
-            switch (TrimmedCN)
+            Domain d = GetDomain(DomainName);
+            sid = new SecurityIdentifier(d.GetDirectoryEntry().Properties["objectsid"].Value as byte[], 0).ToString();
+
+            DomainToSidCache.TryAdd(key, sid);
+            DomainToSidCache.TryAdd(sid, d.Name);
+
+            return sid;
+        }
+
+        public bool GetMap(string key, string type, out string resolved)
+        {
+            switch (type)
+            {
+                case "group":
+                    return GroupCache.TryGetValue(key, out resolved);
+                case "user":
+                    return UserCache.TryGetValue(key, out resolved);
+                case "computer":
+                    return ComputerCache.TryGetValue(key, out resolved);
+                default:
+                    resolved = null;
+                    return false;
+            }
+        }
+
+        public void AddMap(string key, string type, string resolved)
+        {
+            switch (type)
+            {
+                case "group":
+                    GroupCache.TryAdd(key, resolved);
+                    return;
+                case "user":
+                    UserCache.TryAdd(key, resolved);
+                    return;
+                case "computer":
+                    ComputerCache.TryAdd(key, resolved);
+                    return;
+                default:
+                    resolved = null;
+                    return;
+            }
+        }
+
+        public string GetWellKnownSid(string sid)
+        {
+            string TrimmedSid = sid.Trim('*');
+            string result;
+
+            switch (TrimmedSid)
             {
                 case "S-1-0":
                     result = "Null Authority";
@@ -359,21 +590,72 @@ namespace Sharphound2
                     result = "BUILTIN\\Access Control Assistance Operators";
                     break;
                 default:
-                    try
-                    {
-                        SecurityIdentifier identifier = new SecurityIdentifier(TrimmedCN);
-                        result = identifier.Translate(typeof(NTAccount)).Value;
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                        result = null;
-                    }
-
+                    result = null;
                     break;
             }
-            MapCache.TryAdd(TrimmedCN, result);
             return result;
         }
+
+        #region PINVOKE
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct DOMAIN_CONTROLLER_INFO
+        {
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerAddress;
+            public uint DomainControllerAddressType;
+            public Guid DomainGuid;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DnsForestName;
+            public uint Flags;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DcSiteName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string ClientSiteName;
+        }
+
+        [DllImport("Netapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        static extern int DsGetDcName
+          (
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string ComputerName,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string DomainName,
+            [In] int DomainGuid,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string SiteName,
+            [MarshalAs(UnmanagedType.U4)]
+            DSGETDCNAME_FLAGS flags,
+            out IntPtr pDOMAIN_CONTROLLER_INFO
+          );
+
+        [DllImport("Netapi32.dll", SetLastError = true)]
+        static extern int NetApiBufferFree(IntPtr Buffer);
+
+        [Flags]
+        public enum DSGETDCNAME_FLAGS : uint
+        {
+            DS_FORCE_REDISCOVERY = 0x00000001,
+            DS_DIRECTORY_SERVICE_REQUIRED = 0x00000010,
+            DS_DIRECTORY_SERVICE_PREFERRED = 0x00000020,
+            DS_GC_SERVER_REQUIRED = 0x00000040,
+            DS_PDC_REQUIRED = 0x00000080,
+            DS_BACKGROUND_ONLY = 0x00000100,
+            DS_IP_REQUIRED = 0x00000200,
+            DS_KDC_REQUIRED = 0x00000400,
+            DS_TIMESERV_REQUIRED = 0x00000800,
+            DS_WRITABLE_REQUIRED = 0x00001000,
+            DS_GOOD_TIMESERV_PREFERRED = 0x00002000,
+            DS_AVOID_SELF = 0x00004000,
+            DS_ONLY_LDAP_NEEDED = 0x00008000,
+            DS_IS_FLAT_NAME = 0x00010000,
+            DS_IS_DNS_NAME = 0x00020000,
+            DS_RETURN_DNS_NAME = 0x40000000,
+            DS_RETURN_FLAT_NAME = 0x80000000
+        }
+        #endregion
     }
 }

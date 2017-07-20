@@ -53,7 +53,7 @@ namespace Sharphound2.Enumeration
                 Task[] taskhandles = new Task[options.Threads];
 
                 //Get the sid for the domain once so we can save processing later. Also saves network by omitting objectsid from our searcher
-                var dsid = new SecurityIdentifier(utils.GetDomain(DomainName).GetDirectoryEntry().Properties["objectsid"].Value as byte[], 0).ToString();
+                var dsid = utils.GetDomainSID(DomainName);
 
                 Task writer = StartOutputWriter(factory, OutputQueue);
                 for (int i = 0; i < options.Threads; i++)
@@ -67,15 +67,15 @@ namespace Sharphound2.Enumeration
                     new string[] { "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid", "memberof", "serviceprincipalname" },
                     DomainName);
 
-                int TimeoutCount = 0;
-                TimeSpan timeout = new TimeSpan(0, 0, 30);
-                LdapConnection connection = utils.GetLdapConnection(DomainName);
-
                 if (searchRequest == null)
                 {
                     Console.WriteLine($"Unable to contact {DomainName}");
                     continue;
                 }
+
+                int TimeoutCount = 0;
+                TimeSpan timeout = new TimeSpan(0, 0, 30);
+                LdapConnection connection = utils.GetLdapConnection(DomainName);
 
                 LastCount = 0;
                 CurrentCount = 0;
@@ -185,7 +185,7 @@ namespace Sharphound2.Enumeration
                 foreach (Wrapper<SearchResultEntry> en in input.GetConsumingEnumerable())
                 {
                     SearchResultEntry entry = en.Item;
-                    if (!utils.GetMap(entry.DistinguishedName, out string PrincipalDisplayName))
+                    if (!utils.GetMap(entry.DistinguishedName, entry.GetObjectType(), out string PrincipalDisplayName))
                     {
                         PrincipalDisplayName = entry.ResolveBloodhoundDisplay();
                     }
@@ -203,12 +203,12 @@ namespace Sharphound2.Enumeration
 
                     if (ObjectType.Equals("group"))
                     {
-                        utils.AddMap(entry.DistinguishedName, PrincipalDisplayName);
+                        utils.AddMap(entry.DistinguishedName, "group", PrincipalDisplayName);
                     }
 
                     foreach (string dn in entry.GetPropArray("memberof"))
                     {
-                        if (!utils.GetMap(dn, out string Group))
+                        if (!utils.GetMap(dn, "group", out string Group))
                         {
                             SearchResponse r;
                             using (LdapConnection conn = utils.GetLdapConnection(PrincipalDomainName))
@@ -236,7 +236,7 @@ namespace Sharphound2.Enumeration
 
                             if (Group != null)
                             {
-                                utils.AddMap(dn, Group);
+                                utils.AddMap(dn, "group", Group);
                             }
                             
                         }
@@ -249,25 +249,8 @@ namespace Sharphound2.Enumeration
                     if (PrimaryGroupID != null)
                     {
                         string pgsid = $"{DomainSid}-{PrimaryGroupID}";
-                        if (!utils.GetMap(pgsid, out string Group))
-                        {
-                            SearchResponse r;
-                            using (LdapConnection conn = utils.GetLdapConnection(PrincipalDomainName))
-                            {
-                                r = (SearchResponse)conn.SendRequest(utils.GetSearchRequest($"(objectsid={pgsid})", SearchScope.Subtree, props, PrincipalDomainName));
-
-                                if (r.Entries.Count >= 1)
-                                {
-                                    SearchResultEntry e = r.Entries[0];
-                                    Group = e.ResolveBloodhoundDisplay();
-                                    if (Group != null)
-                                    {
-                                        utils.AddMap(pgsid, Group);
-                                    }
-                                }
-                            }
-                        }
-
+                        string Group = utils.SidToObject(pgsid, PrincipalDomainName, props, "group");
+                        
                         if (Group != null)
                             output.Add(new Wrapper<GroupMember> { Item = new GroupMember() { AccountName = PrincipalDisplayName, GroupName = Group, ObjectType = ObjectType } });
                     }

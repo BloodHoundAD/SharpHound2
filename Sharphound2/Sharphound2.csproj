@@ -53,11 +53,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CollectionMethod.cs" />
     <Compile Include="CustomScheduler.cs" />
     <Compile Include="Enumeration\GroupMemberEnumeration.cs" />
     <Compile Include="Enumeration\LocalAdminEnumeration.cs" />
     <Compile Include="OutputObjects\Extensions.cs" />
     <Compile Include="OutputObjects\GroupMember.cs" />
+    <Compile Include="OutputObjects\LocalAdmin.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="Sharphound.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -68,6 +70,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="FodyWeavers.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Enums\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

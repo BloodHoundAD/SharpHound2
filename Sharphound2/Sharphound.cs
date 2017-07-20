@@ -22,6 +22,15 @@ namespace Sharphound2
 
             [Option('I',HelpText ="Interval to display progress in milliseconds", DefaultValue =30000)]
             public int Interval { get; set; }
+
+            [Option('S',HelpText ="Skip ping checks for hosts", DefaultValue =false)]
+            public bool SkipPing { get; set; }
+
+            [Option('c',"CollectionMethod", HelpText ="Collection Method", DefaultValue = CollectionMethod.Default)]
+            public CollectionMethod CollectMethod { get; set; }
+
+            [Option('P',HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =750)]
+            public int PingTimeout { get; set; }
         }
 
         static void Main(string[] args)
@@ -34,7 +43,9 @@ namespace Sharphound2
             if (Parser.Default.ParseArguments(args, options))
             {
                 Utils.CreateInstance(options);
-                GroupMemberEnumeration x = new GroupMemberEnumeration(options);
+                //GroupMemberEnumeration x = new GroupMemberEnumeration(options);
+                //x.StartEnumeration();
+                LocalAdminEnumeration x = new LocalAdminEnumeration(options);
                 x.StartEnumeration();
             }
             
