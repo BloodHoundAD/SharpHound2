@@ -134,7 +134,9 @@ namespace Sharphound2.Enumeration
                 watch.Stop();
                 Console.WriteLine($"{DomainName} finished in {watch.Elapsed}");
                 watch.Reset();
+                timer.Stop();
             }
+            timer.Dispose();
         }
 
         void PrintStatus()

@@ -1,10 +1,12 @@
-﻿using Sharphound2.OutputObjects;
+﻿using ProtoBuf;
+using Sharphound2.OutputObjects;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
+using System.IO;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
@@ -15,10 +17,10 @@ namespace Sharphound2
     {
         static Utils HelperInstance;
         readonly ConcurrentDictionary<string, Domain> DomainCache = new ConcurrentDictionary<string, Domain>();
-        readonly ConcurrentDictionary<string, string> UserCache = new ConcurrentDictionary<string, string>();
-        readonly ConcurrentDictionary<string, string> GroupCache = new ConcurrentDictionary<string, string>();
-        readonly ConcurrentDictionary<string, string> ComputerCache = new ConcurrentDictionary<string, string>();
-        readonly ConcurrentDictionary<string, string> DomainToSidCache = new ConcurrentDictionary<string, string>();
+        ConcurrentDictionary<string, string> UserCache;
+        ConcurrentDictionary<string, string> GroupCache;
+        ConcurrentDictionary<string, string> ComputerCache;
+        ConcurrentDictionary<string, string> DomainToSidCache;
         readonly ConcurrentDictionary<string, bool> PingCache = new ConcurrentDictionary<string, bool>();
         readonly ConcurrentDictionary<string, string> DNSToNetbios = new ConcurrentDictionary<string, string>();
 
@@ -42,6 +44,7 @@ namespace Sharphound2
         {
             options = cli;
             DomainList = CreateDomainList();
+            LoadCache();
         }
 
         public static string ConvertDNToDomain(string dn)
@@ -65,12 +68,10 @@ namespace Sharphound2
             {
                 return HostIsUp;
             }
-            else
-            {
-                HostIsUp = DoPing(HostName);
-                PingCache.TryAdd(HostName, HostIsUp);
-                return HostIsUp;
-            }
+
+            HostIsUp = DoPing(HostName);
+            PingCache.TryAdd(HostName, HostIsUp);
+            return HostIsUp;
         }
 
         bool DoPing(string HostName)
@@ -92,6 +93,51 @@ namespace Sharphound2
             }
         }
 
+        void LoadCache(string Filename=null)
+        {
+            if (Filename == null)
+            {
+                Filename = "BloodHound.bin";
+            }
+
+            if (File.Exists(Filename))
+            {
+                Console.WriteLine("Loading Cache");
+                using (var w = File.OpenRead(Filename))
+                {
+                    UserCache = Serializer.DeserializeWithLengthPrefix<ConcurrentDictionary<string, string>>(w, PrefixStyle.Base128);
+                    GroupCache = Serializer.DeserializeWithLengthPrefix<ConcurrentDictionary<string, string>>(w, PrefixStyle.Base128);
+                    ComputerCache = Serializer.DeserializeWithLengthPrefix<ConcurrentDictionary<string, string>>(w, PrefixStyle.Base128);
+                    DomainToSidCache = Serializer.DeserializeWithLengthPrefix<ConcurrentDictionary<string, string>>(w, PrefixStyle.Base128);
+                }
+            }
+            else
+            {
+                UserCache = new ConcurrentDictionary<string, string>();
+                GroupCache = new ConcurrentDictionary<string, string>();
+                ComputerCache = new ConcurrentDictionary<string, string>();
+                DomainToSidCache = new ConcurrentDictionary<string, string>();
+            }
+
+            
+        }
+
+        public void WriteCache(string Filename = null)
+        {
+            if (Filename == null)
+            {
+                Filename = "BloodHound.bin";
+            }
+
+            using (var w = File.Create(Filename))
+            {
+                Serializer.SerializeWithLengthPrefix(w, UserCache, PrefixStyle.Base128);
+                Serializer.SerializeWithLengthPrefix(w, GroupCache, PrefixStyle.Base128);
+                Serializer.SerializeWithLengthPrefix(w, ComputerCache, PrefixStyle.Base128);
+                Serializer.SerializeWithLengthPrefix(w, DomainToSidCache, PrefixStyle.Base128);
+            }
+        }
+
         public string SidToDomainName(string sid, string DomainController = null)
         {
             if (DomainToSidCache.TryGetValue(sid, out string DomainName))
@@ -102,7 +148,7 @@ namespace Sharphound2
             using (LdapConnection conn = GetGCConnection(DomainController))
             {
                 SearchRequest request = new SearchRequest(null, $"(objectsid={sid})", SearchScope.Subtree, new string[] { "distinguishedname" });
-                SearchOptionsControl searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
+                SearchOptionsControl searchOptions = new SearchOptionsControl(System.DirectoryServices.Protocols.SearchOption.DomainScope);
                 request.Controls.Add(searchOptions);
                 SearchResponse response = (SearchResponse)conn.SendRequest(request);
 
@@ -115,7 +161,7 @@ namespace Sharphound2
                 }
 
                 request = new SearchRequest(null, $"(securityidentifier={sid}", SearchScope.Subtree, new string[] { "distinguishedname " });
-                searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
+                searchOptions = new SearchOptionsControl(System.DirectoryServices.Protocols.SearchOption.DomainScope);
                 request.Controls.Add(searchOptions);
                 response = (SearchResponse)conn.SendRequest(request);
 
@@ -287,7 +333,7 @@ namespace Sharphound2
             SearchRequest request = new SearchRequest(ADSPath, Filter, Scope, Attribs);
 
             //Add our search options control
-            SearchOptionsControl soc = new SearchOptionsControl(SearchOption.DomainScope);
+            SearchOptionsControl soc = new SearchOptionsControl(System.DirectoryServices.Protocols.SearchOption.DomainScope);
             request.Controls.Add(soc);
 
             return request;

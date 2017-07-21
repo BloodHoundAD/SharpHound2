@@ -38,17 +38,23 @@ namespace Sharphound2
             if (args == null)
                 throw new ArgumentNullException(nameof(args));
 
+            
             var options = new Options();
 
             if (Parser.Default.ParseArguments(args, options))
             {
                 Utils.CreateInstance(options);
-                //GroupMemberEnumeration x = new GroupMemberEnumeration(options);
-                //x.StartEnumeration();
-                LocalAdminEnumeration x = new LocalAdminEnumeration(options);
+                GroupMemberEnumeration x = new GroupMemberEnumeration(options);
                 x.StartEnumeration();
+                LocalAdminEnumeration y = new LocalAdminEnumeration(options);
+                y.StartEnumeration();
+                Utils.Instance.WriteCache();
             }
-            
+        }
+
+        public static void InvokeBloodHound(string[] args)
+        {
+            Main(args);
         }
     }
 }

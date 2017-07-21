@@ -11,6 +11,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using static Sharphound2.Sharphound;
 
@@ -34,7 +35,7 @@ namespace Sharphound2.Enumeration
             timer = new System.Timers.Timer();
             timer.Elapsed += (sender, e) =>
             {
-                //PrintStatus();
+                PrintStatus();
             };
 
             timer.AutoReset = false;
@@ -46,7 +47,7 @@ namespace Sharphound2.Enumeration
             foreach (string DomainName in utils.GetDomainList())
             {
                 Stopwatch watch = Stopwatch.StartNew();
-                Console.WriteLine($"Started group member enumeration for {DomainName}");
+                Console.WriteLine($"Started local admin enumeration for {DomainName}");
 
                 BlockingCollection<Wrapper<LocalAdmin>> OutputQueue = new BlockingCollection<Wrapper<LocalAdmin>>();
                 BlockingCollection<Wrapper<SearchResultEntry>> InputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
@@ -141,6 +142,17 @@ namespace Sharphound2.Enumeration
             }
         }
 
+        void PrintStatus()
+        {
+            int l = LastCount;
+            int c = CurrentCount;
+            int d = CurrentCount - LastCount;
+            string ProgressStr = $"Status: {CurrentCount} objects enumerated (+{CurrentCount - LastCount} {(float)d / (options.Interval / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
+            Console.WriteLine(ProgressStr);
+            LastCount = CurrentCount;
+            timer.Start();
+        }
+
         Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<LocalAdmin>> output)
         {
             return factory.StartNew(() =>
@@ -181,6 +193,7 @@ namespace Sharphound2.Enumeration
                     string hostname = entry.ResolveBloodhoundDisplay();
                     if (!utils.PingHost(hostname))
                     {
+                        Interlocked.Increment(ref CurrentCount);
                         continue;
                     }
 
@@ -211,6 +224,7 @@ namespace Sharphound2.Enumeration
                         continue;
                     }
                     e.Item = null;
+                    Interlocked.Increment(ref CurrentCount);
                     foreach (LocalAdmin la in results)
                     {
                         output.Add(new Wrapper<LocalAdmin>()
