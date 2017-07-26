@@ -3,7 +3,9 @@ using Sharphound2.Enumeration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Principal;
 using System.Text;
+using CommandLine.Text;
 
 namespace Sharphound2
 {
@@ -31,6 +33,15 @@ namespace Sharphound2
 
             [Option('P',HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =750)]
             public int PingTimeout { get; set; }
+
+            [Option('G', HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
+            public bool SkipGCDeconfliction { get; set; }
+
+            [Option('C',HelpText = "Filename for the data cache", DefaultValue = "BloodHound.bin")]
+            public string CacheFile { get; set; }
+
+            public string CurrentUser { get; set; }
+
         }
 
         static void Main(string[] args)
@@ -41,15 +52,15 @@ namespace Sharphound2
             
             var options = new Options();
 
-            if (Parser.Default.ParseArguments(args, options))
-            {
-                Utils.CreateInstance(options);
-                GroupMemberEnumeration x = new GroupMemberEnumeration(options);
-                x.StartEnumeration();
-                LocalAdminEnumeration y = new LocalAdminEnumeration(options);
-                y.StartEnumeration();
-                Utils.Instance.WriteCache();
-            }
+            if (!Parser.Default.ParseArguments(args, options)) return;
+            options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
+            Cache.CreateInstance(options);
+            Utils.CreateInstance(options);
+            GroupMemberEnumeration x = new GroupMemberEnumeration(options);
+            x.StartEnumeration();
+            LocalAdminEnumeration y = new LocalAdminEnumeration(options);
+            y.StartEnumeration();
+            Cache.Instance.SaveCache();
         }
 
         public static void InvokeBloodHound(string[] args)

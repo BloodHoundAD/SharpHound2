@@ -7,96 +7,97 @@ using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 using static Sharphound2.Sharphound;
 
 namespace Sharphound2.Enumeration
 {
-    class GroupMemberEnumeration
+    internal class GroupMemberEnumeration
     {
-        readonly Utils utils;
-        readonly Options options;
-        int LastCount;
-        int CurrentCount;
-        System.Timers.Timer timer;
-
+        private readonly Utils _utils;
+        private readonly Cache _cache;
+        private readonly Options _options;
+        private int _lastCount;
+        private int _currentCount;
+        private readonly System.Timers.Timer _statusTimer;
+        
 
         public GroupMemberEnumeration(Options opt)
         {
-            utils = Utils.Instance;
-            options = opt;
-            timer = new System.Timers.Timer();
-            timer.Elapsed += (sender, e) =>
+            _utils = Utils.Instance;
+            _cache = Cache.Instance;
+            _options = opt;
+            _statusTimer = new System.Timers.Timer();
+            _statusTimer.Elapsed += (sender, e) =>
             {
                 PrintStatus();
             };
 
-            timer.AutoReset = false;
-            timer.Interval = options.Interval;
+            _statusTimer.AutoReset = false;
+            _statusTimer.Interval = _options.Interval;
         }
 
         public void StartEnumeration()
         {
-            foreach (string DomainName in utils.GetDomainList())
+            foreach (var domainName in _utils.GetDomainList())
             {
-                Stopwatch watch = Stopwatch.StartNew();
-                Console.WriteLine($"Started group member enumeration for {DomainName}");
+                var watch = Stopwatch.StartNew();
+                Console.WriteLine($"Started group member enumeration for {domainName}");
 
-                BlockingCollection<Wrapper<GroupMember>> OutputQueue = new BlockingCollection<Wrapper<GroupMember>>();
-                BlockingCollection<Wrapper<SearchResultEntry>> InputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
+                var OutputQueue = new BlockingCollection<Wrapper<GroupMember>>();
+                var InputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
 
-                LimitedConcurrencyLevelTaskScheduler scheduler = new LimitedConcurrencyLevelTaskScheduler(options.Threads);
-                TaskFactory factory = new TaskFactory(scheduler);
-                Task[] taskhandles = new Task[options.Threads];
+                var scheduler = new LimitedConcurrencyLevelTaskScheduler(_options.Threads);
+                var factory = new TaskFactory(scheduler);
+                var taskhandles = new Task[_options.Threads];
 
                 //Get the sid for the domain once so we can save processing later. Also saves network by omitting objectsid from our searcher
-                var dsid = utils.GetDomainSID(DomainName);
+                var dsid = _utils.GetDomainSID(domainName);
 
-                Task writer = StartOutputWriter(factory, OutputQueue);
-                for (int i = 0; i < options.Threads; i++)
+                var writer = StartOutputWriter(factory, OutputQueue);
+                for (var i = 0; i < _options.Threads; i++)
                 {
                     taskhandles[i] = StartDataProcessor(factory, InputQueue, OutputQueue, dsid);
                 }
 
-                SearchRequest searchRequest = 
-                    utils.GetSearchRequest("(|(memberof=*)(primarygroupid=*))",
+                var searchRequest = 
+                    _utils.GetSearchRequest("(|(memberof=*)(primarygroupid=*))",
                     SearchScope.Subtree,
-                    new string[] { "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid", "memberof", "serviceprincipalname" },
-                    DomainName);
+                    new[] { "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid", "memberof", "serviceprincipalname" },
+                    domainName);
 
                 if (searchRequest == null)
                 {
-                    Console.WriteLine($"Unable to contact {DomainName}");
+                    Console.WriteLine($"Unable to contact {domainName}");
                     continue;
                 }
 
-                int TimeoutCount = 0;
-                TimeSpan timeout = new TimeSpan(0, 0, 30);
-                LdapConnection connection = utils.GetLdapConnection(DomainName);
+                var TimeoutCount = 0;
+                var timeout = new TimeSpan(0, 0, 30);
+                var connection = _utils.GetLdapConnection(domainName);
 
-                LastCount = 0;
-                CurrentCount = 0;
+                _lastCount = 0;
+                _currentCount = 0;
 
-                timer.Start();
+                _statusTimer.Start();
 
                 //Add our paging control
-                PageResultRequestControl prc = new PageResultRequestControl(500);
+                var prc = new PageResultRequestControl(500);
                 searchRequest.Controls.Add(prc);
                 while (true)
                 {
                     try
                     {
-                        SearchResponse response = (SearchResponse)connection.SendRequest(searchRequest);
+                        var response = (SearchResponse)connection.SendRequest(searchRequest);
 
-                        PageResultResponseControl pageResponse =
+                        if (response == null) continue;
+                        var pageResponse =
                             (PageResultResponseControl)response.Controls[0];
 
                         foreach (SearchResultEntry entry in response.Entries)
                         {
-                            InputQueue.Add(new Wrapper<SearchResultEntry>()
+                            InputQueue.Add(new Wrapper<SearchResultEntry>
                             {
                                 Item = entry
                             });
@@ -113,7 +114,7 @@ namespace Sharphound2.Enumeration
                     {
                         //We hit a timeout. Add to a counter and add 30 seconds to the timeout
                         TimeoutCount++;
-                        connection = utils.GetLdapConnection(DomainName);
+                        connection = _utils.GetLdapConnection(domainName);
                         if (TimeoutCount == 3)
                         {
                             //If we've timed out 4 times, just abort, cause something is weird.
@@ -121,7 +122,7 @@ namespace Sharphound2.Enumeration
                             break;
                         }
                         Console.WriteLine("Hit LDAP timeout, adding 30 seconds and retrying");
-                        timeout.Add(new TimeSpan(0, 0, 30));
+                        timeout = timeout.Add(new TimeSpan(0, 0, 30));
                         connection.Timeout = timeout;
                     }
                 }
@@ -132,25 +133,25 @@ namespace Sharphound2.Enumeration
                 OutputQueue.CompleteAdding();
                 writer.Wait();
                 watch.Stop();
-                Console.WriteLine($"{DomainName} finished in {watch.Elapsed}");
+                Console.WriteLine($"{domainName} finished in {watch.Elapsed}");
                 watch.Reset();
-                timer.Stop();
+                _statusTimer.Stop();
             }
-            timer.Dispose();
+            _statusTimer.Dispose();
         }
 
-        void PrintStatus()
+        private void PrintStatus()
         {
-            int l = LastCount;
-            int c = CurrentCount;
-            int d = CurrentCount - LastCount;
-            string ProgressStr = $"Status: {CurrentCount} objects enumerated (+{CurrentCount - LastCount} {(float)d / (options.Interval / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
-            Console.WriteLine(ProgressStr);
-            LastCount = CurrentCount;
-            timer.Start();
+            var l = _lastCount;
+            var c = _currentCount;
+            var d = _currentCount - _lastCount;
+            var progressStr = $"Status: {c} objects enumerated (+{c - l} {(float)d / (_options.Interval / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
+            Console.WriteLine(progressStr);
+            _lastCount = _currentCount;
+            _statusTimer.Start();
         }
 
-        Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<GroupMember>> output)
+        private Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<GroupMember>> output)
         {
             return factory.StartNew(() =>
             {
@@ -166,7 +167,7 @@ namespace Sharphound2.Enumeration
                     foreach (Wrapper<GroupMember> w in output.GetConsumingEnumerable())
                     {
                         GroupMember info = w.Item;
-                        writer.WriteLine(info.ToCSV());
+                        writer.WriteLine(info.ToCsv());
                         localcount++;
                         if (localcount % 100 == 0)
                         {
@@ -179,164 +180,14 @@ namespace Sharphound2.Enumeration
             });
         }
 
-        Task StartDataProcessor(TaskFactory factory, BlockingCollection<Wrapper<SearchResultEntry>> input, BlockingCollection<Wrapper<GroupMember>> output, string DomainSid)
+        private Task StartDataProcessor(TaskFactory factory, BlockingCollection<Wrapper<SearchResultEntry>> input, BlockingCollection<Wrapper<GroupMember>> output, string DomainSid)
         {
             return factory.StartNew(() =>
             {
-                string[] props = { "samaccountname", "distinguishedname", "samaccounttype" };
-                foreach (Wrapper<SearchResultEntry> en in input.GetConsumingEnumerable())
-                {
-                    SearchResultEntry entry = en.Item;
-                    if (!utils.GetMap(entry.DistinguishedName, entry.GetObjectType(), out string PrincipalDisplayName))
-                    {
-                        PrincipalDisplayName = entry.ResolveBloodhoundDisplay();
-                    }
-
-                    if (PrincipalDisplayName == null)
-                    {
-                        Interlocked.Increment(ref CurrentCount);
-                        continue;
-                    }
-
-                    string PrincipalDomainName = Utils.ConvertDNToDomain(entry.DistinguishedName);
-                    string DistinguishedName = entry.DistinguishedName;
-
-                    string ObjectType = entry.GetObjectType();
-
-                    if (ObjectType.Equals("group"))
-                    {
-                        utils.AddMap(entry.DistinguishedName, "group", PrincipalDisplayName);
-                    }
-
-                    foreach (string dn in entry.GetPropArray("memberof"))
-                    {
-                        if (!utils.GetMap(dn, "group", out string Group))
-                        {
-                            SearchResponse r;
-                            using (LdapConnection conn = utils.GetLdapConnection(PrincipalDomainName))
-                            {
-                                r = (SearchResponse)conn.SendRequest(utils.GetSearchRequest("(objectClass=group)", SearchScope.Base, props, Utils.ConvertDNToDomain(dn), dn));
-
-                                if (r.Entries.Count >= 1)
-                                {
-                                    SearchResultEntry e = r.Entries[0];
-                                    Group = e.ResolveBloodhoundDisplay();
-                                }
-                                else
-                                {
-                                    Group = ConvertADName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
-                                    if (Group != null)
-                                    {
-                                        Group = Group.Split('\\').Last();
-                                    }
-                                    else
-                                    {
-                                        Group = dn.Substring(0, dn.IndexOf(",", StringComparison.Ordinal)).Split('=').Last();
-                                    }
-                                }
-                            }
-
-                            if (Group != null)
-                            {
-                                utils.AddMap(dn, "group", Group);
-                            }
-                            
-                        }
-
-                        if (Group != null)
-                            output.Add(new Wrapper<GroupMember> { Item = new GroupMember() { AccountName = PrincipalDisplayName, GroupName = Group, ObjectType = ObjectType } });
-                    }
-
-                    string PrimaryGroupID = entry.GetProp("primarygroupid");
-                    if (PrimaryGroupID != null)
-                    {
-                        string pgsid = $"{DomainSid}-{PrimaryGroupID}";
-                        string Group = utils.SidToObject(pgsid, PrincipalDomainName, props, "group");
-                        
-                        if (Group != null)
-                            output.Add(new Wrapper<GroupMember> { Item = new GroupMember() { AccountName = PrincipalDisplayName, GroupName = Group, ObjectType = ObjectType } });
-                    }
-                    Interlocked.Increment(ref CurrentCount);
-                    en.Item = null;
-                }
+                
             });
         }
 
-        #region Pinvoke
-        public enum ADSTypes
-        {
-            ADS_NAME_TYPE_DN = 1,
-            ADS_NAME_TYPE_CANONICAL = 2,
-            ADS_NAME_TYPE_NT4 = 3,
-            ADS_NAME_TYPE_DISPLAY = 4,
-            ADS_NAME_TYPE_DOMAIN_SIMPLE = 5,
-            ADS_NAME_TYPE_ENTERPRISE_SIMPLE = 6,
-            ADS_NAME_TYPE_GUID = 7,
-            ADS_NAME_TYPE_UNKNOWN = 8,
-            ADS_NAME_TYPE_USER_PRINCIPAL_NAME = 9,
-            ADS_NAME_TYPE_CANONICAL_EX = 10,
-            ADS_NAME_TYPE_SERVICE_PRINCIPAL_NAME = 11,
-            ADS_NAME_TYPE_SID_OR_SID_HISTORY_NAME = 12
-        }
-
-        public string ConvertADName(string ObjectName, ADSTypes InputType, ADSTypes OutputType)
-        {
-            string Domain;
-
-            Type TranslateName;
-            object TranslateInstance;
-
-            if (InputType.Equals(ADSTypes.ADS_NAME_TYPE_NT4))
-            {
-                ObjectName = ObjectName.Replace("/", "\\");
-            }
-
-            switch (InputType)
-            {
-                case ADSTypes.ADS_NAME_TYPE_NT4:
-                    Domain = ObjectName.Split('\\')[0];
-                    break;
-                case ADSTypes.ADS_NAME_TYPE_DOMAIN_SIMPLE:
-                    Domain = ObjectName.Split('@')[1];
-                    break;
-                case ADSTypes.ADS_NAME_TYPE_CANONICAL:
-                    Domain = ObjectName.Split('/')[0];
-                    break;
-                case ADSTypes.ADS_NAME_TYPE_DN:
-                    Domain = ObjectName.Substring(ObjectName.IndexOf("DC=", StringComparison.Ordinal)).Replace("DC=", "").Replace(",", ".");
-                    break;
-                default:
-                    Domain = "";
-                    break;
-            }
-
-            try
-            {
-                TranslateName = Type.GetTypeFromProgID("NameTranslate");
-                TranslateInstance = Activator.CreateInstance(TranslateName);
-
-                object[] args = new object[2];
-                args[0] = 1;
-                args[1] = Domain;
-                TranslateName.InvokeMember("Init", BindingFlags.InvokeMethod, null, TranslateInstance, args);
-
-                args = new object[2];
-                args[0] = (int)InputType;
-                args[1] = ObjectName;
-                TranslateName.InvokeMember("Set", BindingFlags.InvokeMethod, null, TranslateInstance, args);
-
-                args = new object[1];
-                args[0] = (int)OutputType;
-
-                string Result = (string)TranslateName.InvokeMember("Get", BindingFlags.InvokeMethod, null, TranslateInstance, args);
-
-                return Result;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-        #endregion
+        
     }
 }

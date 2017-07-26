@@ -5,13 +5,13 @@ using System.Text;
 
 namespace Sharphound2.OutputObjects
 {
-    class LocalAdmin
+    internal class LocalAdmin : OutputBase
     {
         public string Server { get; set; }
         public string ObjectName { get; set; }
         public string ObjectType { get; set; }
 
-        public Object ToParam()
+        public override object ToParam()
         {
             return new
             {
@@ -20,9 +20,9 @@ namespace Sharphound2.OutputObjects
             };
         }
 
-        public string ToCSV()
+        public override string ToCsv()
         {
-            return String.Format("{0},{1},{2}", Server.ToUpper(), ObjectName.ToUpper(), ObjectType.ToLower());
+            return $"{Server.ToUpper()},{ObjectName.ToUpper()},{ObjectType.ToLower()}";
         }
     }
 }

@@ -16,70 +16,63 @@ namespace Sharphound2.OutputObjects
 
         public static string GetObjectType(this SearchResultEntry result)
         {
-            string AccountType = result.GetProp("samaccounttype");
+            var accountType = result.GetProp("samaccounttype");
 
-            if (groups.Contains(AccountType))
+            if (groups.Contains(accountType))
             {
                 return "group";
             }
             
-            if (users.Contains(AccountType))
+            if (users.Contains(accountType))
             {
                 return "user";
             }
 
-            if (computers.Contains(AccountType))
+            if (computers.Contains(accountType))
             {
                 return "computer";
             }
 
-            //???
-            return null;
+            return "domain";
         }
 
         public static string ResolveBloodhoundDisplay(this SearchResultEntry result)
         {
-            string AccountName = result.GetProp("samaccountname");
-            string DistinguishedName = result.DistinguishedName;
-            string AccountType = result.GetProp("samaccounttype");
+            var accountName = result.GetProp("samaccountname");
+            var distinguishedName = result.DistinguishedName;
+            var accountType = result.GetProp("samaccounttype");
 
-            if (AccountName == null || AccountType == null || DistinguishedName == null)
+            if (accountName == null || distinguishedName == null)
             {
                 return null;
             }
 
-            string Domain = Utils.ConvertDNToDomain(DistinguishedName);
+            var domain = Utils.ConvertDnToDomain(distinguishedName);
 
-            if (groups.Contains(AccountType) || users.Contains(AccountType))
+            if (groups.Contains(accountType) || users.Contains(accountType))
             {
-                return $"{AccountName.ToUpper()}@{Domain}";
+                return $"{accountName.ToUpper()}@{domain}";
             }
 
-            if (computers.Contains(AccountType))
+            if (computers.Contains(accountType))
             {
-                string DNSHostName = result.GetProp("dnshostname");
+                var DNSHostName = result.GetProp("dnshostname");
                 string[] spns;
                 if (DNSHostName == null && (spns = result.GetPropArray("serviceprincipalname")) != null)
                 {
-                    foreach (string s in spns)
+                    foreach (var s in spns)
                     {
                         var x = SPNSearch.Match(s);
-                        if (x.Success)
-                        {
-                            DNSHostName = x.Groups[1].Value;
-                            break;
-                        }
+                        if (!x.Success) continue;
+                        DNSHostName = x.Groups[1].Value;
+                        break;
                     }
                 }
-                if (DNSHostName == null)
-                {
-                    return null;
-                }
-                return DNSHostName.ToUpper();
+                return DNSHostName?.ToUpper();
             }
-
-            //If we got here, something is horribly wrong
-            return null;
+            
+            //If we got here, we have a domain ACL object
+            return Utils.ConvertDnToDomain(distinguishedName);
         }
 
         public static string GetProp(this SearchResultEntry result, string prop)
@@ -92,6 +85,21 @@ namespace Sharphound2.OutputObjects
             return result.Attributes[prop][0].ToString();
         }
 
+        public static byte[] GetPropBytes(this SearchResultEntry result, string prop)
+        {
+            if (!result.Attributes.Contains(prop))
+            {
+                return null;
+            }
+
+            return result.Attributes[prop][0] as byte[];
+        }
+
+        public static byte[] GetSid(this DirectoryEntry result)
+        {
+            return result.Properties["objectsid"][0] as byte[];
+        }
+
         public static string[] GetPropArray(this SearchResultEntry result, string prop)
         {
             if (!result.Attributes.Contains(prop))
@@ -101,8 +109,8 @@ namespace Sharphound2.OutputObjects
 
             var values = result.Attributes[prop];
 
-            string[] toreturn = new string[result.Attributes[prop].Count];
-            for (int i = 0; i < values.Count; i++)
+            var toreturn = new string[values.Count];
+            for (var i = 0; i < values.Count; i++)
             {
                 toreturn[i] = values[i].ToString();
             }
@@ -110,6 +118,7 @@ namespace Sharphound2.OutputObjects
             return toreturn;
         }
 
+        
         public static string GetSid(this SearchResultEntry result)
         {
             if (!result.Attributes.Contains("objectsid"))
@@ -119,15 +128,5 @@ namespace Sharphound2.OutputObjects
 
             return new SecurityIdentifier(result.Attributes["objectsid"][0] as byte[], 0).ToString();
         }
-
-        public static byte[] GetSid (this DirectoryEntry result)
-        {
-            if (result.Properties.Contains("objectsid"))
-            {
-                return result.Properties["objectsid"].Value as byte[];
-            }
-            return null;
-        }
-
     }
 }

@@ -56,14 +56,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Cache.cs" />
     <Compile Include="CollectionMethod.cs" />
     <Compile Include="CustomScheduler.cs" />
     <Compile Include="Enumeration\GroupMemberEnumeration.cs" />
     <Compile Include="Enumeration\LocalAdminEnumeration.cs" />
     <Compile Include="Enumeration\SessionEnumeration.cs" />
-    <Compile Include="OutputObjects\Extensions.cs" />
+    <Compile Include="Extensions.cs" />
     <Compile Include="OutputObjects\GroupMember.cs" />
     <Compile Include="OutputObjects\LocalAdmin.cs" />
+    <Compile Include="OutputObjects\Session.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="Sharphound.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

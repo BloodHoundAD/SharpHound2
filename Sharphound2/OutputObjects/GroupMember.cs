@@ -2,18 +2,18 @@
 
 namespace Sharphound2.OutputObjects
 {
-    class GroupMember
+    internal class GroupMember : OutputBase
     {
         public string GroupName { get; set; }
         public string AccountName { get; set; }
         public string ObjectType { get; set; }
 
-        public string ToCSV()
+        public override string ToCsv()
         {
-            return String.Format("{0},{1},{2}", GroupName.ToUpper(), AccountName.ToUpper(), ObjectType.ToLower());
+            return $"{GroupName.ToUpper()},{AccountName.ToUpper()},{ObjectType.ToLower()}";
         }
 
-        internal object ToParam()
+        public override object ToParam()
         {
             return new
             {
