@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Sharphound2.OutputObjects
+﻿namespace Sharphound2.OutputObjects
 {
     internal class GroupMember : OutputBase
     {

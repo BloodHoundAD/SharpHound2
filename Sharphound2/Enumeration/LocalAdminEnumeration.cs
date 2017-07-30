@@ -169,7 +169,7 @@ namespace Sharphound2.Enumeration
                     foreach (var w in output.GetConsumingEnumerable())
                     {
                         var info = w.Item;
-                        writer.WriteLine(info.ToCSV());
+                        writer.WriteLine(info.ToCsv());
                         localcount++;
                         if (localcount % 100 == 0)
                         {

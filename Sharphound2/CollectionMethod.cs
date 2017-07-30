@@ -15,7 +15,6 @@ namespace Sharphound2
         LoggedOn,
         Trusts,
         ACL,
-        Cache,
         SessionLoop,
         Default
     }

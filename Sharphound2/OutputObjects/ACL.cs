@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-namespace Sharphound2.OutputObjects
+﻿namespace Sharphound2.OutputObjects
 {
-    internal class ACL
+    internal class ACL : OutputBase
     {
         public string ObjectName { get; set; }
         public string ObjectType { get; set; }
@@ -16,12 +11,12 @@ namespace Sharphound2.OutputObjects
         public string Qualifier { get; set; }
         public bool Inherited { get; set; }
 
-        public string ToCSV()
+        public override string ToCsv()
         {
             return $"{ObjectName},{ObjectType},{PrincipalName},{PrincipalType},{RightName},{AceType},{Qualifier},{Inherited}";
         }
 
-        internal object ToParam()
+        public override object ToParam()
         {
             return new
             {

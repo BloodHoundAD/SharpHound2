@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-namespace Sharphound2.OutputObjects
+﻿namespace Sharphound2.OutputObjects
 {
-    class DcSync
+    internal class DcSync
     {
         public string Domain { get; set; }
         public string PrincipalName { get; set; }
@@ -18,19 +13,19 @@ namespace Sharphound2.OutputObjects
             return GetChanges && GetChangesAll;
         }
 
-        //public ACLInfo GetOutputObj()
-        //{
-        //    return new ACLInfo
-        //    {
-        //        AceType = "DCSync",
-        //        Inherited = false,
-        //        ObjectName = Domain,
-        //        ObjectType = "domain",
-        //        PrincipalName = PrincipalName,
-        //        PrincipalType = PrincipalType,
-        //        Qualifier = "",
-        //        RightName = "ExtendedRight"
-        //    };
-        //}
+        public ACL GetOutputObj()
+        {
+            return new ACL
+            {
+                AceType = "DCSync",
+                Inherited = false,
+                ObjectName = Domain,
+                ObjectType = "domain",
+                PrincipalName = PrincipalName,
+                PrincipalType = PrincipalType,
+                Qualifier = "",
+                RightName = "ExtendedRight"
+            };
+        }
     }
 }
