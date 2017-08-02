@@ -16,9 +16,7 @@ using static Sharphound2.Sharphound;
 
 namespace Sharphound2.Enumeration
 {
-    internal class ApiFailedException : Exception { }
-
-    internal class SystemDownException : Exception { }
+    
 
     internal class LocalAdminEnumeration
     {

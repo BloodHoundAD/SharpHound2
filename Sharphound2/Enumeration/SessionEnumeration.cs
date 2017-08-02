@@ -170,7 +170,7 @@ namespace Sharphound2.Enumeration
                     foreach (var w in output.GetConsumingEnumerable())
                     {
                         var info = w.Item;
-                        writer.WriteLine(info.ToCSV());
+                        writer.WriteLine(info.ToCsv());
                         localcount++;
                         if (localcount % 100 == 0)
                         {
@@ -204,7 +204,7 @@ namespace Sharphound2.Enumeration
                     {
                         var samAccountName = entry.GetProp("samaccountname");
                         results = SessionHelpers.GetNetLoggedOn(hostname, samAccountName, domainName);
-                        results.AddRange(SessionHelpers.GetRegistryLoggedOn(hostname, samAccountName));
+                        //results.AddRange(SessionHelpers.GetRegistryLoggedOn(hostname, samAccountName));
                     }
                     else
                     {

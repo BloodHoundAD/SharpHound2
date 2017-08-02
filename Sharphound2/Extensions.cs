@@ -1,34 +1,38 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 
-namespace Sharphound2.OutputObjects
+namespace Sharphound2
 {
     public static class Extensions
     {
-        static HashSet<string> groups = new HashSet<string>() { "268435456", "268435457", "536870912", "536870913" };
-        static HashSet<string> computers = new HashSet<string>() { "805306369" };
-        static HashSet<string> users = new HashSet<string>() { "805306368" };
-        static Regex SPNSearch = new Regex(@"HOST\/([A-Za-z0-9-_]*\.[A-Za-z0-9-_]*\.[A-Za-z0-9-_]*)$", RegexOptions.Compiled);
+        private static readonly HashSet<string> Groups = new HashSet<string> { "268435456", "268435457", "536870912", "536870913" };
+        private static readonly HashSet<string> Computers = new HashSet<string> { "805306369" };
+        private static readonly HashSet<string> Users = new HashSet<string> { "805306368" };
+        private static readonly Regex SpnSearch = new Regex(@"HOST\/([A-Za-z0-9-_]*\.[A-Za-z0-9-_]*\.[A-Za-z0-9-_]*)$", RegexOptions.Compiled);
+
+        static Extensions()
+        {
+                
+        }
 
         public static string GetObjectType(this SearchResultEntry result)
         {
             var accountType = result.GetProp("samaccounttype");
 
-            if (groups.Contains(accountType))
+            if (Groups.Contains(accountType))
             {
                 return "group";
             }
             
-            if (users.Contains(accountType))
+            if (Users.Contains(accountType))
             {
                 return "user";
             }
 
-            if (computers.Contains(accountType))
+            if (Computers.Contains(accountType))
             {
                 return "computer";
             }
@@ -42,33 +46,33 @@ namespace Sharphound2.OutputObjects
             var distinguishedName = result.DistinguishedName;
             var accountType = result.GetProp("samaccounttype");
 
-            if (accountName == null || distinguishedName == null)
+            if (distinguishedName == null)
             {
                 return null;
             }
 
             var domain = Utils.ConvertDnToDomain(distinguishedName);
 
-            if (groups.Contains(accountType) || users.Contains(accountType))
+            if (Groups.Contains(accountType) || Users.Contains(accountType))
             {
                 return $"{accountName.ToUpper()}@{domain}";
             }
 
-            if (computers.Contains(accountType))
+            if (Computers.Contains(accountType))
             {
-                var DNSHostName = result.GetProp("dnshostname");
+                var dnsHostName = result.GetProp("dnshostname");
                 string[] spns;
-                if (DNSHostName == null && (spns = result.GetPropArray("serviceprincipalname")) != null)
+                if (dnsHostName == null && (spns = result.GetPropArray("serviceprincipalname")) != null)
                 {
                     foreach (var s in spns)
                     {
-                        var x = SPNSearch.Match(s);
+                        var x = SpnSearch.Match(s);
                         if (!x.Success) continue;
-                        DNSHostName = x.Groups[1].Value;
+                        dnsHostName = x.Groups[1].Value;
                         break;
                     }
                 }
-                return DNSHostName?.ToUpper();
+                return dnsHostName?.ToUpper();
             }
             
             //If we got here, we have a domain ACL object

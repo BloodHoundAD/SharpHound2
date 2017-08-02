@@ -25,6 +25,26 @@ namespace Sharphound2.Enumeration
             _syncers = new ConcurrentDictionary<string, DcSync>();
         }
 
+        public static void ClearSyncers()
+        {
+            _syncers = new ConcurrentDictionary<string, DcSync>();
+        }
+
+        public static List<ACL> GetSyncers()
+        {
+            var toReturn = new List<ACL>();
+
+            foreach (var key in _syncers.Keys)
+            {
+                if (!_syncers.TryGetValue(key, out DcSync temp)) continue;
+                if (temp.CanDCSync())
+                {
+                    toReturn.Add(temp.GetOutputObj());
+                }
+            }
+            return toReturn;
+        }
+
         public static List<ACL> ProcessAdObject(SearchResultEntry entry, string domainName)
         {
             var toReturn = new List<ACL>();
@@ -40,13 +60,12 @@ namespace Sharphound2.Enumeration
             var entryDisplayName = entry.ResolveBloodhoundDisplay();
             var entryType = entry.GetObjectType();
             
-
             //Determine the owner of the object
             if (!_nullSids.TryGetValue(ownerSid, out byte _))
             {
                 if (!MappedPrincipal.GetCommon(ownerSid, out MappedPrincipal owner))
                 {
-                    var ownerDomain = _utils.SidToDomainName(new SecurityIdentifier(ownerSid).AccountDomainSid.Value) ?? domainName;
+                    var ownerDomain = _utils.SidToDomainName(ownerSid) ?? domainName;
                     owner = _utils.UnknownSidTypeToDisplay(ownerSid, ownerDomain, _props);
                 }
 
@@ -81,7 +100,7 @@ namespace Sharphound2.Enumeration
                 if (!MappedPrincipal.GetCommon(objectSid, out MappedPrincipal mappedPrincipal))
                 {
                     var objectDomain =
-                        _utils.SidToDomainName(new SecurityIdentifier(objectSid).AccountDomainSid.Value) ??
+                        _utils.SidToDomainName(objectSid) ??
                         domainName;
                     mappedPrincipal = _utils.UnknownSidTypeToDisplay(objectSid, objectDomain, _props);
                     if (mappedPrincipal == null)
@@ -139,7 +158,7 @@ namespace Sharphound2.Enumeration
                 if (aceType != null && (aceType.Equals("DS-Replication-Get-Changes-All") ||
                                         aceType.Equals("DS-Replication-Get-Changes")))
                 {
-                    if (!_syncers.TryGetValue(entryDisplayName, out DcSync sync))
+                    if (!_syncers.TryGetValue(mappedPrincipal.PrincipalName, out DcSync sync))
                     {
                         sync = new DcSync
                         {

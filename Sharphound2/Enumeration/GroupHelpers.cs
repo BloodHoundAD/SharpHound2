@@ -21,7 +21,7 @@ namespace Sharphound2.Enumeration
 
         public static List<GroupMember> ProcessAdObject(SearchResultEntry entry, string domainSid)
         {
-            List<GroupMember> toReturn = new List<GroupMember>();
+            var toReturn = new List<GroupMember>();
             string[] props = { "samaccountname", "distinguishedname", "samaccounttype" };
             
             if (!_cache.GetMapValue(entry.DistinguishedName, entry.GetObjectType(), out string principalDisplayName))
@@ -31,6 +31,7 @@ namespace Sharphound2.Enumeration
 
             if (principalDisplayName == null)
             {
+                Console.WriteLine($"null principal {entry.DistinguishedName}");
                 return toReturn;
             }
 
@@ -84,7 +85,7 @@ namespace Sharphound2.Enumeration
             {
                 var pgsid = $"{domainSid}-{primaryGroupId}";
                 var groupName = _utils.SidToDisplay(pgsid, principalDomainName, props, "group");
-
+                
                 if (groupName != null)
                     toReturn.Add(new GroupMember
                     {

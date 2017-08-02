@@ -2,22 +2,177 @@
 using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Text.RegularExpressions;
 using Sharphound2.OutputObjects;
+using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
 namespace Sharphound2.Enumeration
 {
+    internal class ApiFailedException : Exception { }
+
+    internal class SystemDownException : Exception { }
+
     internal static class LocalAdminHelpers
     {
         private static Cache _cache;
         private static Utils _utils;
+        private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
+        private static readonly Regex KeyRegex = new Regex(@"(.+?)\s*=(.*)", RegexOptions.Compiled);
+        private static readonly string[] Props = {"samaccountname", "samaccounttype", "dnshostname", "serviceprincipalname", "distinguishedname"};
 
         public static void Init()
         {
             _cache = Cache.Instance;
             _utils = Utils.Instance;
+        }
+
+        public static List<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
+        {
+            const string targetSid = "S-1-5-32-544__Members";
+            var toReturn = new List<LocalAdmin>();
+
+            var displayName = entry.GetProp("displayname");
+            var name = entry.GetProp("name");
+            var path = entry.GetProp("gpcfilesyspath");
+
+            if (displayName == null || name == null || path == null)
+            {
+                return toReturn;
+            }
+
+            var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
+
+            var currentSection = string.Empty;
+            var resolvedList = new List<MappedPrincipal>();
+
+            using (var reader = new StreamReader(template))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    var sMatch = SectionRegex.Match(line);
+                    if (sMatch.Success)
+                    {
+                        currentSection = sMatch.Captures[0].Value.Trim();
+                    }
+
+                    if (!currentSection.Equals("[Group Membership]"))
+                    {
+                        continue;
+                    }
+
+                    var kMatch = KeyRegex.Match(line);
+
+                    if (!kMatch.Success)
+                        continue;
+
+                    var n = kMatch.Groups[1].Value;
+                    var v = kMatch.Groups[2].Value;
+
+                    if (!n.Contains(targetSid))
+                        continue;
+
+                    v = v.Trim();
+                    var members = v.Split(',');
+
+
+                    foreach (var m in members)
+                    {
+                        var member = m.Trim('*');
+                        string sid;
+                        if (!member.StartsWith("S-1-", StringComparison.CurrentCulture))
+                        {
+                            try
+                            {
+                                sid = new NTAccount(domainName, m).Translate(typeof(SecurityIdentifier)).Value;
+                            }
+                            catch
+                            {
+                                sid = null;
+                            }
+                        }
+                        else
+                        {
+                            sid = member;
+                        }
+
+                        if (sid == null)
+                            continue;
+
+                        var domain = _utils.SidToDomainName(sid) ?? domainName;
+                        var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                        if (resolvedPrincipal != null)
+                            resolvedList.Add(resolvedPrincipal);
+                    }
+                }
+            }
+
+            using (var conn = _utils.GetLdapConnection(domainName))
+            {
+                var ouSearcher =
+                    _utils.GetSearchRequest($"(gplink=*{name}*)",
+                        SearchScope.Subtree,
+                        new[] { "distinguishedname" },
+                        domainName);
+
+                var ouResponse = (SearchResponse)conn.SendRequest(ouSearcher);
+                foreach (SearchResultEntry ouObj in ouResponse.Entries)
+                {
+                    var adsPath = ouObj.GetProp("distinguishedname");
+                    var compSearcher = _utils.GetSearchRequest("(objectclass=computer)", SearchScope.Subtree,
+                        new[] { "samaccounttype", "dnshostname", "distinguishedname", "serviceprincipalname" },
+                        domainName, adsPath);
+
+                    var compResponse = (SearchResponse)conn.SendRequest(compSearcher);
+                    foreach (SearchResultEntry compObj in compResponse.Entries)
+                    {
+                        var samAccountType = compObj.GetProp("samaccounttype");
+                        if (samAccountType == null || samAccountType != "805306369")
+                            continue;
+
+                        var server = compObj.ResolveBloodhoundDisplay();
+
+                        toReturn.AddRange(resolvedList.Select(user => new LocalAdmin
+                        {
+                            ObjectType = user.ObjectType,
+                            ObjectName = user.PrincipalName,
+                            Server = server
+                        }));
+                    }
+                }
+            }
+
+            return toReturn;
+        }
+
+        public static List<LocalAdmin> GetLocalAdmins(string target, string group, string domainName, string domainSid)
+        {
+            var toReturn = new List<LocalAdmin>();
+            try
+            {
+                toReturn = LocalGroupApi(target, group, domainName, domainSid);
+                return toReturn;
+            }
+            catch (SystemDownException)
+            {
+                return toReturn;
+            }
+            catch (ApiFailedException)
+            {
+                try
+                {
+                    toReturn = LocalGroupWinNt(target, group);
+                    return toReturn;
+                }
+                catch
+                {
+                    return toReturn;
+                }
+            }
         }
         
         public static List<LocalAdmin> LocalGroupWinNt(string target, string group)
@@ -47,13 +202,12 @@ namespace Sharphound2.Enumeration
 
                         if (!_cache.GetMapValue(sidstring, type, out string adminName))
                         {
-                            var dsid = sidstring.Substring(0, sidstring.LastIndexOf('-'));
-                            var domainName = _utils.SidToDomainName(dsid);
+                            var domainName = _utils.SidToDomainName(sidstring);
 
                             using (var conn = _utils.GetLdapConnection(domainName))
                             {
                                 var request = _utils.GetSearchRequest($"(objectsid={sidstring})",
-                                    System.DirectoryServices.Protocols.SearchScope.Subtree,
+                                    SearchScope.Subtree,
                                     new[] { "samaccountname", "distinguishedname", "samaccounttype" },
                                     domainName);
 

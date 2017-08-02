@@ -53,7 +53,7 @@ namespace Sharphound2.Enumeration
                 var taskhandles = new Task[_options.Threads];
 
                 //Get the sid for the domain once so we can save processing later. Also saves network by omitting objectsid from our searcher
-                var dsid = _utils.GetDomainSID(domainName);
+                var dsid = _utils.GetDomainSid(domainName);
 
                 var writer = StartOutputWriter(factory, OutputQueue);
                 for (var i = 0; i < _options.Threads; i++)

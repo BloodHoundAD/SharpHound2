@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Principal;
 using System.Text;
 using CommandLine.Text;
+using static Sharphound2.CollectionMethod;
 
 namespace Sharphound2
 {
@@ -28,7 +29,7 @@ namespace Sharphound2
             [Option('S',HelpText ="Skip ping checks for hosts", DefaultValue =false)]
             public bool SkipPing { get; set; }
 
-            [Option('c',"CollectionMethod", HelpText ="Collection Method", DefaultValue = CollectionMethod.Default)]
+            [Option('c', "CollectionMethod", DefaultValue = Default, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
             public CollectionMethod CollectMethod { get; set; }
 
             [Option('P',HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =750)]
@@ -37,7 +38,10 @@ namespace Sharphound2
             [Option('G', HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
             public bool SkipGCDeconfliction { get; set; }
 
-            [Option('C',HelpText = "Filename for the data cache", DefaultValue = "BloodHound.bin")]
+            [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]
+            public bool Stealth { get; set; }
+
+            [Option(HelpText = "Filename for the data cache", DefaultValue = "BloodHound.bin")]
             public string CacheFile { get; set; }
 
             public string CurrentUser { get; set; }
@@ -56,10 +60,19 @@ namespace Sharphound2
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
             Cache.CreateInstance(options);
             Utils.CreateInstance(options);
-            GroupMemberEnumeration x = new GroupMemberEnumeration(options);
-            x.StartEnumeration();
-            LocalAdminEnumeration y = new LocalAdminEnumeration(options);
-            y.StartEnumeration();
+
+            SessionHelpers.Init(options);
+            LocalAdminHelpers.Init();
+            GroupHelpers.Init();
+            AclHelpers.Init();
+
+            if (options.CollectMethod.Equals(Session) && options.Stealth)
+            {
+                options.CollectMethod = GPOLocalGroup;
+            }
+
+            var runner = new EnumerationRunner(options);
+            runner.StartEnumeration();
             Cache.Instance.SaveCache();
         }
 

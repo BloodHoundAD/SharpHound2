@@ -68,7 +68,7 @@ namespace Sharphound2.Enumeration
                 {
                     if (!_cache.GetGcMap(username, out string[] possible))
                     {
-                        using (var conn = _utils.GetGCConnection())
+                        using (var conn = _utils.GetGcConnection())
                         {
                             var request = new SearchRequest(null,
                                 $"(&(samAccountType=805306368)(samaccountname={username}))", SearchScope.Subtree,
@@ -134,14 +134,15 @@ namespace Sharphound2.Enumeration
             return toReturn;
         }
 
-        public static List<Session> GetRegistryLoggedOn(string target, string samAccountName)
+        public static List<Session> GetRegistryLoggedOn(string target)
         {
             var toReturn = new List<Session>();
             try
             {
-
-                RegistryKey key;
-                key = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users, Environment.MachineName.Equals(target.Split('.')[0], StringComparison.CurrentCultureIgnoreCase) ? "" : target);
+                var key = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users,
+                    Environment.MachineName.Equals(target.Split('.')[0], StringComparison.CurrentCultureIgnoreCase)
+                        ? ""
+                        : target);
                 var filtered = key.GetSubKeyNames()
                     .Where(sub => Regex.IsMatch(sub, "S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$"));
 

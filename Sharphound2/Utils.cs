@@ -1,5 +1,4 @@
-﻿using Sharphound2.OutputObjects;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
@@ -13,7 +12,7 @@ using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
 namespace Sharphound2
 {
-    class Utils
+    internal class Utils
     {
         private readonly ConcurrentDictionary<string, Domain> _domainCache = new ConcurrentDictionary<string, Domain>();
         private readonly ConcurrentDictionary<string, string> _dnsResolveCache = new ConcurrentDictionary<string, string>();
@@ -60,7 +59,7 @@ namespace Sharphound2
             return dnsHostName;
         }
 
-        public bool PingHost(string HostName)
+        public bool PingHost(string hostName)
         {
             if (_options.SkipPing)
             {
@@ -69,31 +68,26 @@ namespace Sharphound2
 
             if (_options.CollectMethod.Equals(CollectionMethod.SessionLoop))
             {
-                return DoPing(HostName);
+                return DoPing(hostName);
             }
 
-            if (_pingCache.TryGetValue(HostName, out bool hostIsUp))
+            if (_pingCache.TryGetValue(hostName, out bool hostIsUp))
             {
                 return hostIsUp;
             }
 
-            hostIsUp = DoPing(HostName);
-            _pingCache.TryAdd(HostName, hostIsUp);
+            hostIsUp = DoPing(hostName);
+            _pingCache.TryAdd(hostName, hostIsUp);
             return hostIsUp;
         }
 
-        private bool DoPing(string HostName)
+        private bool DoPing(string hostName)
         {
-            Ping ping = new Ping();
+            var ping = new Ping();
             try
             {
-                PingReply reply = ping.Send(HostName, _options.PingTimeout);
-
-                if (reply.Status.Equals(IPStatus.Success))
-                {
-                    return true;
-                }
-                return false;
+                var reply = ping.Send(hostName, _options.PingTimeout);
+                return reply != null && reply.Status.Equals(IPStatus.Success);
             }
             catch
             {
@@ -103,15 +97,17 @@ namespace Sharphound2
 
         public string SidToDomainName(string sid, string domainController = null)
         {
+            sid = new SecurityIdentifier(sid).AccountDomainSid.Value;
+
             if (_cache.GetDomainFromSid(sid, out string domainName))
             {
                 return domainName;
             }
 
-            using (var conn = GetGCConnection(domainController))
+            using (var conn = GetGcConnection(domainController))
             {
                 var request = new SearchRequest(null, $"(objectsid={sid})", SearchScope.Subtree, "distinguishedname");
-                var searchOptions = new SearchOptionsControl(System.DirectoryServices.Protocols.SearchOption.DomainScope);
+                var searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
                 request.Controls.Add(searchOptions);
                 var response = (SearchResponse)conn.SendRequest(request);
 
@@ -124,7 +120,7 @@ namespace Sharphound2
                 }
 
                 request = new SearchRequest(null, $"(securityidentifier={sid}", SearchScope.Subtree, "distinguishedname ");
-                searchOptions = new SearchOptionsControl(System.DirectoryServices.Protocols.SearchOption.DomainScope);
+                searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
                 request.Controls.Add(searchOptions);
                 response = (SearchResponse)conn.SendRequest(request);
 
@@ -172,7 +168,6 @@ namespace Sharphound2
             using (var conn = GetLdapConnection(domainName))
             {
                 var response = (SearchResponse)conn.SendRequest(GetSearchRequest($"(objectsid={sid})", SearchScope.Subtree, props, domainName));
-
                 if (response == null || response.Entries.Count < 1) return null;
                 var e = response.Entries[0];
                 var name = e.ResolveBloodhoundDisplay();
@@ -235,23 +230,23 @@ namespace Sharphound2
             return connection;
         }
 
-        public LdapConnection GetGCConnection(string DomainController = null)
+        public LdapConnection GetGcConnection(string domainController = null)
         {
-            if (DomainController == null)
+            if (domainController == null)
             {
-                DomainController = Forest.GetCurrentForest().FindGlobalCatalog().Name;
+                domainController = Forest.GetCurrentForest().FindGlobalCatalog().Name;
             }
-            var connection = new LdapConnection(new LdapDirectoryIdentifier(DomainController, 3268));
+            var connection = new LdapConnection(new LdapDirectoryIdentifier(domainController, 3268));
             
             return connection;
         }
 
-        public SearchRequest GetSearchRequest(string Filter, SearchScope Scope, string[] Attribs, string DomainName = null, string ADSPath = null)
+        public SearchRequest GetSearchRequest(string filter, SearchScope scope, string[] attribs, string domainName = null, string adsPath = null)
         {
-            Domain TargetDomain;
+            Domain targetDomain;
             try
             {
-                TargetDomain = GetDomain(DomainName);
+                targetDomain = GetDomain(domainName);
             }
             catch
             {
@@ -259,20 +254,13 @@ namespace Sharphound2
                 return null;
             }
 
-            DomainName = TargetDomain.Name;
-            if (ADSPath == null)
-            {
-                ADSPath = $"DC={DomainName.Replace(".", ",DC=")}";
-            }
-            else
-            {
-                ADSPath = ADSPath.Replace("LDAP://", "");
-            }
+            domainName = targetDomain.Name;
+            adsPath = adsPath?.Replace("LDAP://", "") ?? $"DC={domainName.Replace(".", ",DC=")}";
 
-            SearchRequest request = new SearchRequest(ADSPath, Filter, Scope, Attribs);
-
+            var request = new SearchRequest(adsPath, filter, scope, attribs);
             //Add our search options control
-            SearchOptionsControl soc = new SearchOptionsControl(System.DirectoryServices.Protocols.SearchOption.DomainScope);
+            var soc = new SearchOptionsControl(SearchOption.DomainScope);
+            
             request.Controls.Add(soc);
 
             return request;
@@ -283,7 +271,7 @@ namespace Sharphound2
             return _domainList;
         }
 
-        List<string> CreateDomainList()
+        private List<string> CreateDomainList()
         {
             if (_options.SearchForest)
             {
@@ -309,38 +297,38 @@ namespace Sharphound2
             return domains;
         }
 
-        public Domain GetDomain(string DomainName = null)
+        public Domain GetDomain(string domainName = null)
         {
-            string key = DomainName ?? "UNIQUENULL";
+            var key = domainName ?? "UNIQUENULL";
 
-            if (_domainCache.TryGetValue(key, out Domain DomainObj))
+            if (_domainCache.TryGetValue(key, out Domain domainObj))
             {
-                return DomainObj;
+                return domainObj;
             }
 
-            if (DomainName == null)
+            if (domainName == null)
             {
-                DomainObj = Domain.GetCurrentDomain();
+                domainObj = Domain.GetCurrentDomain();
             }
             else
             {
-                DirectoryContext context = new DirectoryContext(DirectoryContextType.Domain, DomainName);
-                DomainObj = Domain.GetDomain(context);
+                var context = new DirectoryContext(DirectoryContextType.Domain, domainName);
+                domainObj = Domain.GetDomain(context);
             }
 
-            _domainCache.TryAdd(key, DomainObj);
-            return DomainObj;
+            _domainCache.TryAdd(key, domainObj);
+            return domainObj;
         }
 
-        public string GetDomainSID(string DomainName = null)
+        public string GetDomainSid(string domainName = null)
         {
-            string key = DomainName ?? "UNIQUENULL";
-            if (_cache.GetDomainFromSid(DomainName, out string sid))
+            var key = domainName ?? "UNIQUENULL";
+            if (_cache.GetDomainFromSid(domainName, out string sid))
             {
                 return sid;
             }
 
-            Domain d = GetDomain(DomainName);
+            var d = GetDomain(domainName);
             sid = new SecurityIdentifier(d.GetDirectoryEntry().Properties["objectsid"].Value as byte[], 0).ToString();
 
             _cache.AddDomainFromSid(key, sid);
@@ -566,7 +554,7 @@ namespace Sharphound2
 
         #region PINVOKE
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        struct DOMAIN_CONTROLLER_INFO
+        private struct DOMAIN_CONTROLLER_INFO
         {
             [MarshalAs(UnmanagedType.LPTStr)]
             public string DomainControllerName;
@@ -586,7 +574,7 @@ namespace Sharphound2
         }
 
         [DllImport("Netapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        static extern int DsGetDcName
+        private static extern int DsGetDcName
           (
             [MarshalAs(UnmanagedType.LPTStr)]
             string ComputerName,
@@ -601,7 +589,7 @@ namespace Sharphound2
           );
 
         [DllImport("Netapi32.dll", SetLastError = true)]
-        static extern int NetApiBufferFree(IntPtr Buffer);
+        private static extern int NetApiBufferFree(IntPtr Buffer);
 
         [Flags]
         public enum DSGETDCNAME_FLAGS : uint
