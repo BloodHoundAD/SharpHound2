@@ -60,7 +60,7 @@ namespace Sharphound2.Enumeration
 
                 var dnsHostName = _utils.ResolveHost(cname);
 
-                if (_options.SkipGCDeconfliction)
+                if (_options.SkipGcDeconfliction)
                 {
                     toReturn.Add(new Session { ComputerName = dnsHostName, UserName = username, Weight = 2 });
                 }

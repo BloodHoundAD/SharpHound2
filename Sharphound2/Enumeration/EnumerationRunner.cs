@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Sharphound2.OutputObjects;
 using SharpHound2;
@@ -18,6 +21,7 @@ namespace Sharphound2.Enumeration
         private readonly Utils _utils;
         private string _currentDomainSid;
         private string _currentDomain;
+        private Stopwatch _watch;
 
         public EnumerationRunner(Options opts)
         {
@@ -35,7 +39,58 @@ namespace Sharphound2.Enumeration
 
         private void PrintStatus()
         {
-            
+            var l = _lastCount;
+            var c = _currentCount;
+            var progressStr = $"Status: {c} objects enumerated (+{c - l} {(float)c / (_watch.ElapsedMilliseconds / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
+            Console.WriteLine(progressStr);
+            _lastCount = _currentCount;
+            _statusTimer.Start();
+        }
+
+        public void StartStealthEnumeration()
+        {
+            string ldapFilter;
+            string[] props;
+            //Determine what to do. Luckily a bunch of collection methods are basically identical to regular
+            switch (_options.CollectMethod)
+            {
+                case CollectionMethod.Group:
+                    StartEnumeration();
+                    break;
+                case CollectionMethod.ACL:
+                    StartEnumeration();
+                    break;
+                case CollectionMethod.GPOLocalGroup:
+                    StartEnumeration();
+                    break;
+                case CollectionMethod.ComputerOnly:
+                    break;
+                case CollectionMethod.LocalGroup:
+                    //This shouldn't be possible, since we override it at the top level
+                    break;
+                case CollectionMethod.Session:
+                    ldapFilter =
+                        "(|(&(samAccountType=805306368)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(|(homedirectory=*)(scriptpath=*)(profilepath=*)))(userAccountControl:1.2.840.113556.1.4.803:=8192))";
+                    props = new[]
+                    {
+                        "samaccountname","samaccounttype","distinguishedname","homedirectory","scriptpath","profilepath"
+                    };
+
+                    break;
+                case CollectionMethod.LoggedOn:
+                    //This doesn't make any sense
+                    Console.WriteLine("LoggedOn and Stealth can't be used together!");
+                    break;
+                case CollectionMethod.Trusts:
+                    StartEnumeration();
+                    break;
+                case CollectionMethod.SessionLoop:
+                    break;
+                case CollectionMethod.Default:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         public void StartEnumeration()
@@ -109,7 +164,8 @@ namespace Sharphound2.Enumeration
                     ldapFilter = "(|(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
                     props = new[]
                     {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "serviceprincipalname"
+                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "serviceprincipalname",
+                        "memberof"
                     };
                     break;
             }
@@ -117,7 +173,7 @@ namespace Sharphound2.Enumeration
             foreach (var domainName in _utils.GetDomainList())
             {
                 Console.WriteLine($"Starting enumeration for {domainName}");
-
+                _watch = Stopwatch.StartNew();
                 _currentDomain = domainName;
                 _currentDomainSid = _utils.GetDomainSid(domainName);
                 var outputQueue = new BlockingCollection<Wrapper<OutputBase>>();
@@ -133,63 +189,21 @@ namespace Sharphound2.Enumeration
                     taskhandles[i] = StartRunner(factory, inputQueue, outputQueue);
                 }
 
-                var searchRequest =
-                    _utils.GetSearchRequest(
-                        ldapFilter,
-                        SearchScope.Subtree,
-                        props,
-                        domainName);
+                _statusTimer.Start();
 
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
-                {
-                    var sdfc =
-                        new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
-                    searchRequest.Controls.Add(sdfc);
-                }
-                
 
-                if (searchRequest == null)
+                //foreach (var item in _utils.DoSearch(ldapFilter, SearchScope.Subtree, props, domainName))
+                //{
+                //    inputQueue.Add(item);
+                //}
+
+                foreach (var wrapper in _utils.DoSearch(ldapFilter, SearchScope.Subtree, props, domainName).Take(750))
                 {
-                    Console.WriteLine($"Unable to contact {domainName}");
-                    continue;
+                    //Console.WriteLine(wrapper.Item.ResolveBloodhoundDisplay());
                 }
 
-                var connection = _utils.GetLdapConnection(domainName);
-                var prc = new PageResultRequestControl(500);
-                searchRequest.Controls.Add(prc);
 
-                while (true)
-                {
-                    try
-                    {
-                        var response = (SearchResponse)connection.SendRequest(searchRequest);
-
-                        var pageResponse =
-                            (PageResultResponseControl)response.Controls[0];
-
-                        foreach (SearchResultEntry entry in response.Entries)
-                        {
-                            inputQueue.Add(new Wrapper<SearchResultEntry>()
-                            {
-                                Item = entry
-                            });
-                        }
-
-                        if (pageResponse.Cookie.Length == 0)
-                        {
-                            connection.Dispose();
-                            break;
-                        }
-
-                        prc.Cookie = pageResponse.Cookie;
-                    }
-                    catch (LdapException)
-                    {
-
-                    }
-                }
-
-                connection.Dispose();
+                _statusTimer.Stop();
                 inputQueue.CompleteAdding();
                 Task.WaitAll(taskhandles);
                 if (_options.CollectMethod.Equals(CollectionMethod.ACL))
@@ -202,7 +216,9 @@ namespace Sharphound2.Enumeration
                 AclHelpers.ClearSyncers();
                 outputQueue.CompleteAdding();
                 writer.Wait();
-                Console.WriteLine($"Finished enumeration for {domainName}");
+                _watch.Stop();
+                Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
+                _watch = null;
             }
         }
 
@@ -216,7 +232,7 @@ namespace Sharphound2.Enumeration
 
                     var type = entry.GetObjectType();
                     var name = entry.ResolveBloodhoundDisplay();
-
+                    Interlocked.Increment(ref _currentCount);
                     switch (_options.CollectMethod)
                     {
                         case CollectionMethod.Group:
@@ -437,6 +453,7 @@ namespace Sharphound2.Enumeration
                             acls.Flush();
                         }
                     }
+                    obj.Item = null;
                 }
                 groups?.Dispose();
                 sessions?.Dispose();

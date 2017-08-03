@@ -204,6 +204,61 @@ namespace Sharphound2
             }
         }
 
+        public IEnumerable<Wrapper<SearchResultEntry>> DoSearch(string filter, SearchScope scope, string[] props,
+            string domainName = null, string adsPath = null)
+        {
+            using (var conn = GetLdapConnection(domainName))
+            {
+                var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
+
+                if (request == null)
+                {
+                    Console.WriteLine("Unable to contact domain");
+                    yield break;
+                }
+
+                var prc = new PageResultRequestControl(500);
+                request.Controls.Add(prc);
+
+                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                {
+                    var sdfc =
+                        new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
+                    request.Controls.Add(sdfc);
+                }
+
+                SearchResponse response;
+                PageResultResponseControl pageResponse = null;
+                while (true)
+                {
+                    try
+                    {
+                        response = (SearchResponse) conn.SendRequest(request);
+                        if (response != null)
+                        {
+                            pageResponse = (PageResultResponseControl) response.Controls[0];
+                        }
+                    }
+                    catch
+                    {
+                        yield break;
+                    }
+                    if (response == null || pageResponse == null) continue;
+                    foreach (SearchResultEntry entry in response.Entries)
+                    {
+                        yield return new Wrapper<SearchResultEntry>{Item = entry};
+                    }
+
+                    if (pageResponse.Cookie.Length == 0)
+                    {
+                        break;
+                    }
+
+                    prc.Cookie = pageResponse.Cookie;
+                }
+            }
+        }
+
         public LdapConnection GetLdapConnection(string domainName = null, string domainController = null)
         {
             Domain targetDomain;

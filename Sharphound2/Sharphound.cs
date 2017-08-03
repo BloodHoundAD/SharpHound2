@@ -36,7 +36,7 @@ namespace Sharphound2
             public int PingTimeout { get; set; }
 
             [Option('G', HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
-            public bool SkipGCDeconfliction { get; set; }
+            public bool SkipGcDeconfliction { get; set; }
 
             [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]
             public bool Stealth { get; set; }
@@ -48,7 +48,7 @@ namespace Sharphound2
 
         }
 
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             if (args == null)
                 throw new ArgumentNullException(nameof(args));
@@ -66,13 +66,15 @@ namespace Sharphound2
             GroupHelpers.Init();
             AclHelpers.Init();
 
-            if (options.CollectMethod.Equals(Session) && options.Stealth)
+            if (options.CollectMethod.Equals(LocalGroup) && options.Stealth)
             {
                 options.CollectMethod = GPOLocalGroup;
+                options.Stealth = false;
             }
 
             var runner = new EnumerationRunner(options);
             runner.StartEnumeration();
+            //runner.StartStealthEnumeration();
             Cache.Instance.SaveCache();
         }
 

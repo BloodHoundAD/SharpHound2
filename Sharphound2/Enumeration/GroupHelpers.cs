@@ -11,7 +11,7 @@ namespace Sharphound2.Enumeration
     {
         private static Utils _utils;
         private static Cache _cache;
-
+        private static readonly string[] Props = { "samaccountname", "distinguishedname", "samaccounttype" };
 
         public static void Init()
         {
@@ -22,7 +22,6 @@ namespace Sharphound2.Enumeration
         public static List<GroupMember> ProcessAdObject(SearchResultEntry entry, string domainSid)
         {
             var toReturn = new List<GroupMember>();
-            string[] props = { "samaccountname", "distinguishedname", "samaccounttype" };
             
             if (!_cache.GetMapValue(entry.DistinguishedName, entry.GetObjectType(), out string principalDisplayName))
             {
@@ -50,7 +49,7 @@ namespace Sharphound2.Enumeration
                 {
                     using (var conn = _utils.GetLdapConnection(principalDomainName))
                     {
-                        var response = (SearchResponse)conn.SendRequest(_utils.GetSearchRequest("(objectClass=group)", SearchScope.Base, props, Utils.ConvertDnToDomain(dn), dn));
+                        var response = (SearchResponse)conn.SendRequest(_utils.GetSearchRequest("(objectClass=group)", SearchScope.Base, Props, Utils.ConvertDnToDomain(dn), dn));
 
                         if (response != null && response.Entries.Count >= 1)
                         {
@@ -68,7 +67,6 @@ namespace Sharphound2.Enumeration
                     {
                         _cache.AddMapValue(dn, "group", groupName);
                     }
-
                 }
 
                 if (groupName != null)
@@ -84,7 +82,7 @@ namespace Sharphound2.Enumeration
             if (primaryGroupId != null)
             {
                 var pgsid = $"{domainSid}-{primaryGroupId}";
-                var groupName = _utils.SidToDisplay(pgsid, principalDomainName, props, "group");
+                var groupName = _utils.SidToDisplay(pgsid, principalDomainName, Props, "group");
                 
                 if (groupName != null)
                     toReturn.Add(new GroupMember

@@ -140,7 +140,7 @@ namespace Sharphound2.Enumeration
             }
         }
 
-        void PrintStatus()
+        private void PrintStatus()
         {
             var l = _lastCount;
             var c = _currentCount;
