@@ -3,11 +3,13 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
+using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Sharphound2.Enumeration;
+using SearchOption = System.DirectoryServices.Protocols.SearchOption;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
 namespace Sharphound2
@@ -416,6 +418,14 @@ namespace Sharphound2
 
             _netbiosConversionCache.TryAdd(netbios, info.DomainName);
             return info.DomainName;
+        }
+
+        public static string GetCsvFileName(string baseFileName)
+        {
+            var f = _options.CSVPrefix.Equals("") ? baseFileName : $"{_options.CSVPrefix}_{baseFileName}";
+
+            f = Path.Combine(_options.CSVFolder, f);
+            return f;
         }
 
         public string GetWellKnownSid(string sid)

@@ -22,6 +22,7 @@ namespace Sharphound2.Enumeration
         private string _currentDomainSid;
         private string _currentDomain;
         private Stopwatch _watch;
+        private readonly DateTime _loopEndTime;
 
         public EnumerationRunner(Options opts)
         {
@@ -34,7 +35,11 @@ namespace Sharphound2.Enumeration
             };
 
             _statusTimer.AutoReset = false;
-            _statusTimer.Interval = _options.Interval;
+            _statusTimer.Interval = _options.StatusInterval;
+
+            if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop) || _options.MaxLoopTime == 0) return;
+            var t = DateTime.Now;
+            _loopEndTime = t.AddMinutes(_options.MaxLoopTime);
         }
 
         private void PrintStatus()
@@ -49,51 +54,20 @@ namespace Sharphound2.Enumeration
 
         public void StartStealthEnumeration()
         {
-            var scheduler = new LimitedConcurrencyLevelTaskScheduler(_options.Threads);
+            var scheduler = new LimitedConcurrencyLevelTaskScheduler(1);
             var factory = new TaskFactory(scheduler);
 
             var output = new BlockingCollection<Wrapper<OutputBase>>();
             var writer = StartOutputWriter(factory, output);
-            //Determine what to do. Luckily a bunch of collection methods are basically identical to regular
-            switch (_options.CollectMethod)
-            {
-                case CollectionMethod.Group:
-                    StartEnumeration();
-                    break;
-                case CollectionMethod.ACL:
-                    StartEnumeration();
-                    break;
-                case CollectionMethod.GPOLocalGroup:
-                    StartEnumeration();
-                    break;
-                case CollectionMethod.Trusts:
-                    StartEnumeration();
-                    break;
-                case CollectionMethod.ComputerOnly:
-                    break;
-                case CollectionMethod.LocalGroup:
-                    //This shouldn't be possible, since we override it at the top level
-                    break;
-                case CollectionMethod.Session:
-                    break;
-                case CollectionMethod.LoggedOn:
-                    //This doesn't make any sense
-                    Console.WriteLine("LoggedOn and Stealth can't be used together!");
-                    break;
-                case CollectionMethod.SessionLoop:
-                    break;
-                case CollectionMethod.Default:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
 
             foreach (var domainName in _utils.GetDomainList())
             {
-                Console.WriteLine($"Starting stealth enumeration for {domainName}");
+                Console.WriteLine($"Starting stealth enumeration for {domainName}\n");
+                var domainSid = _utils.GetDomainSid(domainName);
                 switch (_options.CollectMethod)
                 {
                     case CollectionMethod.Session:
+                        Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
                             var sessions = SessionHelpers.GetNetSessions(path, domainName);
@@ -104,6 +78,7 @@ namespace Sharphound2.Enumeration
                         }
                         break;
                     case CollectionMethod.ComputerOnly:
+                        Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
                             var sessions = SessionHelpers.GetNetSessions(path, domainName);
@@ -113,6 +88,7 @@ namespace Sharphound2.Enumeration
                             }
                         }
 
+                        Console.WriteLine("Doing stealth enumeration for admins");
                         foreach (var wrapper in _utils.DoSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
@@ -124,7 +100,7 @@ namespace Sharphound2.Enumeration
                         }
                         break;
                     case CollectionMethod.Default:
-                        Utils.Verbose("Starting session enumeration");
+                        Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
                             var sessions = SessionHelpers.GetNetSessions(path, domainName);
@@ -134,7 +110,7 @@ namespace Sharphound2.Enumeration
                             }
                         }
 
-                        Utils.Verbose("Starting gpo enumeration");
+                        Console.WriteLine("Doing stealth enumeration for admins");
                         foreach (var wrapper in _utils.DoSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
@@ -144,8 +120,24 @@ namespace Sharphound2.Enumeration
                                 output.Add(new Wrapper<OutputBase>{Item = admin});
                             }
                         }
+
+                        Console.WriteLine("Doing stealth enumeration for groups");
+                        foreach (var wrapper in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
+                            SearchScope.Subtree,
+                            new[]
+                            {
+                                "samaccountname", "distinguishedname", "dnshostname", "samaccounttype",
+                                "primarygroupid", "memberof", "serviceprincipalname"
+                            }, domainName))
+                        {
+                            foreach (var group in GroupHelpers.ProcessAdObject(wrapper.Item, domainSid))
+                            {
+                                output.Add(new Wrapper<OutputBase> {Item = group});
+                            }
+                        }
                         break;
                     case CollectionMethod.SessionLoop:
+                        Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
                             var sessions = SessionHelpers.GetNetSessions(path, domainName);
@@ -155,11 +147,95 @@ namespace Sharphound2.Enumeration
                             }
                         }
                         break;
+                    case CollectionMethod.LoggedOn:
+                        Console.WriteLine("Doing LoggedOn enumeration for stealth targets");
+                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                        {
+                            var sessions = SessionHelpers.GetNetLoggedOn(path, "FAKESTRING", domainName);
+                            sessions.AddRange(SessionHelpers.GetRegistryLoggedOn(path));
+                            foreach (var s in sessions)
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = s });
+                            }
+                        }
+                        break;
+                    case CollectionMethod.Group:
+                        Console.WriteLine("Doing stealth enumeration for groups");
+                        foreach (var wrapper in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
+                            SearchScope.Subtree,
+                            new[]
+                            {
+                                "samaccountname", "distinguishedname", "dnshostname", "samaccounttype",
+                                "primarygroupid", "memberof", "serviceprincipalname"
+                            }, domainName))
+                        {
+                            foreach (var group in GroupHelpers.ProcessAdObject(wrapper.Item, domainSid))
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = group });
+                            }
+                        }
+                        break;
+                    case CollectionMethod.LocalGroup:
+                        //This case will never happen
+                        break;
+                    case CollectionMethod.GPOLocalGroup:
+                        Console.WriteLine("Doing stealth enumeration for admins");
+                        foreach (var wrapper in _utils.DoSearch(
+                            "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
+                            new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
+                        {
+                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(wrapper.Item, domainName))
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = admin });
+                            }
+                        }
+                        break;
+                    case CollectionMethod.Trusts:
+                        break;
+                    case CollectionMethod.ACL:
+                        Console.WriteLine("Doing stealth enumeration for ACLs");
+                        foreach (var wrapper in _utils.DoSearch(
+                            "(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain))",
+                            SearchScope.Subtree,
+                            new[]
+                            {
+                                "samaccountname", "distinguishedname", "dnshostname", "samaccounttype",
+                                "ntsecuritydescriptor"
+                            }, domainName))
+                        {
+                            foreach (var acl in AclHelpers.ProcessAdObject(wrapper.Item, domainName))
+                            {
+                                output.Add(new Wrapper<OutputBase>{Item = acl});
+                            }
+                        }
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
                 }
                 output.CompleteAdding();
                 writer.Wait();
                 Console.WriteLine($"Finished stealth enumeration for {domainName}");
             }
+            if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
+            if (_options.MaxLoopTime != 0)
+            {
+                if (DateTime.Now > _loopEndTime)
+                {
+                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                }
+            }
+
+            Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
+            new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
+            if (_options.MaxLoopTime != 0)
+            {
+                if (DateTime.Now > _loopEndTime)
+                {
+                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                }
+            }
+            Console.WriteLine("Starting next enumeration loop");
+            StartStealthEnumeration();
         }
 
         public void StartEnumeration()
@@ -245,6 +321,7 @@ namespace Sharphound2.Enumeration
                 _watch = Stopwatch.StartNew();
                 _currentDomain = domainName;
                 _currentDomainSid = _utils.GetDomainSid(domainName);
+                _currentCount = 0;
                 var outputQueue = new BlockingCollection<Wrapper<OutputBase>>();
                 var inputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
 
@@ -283,6 +360,27 @@ namespace Sharphound2.Enumeration
                 Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
                 _watch = null;
             }
+
+            if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
+            if (_options.MaxLoopTime != 0)
+            {
+                if (DateTime.Now > _loopEndTime)
+                {
+                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                }
+            }
+
+            Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
+            new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
+            if (_options.MaxLoopTime != 0)
+            {
+                if (DateTime.Now > _loopEndTime)
+                {
+                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                }
+            }
+            Console.WriteLine("Starting next enumeration loop");
+            StartEnumeration();
         }
 
         public Task StartRunner(TaskFactory factory, BlockingCollection<Wrapper<SearchResultEntry>> processQueue, BlockingCollection<Wrapper<OutputBase>> writeQueue)
@@ -446,11 +544,13 @@ namespace Sharphound2.Enumeration
                 var sessionCount = 0;
                 var aclCount = 0;
                 var groupCount = 0;
+                var trustCount = 0;
 
                 StreamWriter admins = null;
                 StreamWriter sessions = null;
                 StreamWriter acls = null;
                 StreamWriter groups = null;
+                StreamWriter trusts = null;
 
                 foreach (var obj in output.GetConsumingEnumerable())
                 {
@@ -459,8 +559,9 @@ namespace Sharphound2.Enumeration
                     {
                         if (groups == null)
                         {
-                            var exists = File.Exists("group_membership.csv");
-                            groups = new StreamWriter("group_membership.csv", exists);
+                            var f = Utils.GetCsvFileName("group_membership.csv");
+                            var exists = File.Exists(f);
+                            groups = new StreamWriter(f, exists);
                             if (!exists)
                                 groups.WriteLine("GroupName,AccountName,AccountType");
                         }
@@ -474,8 +575,9 @@ namespace Sharphound2.Enumeration
                     {
                         if (sessions == null)
                         {
-                            var exists = File.Exists("sessions.csv");
-                            sessions = new StreamWriter("sessions.csv", exists);
+                            var f = Utils.GetCsvFileName("sessions.csv");
+                            var exists = File.Exists(f);
+                            sessions = new StreamWriter(f, exists);
                             if (!exists)
                                 sessions.WriteLine("UserName,ComputerName,Weight");
                         }
@@ -489,8 +591,9 @@ namespace Sharphound2.Enumeration
                     {
                         if (admins == null)
                         {
-                            var exists = File.Exists("local_admins.csv");
-                            admins = new StreamWriter("local_admins.csv", exists);
+                            var f = Utils.GetCsvFileName("local_admins.csv");
+                            var exists = File.Exists(f);
+                            admins = new StreamWriter(f, exists);
                             if (!exists)
                                 admins.WriteLine("ComputerName,AccountName,AccountType");
                         }
@@ -504,8 +607,9 @@ namespace Sharphound2.Enumeration
                     {
                         if (acls == null)
                         {
-                            var exists = File.Exists("acls.csv");
-                            acls = new StreamWriter("acls.csv", exists);
+                            var f = Utils.GetCsvFileName("acls.csv");
+                            var exists = File.Exists(f);
+                            acls = new StreamWriter(f, exists);
                             if (!exists)
                                 acls.WriteLine("ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited");
                         }
@@ -514,6 +618,23 @@ namespace Sharphound2.Enumeration
                         if (aclCount % 100 == 0)
                         {
                             acls.Flush();
+                        }
+                    }
+                    else if (item is DomainTrust)
+                    {
+                        if (trusts == null)
+                        {
+                            var f = Utils.GetCsvFileName("trusts.csv");
+                            var exists = File.Exists(f);
+                            trusts = new StreamWriter(f, exists);
+                            if (!exists)
+                                trusts.WriteLine("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive");
+                        }
+                        trusts.WriteLine(item.ToCsv());
+                        trustCount++;
+                        if (trustCount % 100 == 0)
+                        {
+                            trusts.Flush();
                         }
                     }
                     obj.Item = null;

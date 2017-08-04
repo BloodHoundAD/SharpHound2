@@ -12,9 +12,10 @@ namespace Sharphound2
         private ConcurrentDictionary<string, string> _computerCache;
         private ConcurrentDictionary<string, string> _domainToSidCache;
         private ConcurrentDictionary<string, string[]> _globalCatalogMap;
-        private readonly string _filename;
 
         public static Cache Instance { get; private set; }
+
+        private readonly Sharphound.Options _options;
 
         public static void CreateInstance(Sharphound.Options opts)
         {
@@ -23,13 +24,13 @@ namespace Sharphound2
 
         private Cache(Sharphound.Options opts)
         {
-            _filename = opts.CacheFile;
-            LoadCache(_filename);
+            _options = opts;
+            LoadCache(_options.CacheFile);
         }
 
         private void LoadCache(string filename)
         {
-            if (File.Exists(filename))
+            if (File.Exists(filename) && !_options.Invalidate)
             {
                 using (var file = File.OpenRead(filename))
                 {
@@ -60,7 +61,10 @@ namespace Sharphound2
 
         public void SaveCache()
         {
-            using (var file = File.Create(_filename))
+            if (_options.NoSaveCache)
+                return;
+
+            using (var file = File.Create(_options.CacheFile))
             {
                 Serializer.SerializeWithLengthPrefix(file,_userCache,PrefixStyle.Base128);
                 Serializer.SerializeWithLengthPrefix(file, _groupCache, PrefixStyle.Base128);

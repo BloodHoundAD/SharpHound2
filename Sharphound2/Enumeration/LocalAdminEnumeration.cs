@@ -37,7 +37,7 @@ namespace Sharphound2.Enumeration
             };
 
             _statusTimer.AutoReset = false;
-            _statusTimer.Interval = _options.Interval;
+            _statusTimer.Interval = _options.StatusInterval;
         }
 
         public void StartEnumeration()
@@ -145,7 +145,7 @@ namespace Sharphound2.Enumeration
             var l = _lastCount;
             var c = _currentCount;
             var d = _currentCount - _lastCount;
-            var progressStr = $"Status: {c} objects enumerated (+{c - l} {(float)d / (_options.Interval / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
+            var progressStr = $"Status: {c} objects enumerated (+{c - l} {(float)d / (_options.StatusInterval / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
             Console.WriteLine(progressStr);
             _lastCount = _currentCount;
             _statusTimer.Start();

@@ -93,27 +93,17 @@ function Invoke-BloodHound{
         Credentials for the Neo4j REST API. 
         Format for this option is username:password
 
-    .PARAMETER DB
+    .PARAMETER CacheFile
 
-        Filename for the NoSQL Database used by bloodhound. (Default BloodHound.db)
+        Filename for the cache used by bloodhound. (Default BloodHound.bin)
+    
+    .PARAMETER Invalidate
 
-    .PARAMETER InMemory
+        Invalidate the cache and build a new one
 
-        Store database in memory instead of on disk. 
-        This option can be very RAM intensive, use with caution!
-
-    .PARAMETER RemoveDB
-
-        Automatically delete the database on disk after running
-
-    .PARAMETER ForceRebuild
-
-        Force a rebuild of the BloodHound database
-
-    .PARAMETER NoDB
-
-        Enumerate without using the NoSQL DB.
-        Only recommended for extremely large networks
+    .PARAMETER SaveCache
+        
+        Whether to save the cache file. Set this to false to disable writing it to disk
 
     .PARAMETER Interval
 
@@ -184,23 +174,17 @@ function Invoke-BloodHound{
 
         [String]
         [ValidateNotNullOrEmpty()]
-        $DBFileName,
+        $CacheFile,
 
         [Switch]
-        $InMemory,
+        $Invalidate,
 
         [Switch]
-        $RemoveDB,
-
-        [Switch]
-        $NoDB,
-
-        [Switch]
-        $ForceRebuild,
+        $NoSaveCache,
 
         [ValidateRange(500,60000)]
         [int]
-        $Interval,
+        $StatusInterval,
 
         [Switch]
         $Verbose,
@@ -270,47 +254,38 @@ function Invoke-BloodHound{
         $vars.Add($UserPass)
     }
 
-    if ($DBFileName){
-        $vars.Add("--DBFileName")
+    if ($CacheFile){
+        $vars.Add("--CacheFile")
         $vars.Add($DBFileName)
     }
 
-    if ($InMemory){
-        $vars.Add("--InMemory")
+    if ($Invalidate){
+        $vars.Add("--Invalidate")
     }
 
-    if ($RemoveDB){
-        $vars.Add("--RemoveDB")
-    }
-
-    if ($ForceRebuild){
-        $vars.Add("--ForceRebuild")
+    if ($NoSaveCache){
+        $vars.Add("--NoSaveCache")
     }
 
     if ($Verbose){
         $vars.Add("-v")
     }
 
-    if ($Interval){
-        $vars.Add("-i");
-        $vars.Add($Interval)
-    }
-
-    if ($NoDB){
-        $vars.Add("--NoDB");
+    if ($StatusInterval){
+        $vars.Add("--StatusInterval")
+        $vars.Add($StatusInterval)
     }
 
     if ($LoopTime){
-        $vars.Add("--LoopTime");
-        $vars.Add($LoopTime);
+        $vars.Add("--LoopTime")
+        $vars.Add($LoopTime)
     }
 
     if ($MaxLoopTime){
-        $vars.Add("--MaxLoopTime");
-        $vars.Add($MaxLoopTime);
+        $vars.Add("--MaxLoopTime")
+        $vars.Add($MaxLoopTime)
     }
 
-    $vars = New-Object System.Collections.Generic.List[System.Object]
     $passed = [string[]]$vars.ToArray()
 
     #ENCODEDCONTENTHERE

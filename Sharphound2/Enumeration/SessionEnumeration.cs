@@ -43,7 +43,7 @@ namespace Sharphound2.Enumeration
             };
 
             _statusTimer.AutoReset = false;
-            _statusTimer.Interval = _options.Interval;
+            _statusTimer.Interval = _options.StatusInterval;
             _currentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
         }
 

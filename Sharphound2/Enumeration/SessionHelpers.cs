@@ -2,12 +2,14 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using Sharphound2.OutputObjects;
+using SearchOption = System.DirectoryServices.Protocols.SearchOption;
 
 namespace Sharphound2.Enumeration
 {

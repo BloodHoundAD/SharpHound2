@@ -7,7 +7,7 @@
     <ProjectGuid>{69415BF4-E2F3-47E8-A818-93A6DC54811C}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>Sharphound2</RootNamespace>
-    <AssemblyName>Sharphound2</AssemblyName>
+    <AssemblyName>Sharphound</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
@@ -31,6 +31,9 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>favicon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="CommandLine, Version=1.9.71.2, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
@@ -72,6 +75,7 @@
     <Compile Include="Extensions.cs" />
     <Compile Include="OutputObjects\ACL.cs" />
     <Compile Include="OutputObjects\DCSync.cs" />
+    <Compile Include="OutputObjects\DomainTrust.cs" />
     <Compile Include="OutputObjects\GroupMember.cs" />
     <Compile Include="OutputObjects\LocalAdmin.cs" />
     <Compile Include="OutputObjects\OutputBase.cs" />
@@ -96,6 +100,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="PowerShell\Out-CompressedDLL.ps1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="favicon.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
