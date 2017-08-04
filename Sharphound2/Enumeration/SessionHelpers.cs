@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 using Sharphound2.OutputObjects;
 
@@ -20,6 +22,49 @@ namespace Sharphound2.Enumeration
             _cache = Cache.Instance;
             _utils = Utils.Instance;
             _options = opts;
+        }
+
+        public static IEnumerable<string> CollectStealthTargets(string domainName)
+        {
+            //Use a dictionary to unique stuff.
+            var paths = new ConcurrentDictionary<string, byte>();
+            //First we want to get all user script paths/home directories/profilepaths
+            Parallel.ForEach(_utils.DoSearch(
+                "(&(samAccountType=805306368)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(|(homedirectory=*)(scriptpath=*)(profilepath=*)))",
+                SearchScope.Subtree, new[] { "homedirectory", "scriptpath", "profilepath" },
+                domainName), (x) =>
+            {
+                var result = x.Item;
+                var poss = new[]
+                {
+                    result.GetProp("homedirectory"), result.GetProp("scriptpath"),
+                    result.GetProp("profilepath")
+                };
+
+                foreach (var s in poss)
+                {
+                    var split = s?.Split('\\');
+                    if (!(split?.Length >= 3)) continue;
+                    var path = split[2];
+                    paths.TryAdd(path, new byte());
+                }
+                x.Item = null;
+            });
+
+            //Lets grab domain controllers as well
+            foreach (var entry in _utils.DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)",
+                SearchScope.Subtree,
+                new[] { "dnshostname", "samaccounttype", "samaccountname", "serviceprincipalname" },
+                domainName))
+            {
+                var path = entry.Item.ResolveBloodhoundDisplay();
+                paths.TryAdd(path, new byte());
+            }
+
+            foreach (var path in paths.Keys)
+            {
+                yield return path;
+            }
         }
 
         public static List<Session> GetNetSessions(string target, string computerDomain)
@@ -159,7 +204,7 @@ namespace Sharphound2.Enumeration
             {
                 Console.WriteLine(e);
             }
-            return toReturn;
+            return toReturn.Distinct().ToList();
         }
 
         public static List<Session> GetNetLoggedOn(string server, string serverShortName, string computerDomain)
@@ -196,7 +241,7 @@ namespace Sharphound2.Enumeration
                     Weight = 1
                 });
             }
-            return toReturn;
+            return toReturn.Distinct().ToList();
         }
 
         #region PInvoke Imports

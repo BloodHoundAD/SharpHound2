@@ -44,6 +44,9 @@ namespace Sharphound2
             [Option(HelpText = "Filename for the data cache", DefaultValue = "BloodHound.bin")]
             public string CacheFile { get; set; }
 
+            [Option('v',HelpText = "Enable verbose output",DefaultValue = false)]
+            public bool Verbose { get; set; }
+
             public string CurrentUser { get; set; }
 
         }
@@ -73,8 +76,15 @@ namespace Sharphound2
             }
 
             var runner = new EnumerationRunner(options);
-            runner.StartEnumeration();
-            //runner.StartStealthEnumeration();
+
+            if (options.Stealth)
+            {
+                runner.StartStealthEnumeration();
+            }
+            else
+            {
+                runner.StartEnumeration();
+            }
             Cache.Instance.SaveCache();
         }
 

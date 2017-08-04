@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
-using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Threading;
 using System.Threading.Tasks;
 using Sharphound2.OutputObjects;
@@ -49,8 +49,11 @@ namespace Sharphound2.Enumeration
 
         public void StartStealthEnumeration()
         {
-            string ldapFilter;
-            string[] props;
+            var scheduler = new LimitedConcurrencyLevelTaskScheduler(_options.Threads);
+            var factory = new TaskFactory(scheduler);
+
+            var output = new BlockingCollection<Wrapper<OutputBase>>();
+            var writer = StartOutputWriter(factory, output);
             //Determine what to do. Luckily a bunch of collection methods are basically identical to regular
             switch (_options.CollectMethod)
             {
@@ -63,26 +66,19 @@ namespace Sharphound2.Enumeration
                 case CollectionMethod.GPOLocalGroup:
                     StartEnumeration();
                     break;
+                case CollectionMethod.Trusts:
+                    StartEnumeration();
+                    break;
                 case CollectionMethod.ComputerOnly:
                     break;
                 case CollectionMethod.LocalGroup:
                     //This shouldn't be possible, since we override it at the top level
                     break;
                 case CollectionMethod.Session:
-                    ldapFilter =
-                        "(|(&(samAccountType=805306368)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(|(homedirectory=*)(scriptpath=*)(profilepath=*)))(userAccountControl:1.2.840.113556.1.4.803:=8192))";
-                    props = new[]
-                    {
-                        "samaccountname","samaccounttype","distinguishedname","homedirectory","scriptpath","profilepath"
-                    };
-
                     break;
                 case CollectionMethod.LoggedOn:
                     //This doesn't make any sense
                     Console.WriteLine("LoggedOn and Stealth can't be used together!");
-                    break;
-                case CollectionMethod.Trusts:
-                    StartEnumeration();
                     break;
                 case CollectionMethod.SessionLoop:
                     break;
@@ -90,6 +86,79 @@ namespace Sharphound2.Enumeration
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
+            }
+
+            foreach (var domainName in _utils.GetDomainList())
+            {
+                Console.WriteLine($"Starting stealth enumeration for {domainName}");
+                switch (_options.CollectMethod)
+                {
+                    case CollectionMethod.Session:
+                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                        {
+                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                            foreach (var s in sessions)
+                            {
+                                output.Add(new Wrapper<OutputBase>{Item = s});
+                            }
+                        }
+                        break;
+                    case CollectionMethod.ComputerOnly:
+                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                        {
+                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                            foreach (var s in sessions)
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = s });
+                            }
+                        }
+
+                        foreach (var wrapper in _utils.DoSearch(
+                            "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
+                            new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
+                        {
+                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(wrapper.Item, domainName))
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = admin });
+                            }
+                        }
+                        break;
+                    case CollectionMethod.Default:
+                        Utils.Verbose("Starting session enumeration");
+                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                        {
+                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                            foreach (var s in sessions)
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = s });
+                            }
+                        }
+
+                        Utils.Verbose("Starting gpo enumeration");
+                        foreach (var wrapper in _utils.DoSearch(
+                            "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
+                            new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
+                        {
+                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(wrapper.Item, domainName))
+                            {
+                                output.Add(new Wrapper<OutputBase>{Item = admin});
+                            }
+                        }
+                        break;
+                    case CollectionMethod.SessionLoop:
+                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                        {
+                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                            foreach (var s in sessions)
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = s });
+                            }
+                        }
+                        break;
+                }
+                output.CompleteAdding();
+                writer.Wait();
+                Console.WriteLine($"Finished stealth enumeration for {domainName}");
             }
         }
 
@@ -190,18 +259,11 @@ namespace Sharphound2.Enumeration
                 }
 
                 _statusTimer.Start();
-
-
-                //foreach (var item in _utils.DoSearch(ldapFilter, SearchScope.Subtree, props, domainName))
-                //{
-                //    inputQueue.Add(item);
-                //}
-
-                foreach (var wrapper in _utils.DoSearch(ldapFilter, SearchScope.Subtree, props, domainName).Take(750))
+                
+                foreach (var item in _utils.DoSearch(ldapFilter, SearchScope.Subtree, props, domainName))
                 {
-                    //Console.WriteLine(wrapper.Item.ResolveBloodhoundDisplay());
+                    inputQueue.Add(item);
                 }
-
 
                 _statusTimer.Stop();
                 inputQueue.CompleteAdding();
@@ -213,6 +275,7 @@ namespace Sharphound2.Enumeration
                         outputQueue.Add(new Wrapper<OutputBase> {Item = a});
                     }
                 }
+                PrintStatus();
                 AclHelpers.ClearSyncers();
                 outputQueue.CompleteAdding();
                 writer.Wait();

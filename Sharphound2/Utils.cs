@@ -19,7 +19,7 @@ namespace Sharphound2
         private readonly ConcurrentDictionary<string, bool> _pingCache = new ConcurrentDictionary<string, bool>();
         private readonly ConcurrentDictionary<string, string> _netbiosConversionCache = new ConcurrentDictionary<string, string>();
 
-        private readonly Sharphound.Options _options;
+        private static Sharphound.Options _options;
         private readonly List<string> _domainList;
         private readonly Cache _cache;
 
@@ -29,6 +29,14 @@ namespace Sharphound2
         }
 
         public static Utils Instance { get; private set; }
+
+        public static void Verbose(string write)
+        {
+            if (_options.Verbose)
+            {
+                Console.WriteLine(write);
+            }
+        }
 
         public Utils(Sharphound.Options cli)
         {
@@ -205,9 +213,9 @@ namespace Sharphound2
         }
 
         public IEnumerable<Wrapper<SearchResultEntry>> DoSearch(string filter, SearchScope scope, string[] props,
-            string domainName = null, string adsPath = null)
+            string domainName = null, string adsPath = null, bool useGc = false)
         {
-            using (var conn = GetLdapConnection(domainName))
+            using (var conn = useGc ? GetGcConnection() : GetLdapConnection(domainName))
             {
                 var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
 
@@ -227,10 +235,10 @@ namespace Sharphound2
                     request.Controls.Add(sdfc);
                 }
 
-                SearchResponse response;
                 PageResultResponseControl pageResponse = null;
                 while (true)
                 {
+                    SearchResponse response;
                     try
                     {
                         response = (SearchResponse) conn.SendRequest(request);

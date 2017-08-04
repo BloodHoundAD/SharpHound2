@@ -38,6 +38,7 @@ namespace Sharphound2.Enumeration
             var displayName = entry.GetProp("displayname");
             var name = entry.GetProp("name");
             var path = entry.GetProp("gpcfilesyspath");
+            
 
             if (displayName == null || name == null || path == null)
             {
@@ -45,7 +46,6 @@ namespace Sharphound2.Enumeration
             }
 
             var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
-
             var currentSection = string.Empty;
             var resolvedList = new List<MappedPrincipal>();
 
@@ -341,7 +341,7 @@ namespace Sharphound2.Enumeration
                     type = "computer";
                 }
 
-                var resolved = _utils.SidToDisplay(data.sid, domainName, new[] { "samaccountname", "samaccounttype", "distinguishedname", "dnshostname" }, type);
+                var resolved = _utils.SidToDisplay(data.sid, _utils.SidToDomainName(data.sid), new[] { "samaccountname", "samaccounttype", "distinguishedname", "dnshostname" }, type);
                 toReturn.Add(new LocalAdmin
                 {
                     ObjectName = resolved,
