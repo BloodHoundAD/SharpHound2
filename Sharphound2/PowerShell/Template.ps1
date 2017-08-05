@@ -45,6 +45,10 @@ function Invoke-BloodHound{
         Use stealth collection options, will sacrifice data quality in favor of much reduced
         network impact
 
+    .PARAMETER ExcludeDC
+
+        Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
+
     .PARAMETER SkipGCDeconfliction
 
         Skip's Global Catalog deconfliction during session enumeration. This option
@@ -189,6 +193,9 @@ function Invoke-BloodHound{
         [Switch]
         $Verbose,
 
+        [Switch]
+        $ExcludeDC,
+
         [ValidateRange(1,50000000)]
         [int]
         $LoopTime,
@@ -284,6 +291,10 @@ function Invoke-BloodHound{
     if ($MaxLoopTime){
         $vars.Add("--MaxLoopTime")
         $vars.Add($MaxLoopTime)
+    }
+
+    if ($ExcludeDC){
+        $vars.Add("--ExcludeDC")
     }
 
     $passed = [string[]]$vars.ToArray()

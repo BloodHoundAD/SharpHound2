@@ -428,6 +428,22 @@ namespace Sharphound2
             return f;
         }
 
+        public static bool CheckWritePrivs()
+        {
+            const string filename = "test.csv";
+            var f = Path.Combine(_options.CSVFolder, filename);
+            try
+            {
+                using (File.Create(f)){}
+                File.Delete(filename);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public string GetWellKnownSid(string sid)
         {
             var trimmedSid = sid.Trim('*');

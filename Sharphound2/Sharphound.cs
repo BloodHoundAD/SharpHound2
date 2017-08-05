@@ -65,6 +65,9 @@ namespace Sharphound2
             [Option('v',HelpText = "Enable verbose output",DefaultValue = false)]
             public bool Verbose { get; set; }
 
+            [Option(HelpText = "Exclude Domain Controllers from search (useful for ATA environments)", DefaultValue = false)]
+            public bool ExcludeDC { get; set; }
+
             [ParserState]
             public IParserState LastParserState { get; set; }
 
@@ -99,6 +102,9 @@ Enumeration Options:
 
     --Stealth
         Use stealth collection options
+
+    --ExcludeDC
+        Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
     
 
 Performance Tuning:
@@ -184,10 +190,17 @@ General Options
             Cache.CreateInstance(options);
             Utils.CreateInstance(options);
 
+            if (!Utils.CheckWritePrivs())
+            {
+                Console.WriteLine("Unable to write in chosen directory. Please check privs");
+                return;
+            }
+
             SessionHelpers.Init(options);
             LocalAdminHelpers.Init();
             GroupHelpers.Init();
             AclHelpers.Init();
+            DomainTrustEnumeration.Init();
 
             if (options.Stealth)
             {
@@ -201,6 +214,9 @@ General Options
             }
 
             var runner = new EnumerationRunner(options);
+            
+            //DomainTrustEnumeration.DoTrustEnumeration(options.Domain);
+            
 
             if (options.Stealth)
             {

@@ -54,17 +54,27 @@ namespace Sharphound2.Enumeration
             });
 
             //Lets grab domain controllers as well
-            foreach (var entry in _utils.DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)",
-                SearchScope.Subtree,
-                new[] { "dnshostname", "samaccounttype", "samaccountname", "serviceprincipalname" },
-                domainName))
+            if (!_options.ExcludeDC)
             {
-                var path = entry.Item.ResolveBloodhoundDisplay();
-                paths.TryAdd(path, new byte());
+                foreach (var entry in _utils.DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)",
+                    SearchScope.Subtree,
+                    new[] { "dnshostname", "samaccounttype", "samaccountname", "serviceprincipalname" },
+                    domainName))
+                {
+                    var path = entry.Item.ResolveBloodhoundDisplay();
+                    paths.TryAdd(path, new byte());
+                }
             }
 
             foreach (var path in paths.Keys)
             {
+                if (_options.ExcludeDC)
+                {
+                    if (Directory.Exists($"\\\\{path}\\SYSVOL"))
+                    {
+                        continue;
+                    }
+                }
                 yield return path;
             }
         }

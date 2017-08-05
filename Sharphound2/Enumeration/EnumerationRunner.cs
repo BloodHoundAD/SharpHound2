@@ -276,6 +276,10 @@ namespace Sharphound2.Enumeration
                     break;
                 case CollectionMethod.Session:
                     ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))";
+                    if (_options.ExcludeDC)
+                    {
+                        ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(userAccountControl:1.2.840.113556.1.4.803:=8192)))";
+                    }
                     props = new[]
                     {
                         "samaccountname", "distinguishedname", "dnshostname", "samaccounttype"
@@ -412,12 +416,6 @@ namespace Sharphound2.Enumeration
                                     wrapper.Item = null;
                                     continue;
                                 }
-
-                                var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
-                                foreach (var s in sessions)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
-                                }
                                 var admins =
                                     LocalAdminHelpers.GetLocalAdmins(name, "Administrators", _currentDomain,
                                         _currentDomainSid);
@@ -425,6 +423,16 @@ namespace Sharphound2.Enumeration
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = a });
                                 }
+                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
+                                {
+                                    continue;
+                                }
+                                var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
+                                foreach (var s in sessions)
+                                {
+                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                                }
+                                
                             }
                             break;
                         case CollectionMethod.LocalGroup:
@@ -455,6 +463,11 @@ namespace Sharphound2.Enumeration
                                 if (!_utils.PingHost(name))
                                 {
                                     wrapper.Item = null;
+                                    continue;
+                                }
+
+                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
+                                {
                                     continue;
                                 }
 
@@ -516,11 +529,6 @@ namespace Sharphound2.Enumeration
                                 continue;
                             }
 
-                            var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
-                            foreach (var s in sessions)
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = s });
-                            }
                             var admins =
                                 LocalAdminHelpers.GetLocalAdmins(name, "Administrators", _currentDomain,
                                     _currentDomainSid);
@@ -528,7 +536,17 @@ namespace Sharphound2.Enumeration
                             {
                                 writeQueue.Add(new Wrapper<OutputBase> { Item = a });
                             }
-                        }
+
+                            if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
+                            {
+                                continue;
+                            }
+                            var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
+                            foreach (var s in sessions)
+                            {
+                                writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                            }
+                            }
                         break;
                     }
                     wrapper.Item = null;

@@ -4,23 +4,25 @@ using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Sharphound2.OutputObjects;
 
 namespace Sharphound2.Enumeration
 {
-    internal class DomainTrustEnumeration
+    internal static class DomainTrustEnumeration
     {
-        private readonly Utils _utils;
-        public DomainTrustEnumeration()
+        private static Utils _utils;
+
+        public static void Init()
         {
             _utils = Utils.Instance;
         }
 
-        public void DoTrustEnumeration()
+        public static void DoTrustEnumeration(string domain)
         {
             var complete = new List<string>();
             var queue = new Stack<string>();
 
-            queue.Push(_utils.GetDomain().Name);
+            queue.Push(_utils.GetDomain(domain).Name);
 
             var stream = new StreamWriter("trusts.csv");
             var append = File.Exists("trusts.csv");
@@ -49,6 +51,7 @@ namespace Sharphound2.Enumeration
                     foreach (SearchResultEntry entry in response.Entries)
                     {
                         var properties = entry.Attributes;
+                        var tAttribs = int.Parse(properties["trustattributes"][0].ToString());
                         string trustDirection;
                         switch (properties["trustdirection"][0])
                         {
@@ -69,10 +72,29 @@ namespace Sharphound2.Enumeration
                                 break;
                         }
 
-
+                        if ((tAttribs & 0x4) == 0x4)
+                        {
+                            Console.WriteLine("Quarantined");
+                        }
                     }
                 }
             }
+        }
+
+        [Flags]
+        private enum TrustAttributes
+        {
+            NonTransitive = 0x1,
+            UplevelOnly = 0x2,
+            Quarantined = 0x4,
+            ForestTransitive = 0x8,
+            CrossOrganization = 0x10,
+            WithinForest = 0x20,
+            TreatAsExternal = 0x40,
+            UsesRc4 = 0x80,
+            UsesAes = 0x100,
+            CrossOrganizationNoTgt = 0x200,
+            PimTrust = 0x400
         }
     }
 }
