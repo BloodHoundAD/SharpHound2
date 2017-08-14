@@ -347,6 +347,7 @@ namespace Sharphound2.Enumeration
                 }
 
                 inputQueue.CompleteAdding();
+                Utils.Verbose("Waiting for enumeration threads to finish");
                 Task.WaitAll(taskhandles);
 
                 _statusTimer.Stop();
@@ -357,10 +358,11 @@ namespace Sharphound2.Enumeration
                     {
                         outputQueue.Add(new Wrapper<OutputBase> {Item = a});
                     }
+                    AclHelpers.ClearSyncers();
                 }
                 PrintStatus();
-                AclHelpers.ClearSyncers();
                 outputQueue.CompleteAdding();
+                Utils.Verbose("Waiting for writer thread to finish");
                 writer.Wait();
                 _watch.Stop();
                 Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
