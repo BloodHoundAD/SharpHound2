@@ -259,7 +259,7 @@ namespace Sharphound2
                         yield return new Wrapper<SearchResultEntry>{Item = entry};
                     }
 
-                    if (pageResponse.Cookie.Length == 0)
+                    if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
                     {
                         break;
                     }

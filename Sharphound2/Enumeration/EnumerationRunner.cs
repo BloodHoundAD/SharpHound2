@@ -346,9 +346,11 @@ namespace Sharphound2.Enumeration
                     inputQueue.Add(item);
                 }
 
-                _statusTimer.Stop();
                 inputQueue.CompleteAdding();
                 Task.WaitAll(taskhandles);
+
+                _statusTimer.Stop();
+
                 if (_options.CollectMethod.Equals(CollectionMethod.ACL))
                 {
                     foreach (var a in AclHelpers.GetSyncers())
