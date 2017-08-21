@@ -22,7 +22,16 @@ namespace Sharphound2.Enumeration
         private static Utils _utils;
         private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
         private static readonly Regex KeyRegex = new Regex(@"(.+?)\s*=(.*)", RegexOptions.Compiled);
-        private static readonly string[] Props = {"samaccountname", "samaccounttype", "dnshostname", "serviceprincipalname", "distinguishedname"};
+
+        private static readonly string[] Props =
+            {"samaccountname", "samaccounttype", "dnshostname", "serviceprincipalname", "distinguishedname"};
+
+        private static readonly string[] GpoProps =
+            {"samaccounttype", "dnshostname", "distinguishedname", "serviceprincipalname"};
+
+        private static readonly string[] GpLinkProps = {"distinguishedname"};
+
+        private static readonly string[] AdminProps = {"samaccountname", "dnshostname", "distinguishedname", "samaccounttype"};
 
         public static void Init()
         {
@@ -30,10 +39,9 @@ namespace Sharphound2.Enumeration
             _utils = Utils.Instance;
         }
 
-        public static List<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
+        public static IEnumerable<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
         {
             const string targetSid = "S-1-5-32-544__Members";
-            var toReturn = new List<LocalAdmin>();
 
             var displayName = entry.GetProp("displayname");
             var name = entry.GetProp("name");
@@ -42,7 +50,7 @@ namespace Sharphound2.Enumeration
 
             if (displayName == null || name == null || path == null)
             {
-                return toReturn;
+                yield break;
             }
 
             var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
@@ -111,45 +119,33 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            using (var conn = _utils.GetLdapConnection(domainName))
+            foreach (var ouObject in _utils.DoSearch($"(gplink=*{name}*)", SearchScope.Subtree, GpLinkProps, domainName))
             {
-                var ouSearcher =
-                    _utils.GetSearchRequest($"(gplink=*{name}*)",
-                        SearchScope.Subtree,
-                        new[] { "distinguishedname" },
-                        domainName);
+                var adspath = ouObject.DistinguishedName;
 
-                var ouResponse = (SearchResponse)conn.SendRequest(ouSearcher);
-                foreach (SearchResultEntry ouObj in ouResponse.Entries)
+                foreach (var compEntry in _utils.DoSearch("(objectclass=computer)", SearchScope.Subtree, GpoProps,
+                    domainName, adspath))
                 {
-                    var adsPath = ouObj.GetProp("distinguishedname");
-                    var compSearcher = _utils.GetSearchRequest("(objectclass=computer)", SearchScope.Subtree,
-                        new[] { "samaccounttype", "dnshostname", "distinguishedname", "serviceprincipalname" },
-                        domainName, adsPath);
+                    var samAccountType = compEntry.GetProp("samaccounttype");
+                    if (samAccountType == null || samAccountType != "805306369")
+                        continue;
 
-                    var compResponse = (SearchResponse)conn.SendRequest(compSearcher);
-                    foreach (SearchResultEntry compObj in compResponse.Entries)
+                    var server = compEntry.ResolveBloodhoundDisplay();
+
+                    foreach (var user in resolvedList)
                     {
-                        var samAccountType = compObj.GetProp("samaccounttype");
-                        if (samAccountType == null || samAccountType != "805306369")
-                            continue;
-
-                        var server = compObj.ResolveBloodhoundDisplay();
-
-                        toReturn.AddRange(resolvedList.Select(user => new LocalAdmin
+                        yield return new LocalAdmin
                         {
-                            ObjectType = user.ObjectType,
                             ObjectName = user.PrincipalName,
+                            ObjectType = user.ObjectType,
                             Server = server
-                        }));
+                        };
                     }
                 }
             }
-
-            return toReturn;
         }
 
-        public static List<LocalAdmin> GetLocalAdmins(string target, string group, string domainName, string domainSid)
+        public static IEnumerable<LocalAdmin> GetLocalAdmins(string target, string group, string domainName, string domainSid)
         {
             var toReturn = new List<LocalAdmin>();
             try
@@ -185,6 +181,7 @@ namespace Sharphound2.Enumeration
                 {
                     using (var m = new DirectoryEntry(member))
                     {
+                        //Convert sid bytes to a string
                         var sidstring = new SecurityIdentifier(m.GetSid(), 0).ToString();
                         string type;
                         switch (m.SchemaClassName)
@@ -193,6 +190,7 @@ namespace Sharphound2.Enumeration
                                 type = "group";
                                 break;
                             case "User":
+                                //If its a user but the name ends in $, it's actually a computer (probably)
                                 type = m.Properties["Name"][0].ToString().EndsWith("$", StringComparison.Ordinal) ? "computer" : "user";
                                 break;
                             default:
@@ -200,32 +198,29 @@ namespace Sharphound2.Enumeration
                                 break;
                         }
 
+                        //Start by checking the cache
                         if (!_cache.GetMapValue(sidstring, type, out string adminName))
                         {
+                            //Get the domain from the SID
                             var domainName = _utils.SidToDomainName(sidstring);
 
-                            using (var conn = _utils.GetLdapConnection(domainName))
+                            //Search for the object in AD
+                            var entry = _utils
+                                .DoSearch($"(objectsid={sidstring})", SearchScope.Subtree, AdminProps, domainName)
+                                .DefaultIfEmpty(null).FirstOrDefault();
+
+                            //If it's not null, we have an object, yay! Otherwise, meh
+                            if (entry != null)
                             {
-                                var request = _utils.GetSearchRequest($"(objectsid={sidstring})",
-                                    SearchScope.Subtree,
-                                    new[] { "samaccountname", "distinguishedname", "samaccounttype" },
-                                    domainName);
-
-                                var response = (SearchResponse)conn.SendRequest(request);
-
-                                if (response.Entries.Count >= 1)
-                                {
-                                    var e = response.Entries[0];
-                                    adminName = e.ResolveBloodhoundDisplay();
-
-                                    _cache.AddMapValue(sidstring, type, adminName);
-                                }
-                                else
-                                {
-                                    adminName = null;
-                                }
+                                adminName = entry.ResolveBloodhoundDisplay();
+                                _cache.AddMapValue(sidstring, type, adminName);
+                            }
+                            else
+                            {
+                                adminName = null;
                             }
                         }
+
                         if (adminName != null)
                         {
                             localAdmins.Add(new LocalAdmin { ObjectName = adminName, ObjectType = type, Server = target });
@@ -235,6 +230,7 @@ namespace Sharphound2.Enumeration
             }
             catch (COMException)
             {
+                //You can get a COMException, so just return a blank array
                 return localAdmins;
             }
 
@@ -251,11 +247,13 @@ namespace Sharphound2.Enumeration
 
             var returnValue = NetLocalGroupGetMembers(target, group, queryLevel, out IntPtr ptrInfo, -1, out int entriesRead, out int _, resumeHandle);
 
+            //Return value of 1722 indicates the system is down, so no reason to fallback to WinNT
             if (returnValue == 1722)
             {
                 throw new SystemDownException();
             }
 
+            //If its not 0, something went wrong, but we can fallback to WinNT provider. Throw an exception
             if (returnValue != 0)
             {
                 throw new ApiFailedException();
@@ -267,6 +265,8 @@ namespace Sharphound2.Enumeration
 
             var iter = ptrInfo;
             var list = new List<API_Encapsulator>();
+
+            //Loop through the data and save them into a list for processing
             for (var i = 0; i < entriesRead; i++)
             {
                 var data = (LOCALGROUP_MEMBERS_INFO_2)Marshal.PtrToStructure(iter, LMI2);
@@ -289,9 +289,11 @@ namespace Sharphound2.Enumeration
                     continue;
                 }
 
+                //If the sid ends with -500 and doesn't start with the DomainSID, there's a very good chance we've identified the RID500 account
+                //Take the machine sid from there. If we don't find it, we use a dummy string
                 if (!data.sid.EndsWith("-500", StringComparison.Ordinal) ||
                     data.sid.StartsWith(domainSid, StringComparison.Ordinal)) continue;
-                machineSid = data.sid.Substring(0, data.sid.LastIndexOf("-", StringComparison.Ordinal));
+                machineSid = new SecurityIdentifier(data.sid).AccountDomainSid.Value;
                 break;
             }
 
@@ -341,7 +343,7 @@ namespace Sharphound2.Enumeration
                     type = "computer";
                 }
 
-                var resolved = _utils.SidToDisplay(data.sid, _utils.SidToDomainName(data.sid), new[] { "samaccountname", "samaccounttype", "distinguishedname", "dnshostname" }, type);
+                var resolved = _utils.SidToDisplay(data.sid, _utils.SidToDomainName(data.sid), AdminProps, type);
                 toReturn.Add(new LocalAdmin
                 {
                     ObjectName = resolved,

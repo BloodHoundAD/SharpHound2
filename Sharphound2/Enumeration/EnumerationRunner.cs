@@ -89,7 +89,7 @@ namespace Sharphound2.Enumeration
                         }
 
                         Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var wrapper in _utils.DoSearch(
+                        foreach (var wrapper in _utils.DoWrappedSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
                         {
@@ -111,7 +111,7 @@ namespace Sharphound2.Enumeration
                         }
 
                         Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var wrapper in _utils.DoSearch(
+                        foreach (var wrapper in _utils.DoWrappedSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
                         {
@@ -122,7 +122,7 @@ namespace Sharphound2.Enumeration
                         }
 
                         Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var wrapper in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
+                        foreach (var wrapper in _utils.DoWrappedSearch("(|(memberof=*)(primarygroupid=*))",
                             SearchScope.Subtree,
                             new[]
                             {
@@ -152,7 +152,11 @@ namespace Sharphound2.Enumeration
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
                             var sessions = SessionHelpers.GetNetLoggedOn(path, "FAKESTRING", domainName);
-                            sessions.AddRange(SessionHelpers.GetRegistryLoggedOn(path));
+                            foreach (var s in sessions)
+                            {
+                                output.Add(new Wrapper<OutputBase> { Item = s });
+                            }
+                            sessions = SessionHelpers.GetRegistryLoggedOn(path);
                             foreach (var s in sessions)
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = s });
@@ -161,7 +165,7 @@ namespace Sharphound2.Enumeration
                         break;
                     case CollectionMethod.Group:
                         Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var wrapper in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
+                        foreach (var wrapper in _utils.DoWrappedSearch("(|(memberof=*)(primarygroupid=*))",
                             SearchScope.Subtree,
                             new[]
                             {
@@ -180,7 +184,7 @@ namespace Sharphound2.Enumeration
                         break;
                     case CollectionMethod.GPOLocalGroup:
                         Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var wrapper in _utils.DoSearch(
+                        foreach (var wrapper in _utils.DoWrappedSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
                         {
@@ -191,10 +195,15 @@ namespace Sharphound2.Enumeration
                         }
                         break;
                     case CollectionMethod.Trusts:
+                        var trusts = DomainTrustEnumeration.DoTrustEnumeration(domainName);
+                        foreach (var trust in trusts)
+                        {
+                            output.Add(new Wrapper<OutputBase> {Item = trust});
+                        }
                         break;
                     case CollectionMethod.ACL:
                         Console.WriteLine("Doing stealth enumeration for ACLs");
-                        foreach (var wrapper in _utils.DoSearch(
+                        foreach (var wrapper in _utils.DoWrappedSearch(
                             "(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain))",
                             SearchScope.Subtree,
                             new[]
@@ -293,6 +302,11 @@ namespace Sharphound2.Enumeration
                     };
                     break;
                 case CollectionMethod.Trusts:
+                    ldapFilter = "(objectclass=domain)";
+                    props = new[]
+                    {
+                        "distinguishedname"
+                    };
                     break;
                 case CollectionMethod.ACL:
                     ldapFilter =
@@ -310,7 +324,7 @@ namespace Sharphound2.Enumeration
                     };
                     break;
                 case CollectionMethod.Default:
-                    ldapFilter = "(|(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
+                    ldapFilter = "(|(objectclass=domain)(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
                     props = new[]
                     {
                         "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "serviceprincipalname",
@@ -341,7 +355,7 @@ namespace Sharphound2.Enumeration
 
                 _statusTimer.Start();
                 
-                foreach (var item in _utils.DoSearch(ldapFilter, SearchScope.Subtree, props, domainName))
+                foreach (var item in _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName))
                 {
                     inputQueue.Add(item);
                 }
@@ -493,8 +507,12 @@ namespace Sharphound2.Enumeration
                                 var sessions =
                                     SessionHelpers.GetNetLoggedOn(name, samAccountName,
                                         _currentDomain);
-                                sessions.AddRange(SessionHelpers.GetRegistryLoggedOn(name));
 
+                                foreach (var s in sessions)
+                                {
+                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                                }
+                                sessions = SessionHelpers.GetRegistryLoggedOn(name);
                                 foreach (var s in sessions)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
@@ -502,6 +520,11 @@ namespace Sharphound2.Enumeration
                             }
                             break;
                         case CollectionMethod.Trusts:
+                            var trusts = DomainTrustEnumeration.DoTrustEnumeration(entry.ResolveBloodhoundDisplay());
+                            foreach (var trust in trusts)
+                            {
+                                writeQueue.Add(new Wrapper<OutputBase>{Item = trust});
+                            }
                             break;
                         case CollectionMethod.ACL:
                             {
@@ -520,6 +543,15 @@ namespace Sharphound2.Enumeration
                             foreach (var g in groups)
                             {
                                 writeQueue.Add(new Wrapper<OutputBase> { Item = g });
+                            }
+
+                            if (type.Equals("domain"))
+                            {
+                                foreach (var trust in DomainTrustEnumeration.DoTrustEnumeration(entry
+                                    .ResolveBloodhoundDisplay()))
+                                {
+                                    writeQueue.Add(new Wrapper<OutputBase> {Item = trust});
+                                }
                             }
 
                             if (!type.Equals("computer"))
@@ -552,6 +584,8 @@ namespace Sharphound2.Enumeration
                             }
                             }
                         break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
                     }
                     wrapper.Item = null;
                 }
@@ -665,6 +699,7 @@ namespace Sharphound2.Enumeration
                 sessions?.Dispose();
                 acls?.Dispose();
                 admins?.Dispose();
+                trusts?.Dispose();
             });
         }
     }

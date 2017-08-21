@@ -68,6 +68,9 @@ namespace Sharphound2
             [Option(HelpText = "Exclude Domain Controllers from search (useful for ATA environments)", DefaultValue = false)]
             public bool ExcludeDC { get; set; }
 
+            [Option(DefaultValue = false)]
+            public bool Test { get; set; }
+            
             [ParserState]
             public IParserState LastParserState { get; set; }
 
@@ -185,10 +188,17 @@ General Options
                 Console.WriteLine(options.GetUsage());
                 return;
             }
+
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
             Console.WriteLine("Initializing BloodHound");
             Cache.CreateInstance(options);
             Utils.CreateInstance(options);
+
+            if (options.Test)
+            {
+                Test.DoStuff();
+                return;
+            }
 
             if (!Utils.CheckWritePrivs())
             {

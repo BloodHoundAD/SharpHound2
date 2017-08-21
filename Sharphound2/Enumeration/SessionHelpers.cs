@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using Sharphound2.OutputObjects;
-using SearchOption = System.DirectoryServices.Protocols.SearchOption;
 
 namespace Sharphound2.Enumeration
 {
@@ -18,6 +17,8 @@ namespace Sharphound2.Enumeration
         private static Cache _cache;
         private static Utils _utils;
         private static Sharphound.Options _options;
+        private static readonly string[] RegistryProps = {"samaccounttype", "samaccountname", "distinguishedname"};
+        private static readonly Regex SidRegex = new Regex(@"S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$", RegexOptions.Compiled);
 
         public static void Init(Sharphound.Options opts)
         {
@@ -31,7 +32,7 @@ namespace Sharphound2.Enumeration
             //Use a dictionary to unique stuff.
             var paths = new ConcurrentDictionary<string, byte>();
             //First we want to get all user script paths/home directories/profilepaths
-            Parallel.ForEach(_utils.DoSearch(
+            Parallel.ForEach(_utils.DoWrappedSearch(
                 "(&(samAccountType=805306368)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(|(homedirectory=*)(scriptpath=*)(profilepath=*)))",
                 SearchScope.Subtree, new[] { "homedirectory", "scriptpath", "profilepath" },
                 domainName), (x) =>
@@ -56,7 +57,7 @@ namespace Sharphound2.Enumeration
             //Lets grab domain controllers as well
             if (!_options.ExcludeDC)
             {
-                foreach (var entry in _utils.DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)",
+                foreach (var entry in _utils.DoWrappedSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)",
                     SearchScope.Subtree,
                     new[] { "dnshostname", "samaccounttype", "samaccountname", "serviceprincipalname" },
                     domainName))
@@ -79,25 +80,28 @@ namespace Sharphound2.Enumeration
             }
         }
 
-        public static List<Session> GetNetSessions(string target, string computerDomain)
+        public static IEnumerable<Session> GetNetSessions(string target, string computerDomain)
         {
             var resumeHandle = IntPtr.Zero;
-            var toReturn = new List<Session>();
             var si10 = typeof(SESSION_INFO_10);
 
             var returnValue = NetSessionEnum(target, null, null, 10, out IntPtr ptrInfo, -1, out int entriesRead,
                 out int _, ref resumeHandle);
 
-            if (returnValue != (int)NERR.NERR_Success) return toReturn;
+            //If we don't get a success, just break
+            if (returnValue != (int)NERR.NERR_Success) yield break;
 
             var results = new SESSION_INFO_10[entriesRead];
             var iter = ptrInfo;
+
+            //Loop over the data and store it into an array
             for (var i = 0; i < entriesRead; i++)
             {
                 results[i] = (SESSION_INFO_10)Marshal.PtrToStructure(iter, si10);
                 iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(si10));
             }
 
+            //Free the IntPtr
             NetApiBufferFree(ptrInfo);
 
             foreach (var result in results)
@@ -117,36 +121,27 @@ namespace Sharphound2.Enumeration
 
                 var dnsHostName = _utils.ResolveHost(cname);
 
+                //If we're skipping Global Catalog deconfliction, just return a session
                 if (_options.SkipGcDeconfliction)
                 {
-                    toReturn.Add(new Session { ComputerName = dnsHostName, UserName = username, Weight = 2 });
+                    yield return new Session { ComputerName = dnsHostName, UserName = username, Weight = 2 };
                 }
                 else
                 {
+                    //Check our cache first
                     if (!_cache.GetGcMap(username, out string[] possible))
                     {
-                        using (var conn = _utils.GetGcConnection())
+                        //If we didn't get a cache hit, search the global catalog
+                        var temp = new List<string>();
+                        foreach (var entry in _utils.DoSearch(
+                            $"(&(samAccountType=805306368)(samaccountname={username}))", SearchScope.Subtree,
+                            new[] {"distinguishedname"}, null, useGc:true))
                         {
-                            var request = new SearchRequest(null,
-                                $"(&(samAccountType=805306368)(samaccountname={username}))", SearchScope.Subtree,
-                                "distinguishedname");
-                            var searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
-                            request.Controls.Add(searchOptions);
-                            var response = (SearchResponse)conn.SendRequest(request);
-
-                            var temp = new List<string>();
-                            foreach (SearchResultEntry e in response.Entries)
-                            {
-                                var dn = e.GetProp("distinguishedname");
-                                if (dn != null)
-                                {
-                                    temp.Add(Utils.ConvertDnToDomain(dn).ToUpper());
-                                }
-                            }
-
-                            possible = temp.ToArray();
-                            _cache.AddGcMap(username, possible);
+                            temp.Add(Utils.ConvertDnToDomain(entry.DistinguishedName).ToUpper());
                         }
+
+                        possible = temp.ToArray();
+                        _cache.AddGcMap(username, possible);
                     }
 
 
@@ -154,21 +149,21 @@ namespace Sharphound2.Enumeration
                     {
                         case 0:
                             //Object isn't in GC, so we'll default to the computer's domain
-                            toReturn.Add(new Session
+                            yield return new Session
                             {
                                 UserName = $"{username}@{computerDomain}",
                                 ComputerName = dnsHostName,
                                 Weight = 2
-                            });
+                            };
                             break;
                         case 1:
                             //Exactly one instance of this samaccountname, the best scenario
-                            toReturn.Add(new Session
+                            yield return new Session
                             {
                                 UserName = $"{username}@{possible.First()}",
                                 ComputerName = dnsHostName,
                                 Weight = 2
-                            });
+                            };
                             break;
                         default:
                             //Multiple possibilities (whyyyyy)
@@ -177,49 +172,57 @@ namespace Sharphound2.Enumeration
                             {
                                 var weight = possibility.Equals(computerDomain, StringComparison.CurrentCultureIgnoreCase) ? 1 : 2;
 
-                                toReturn.Add(new Session
+                                yield return new Session
                                 {
                                     Weight = weight,
                                     ComputerName = dnsHostName,
                                     UserName = $"{username}@{possibility}"
-                                });
+                                };
                             }
                             break;
                     }
                 }
             }
-            return toReturn;
         }
 
-        public static List<Session> GetRegistryLoggedOn(string target)
+        public static IEnumerable<Session> GetRegistryLoggedOn(string target)
         {
-            var toReturn = new List<Session>();
+            var temp = new List<Session>();
             try
             {
+                //Remotely open the registry hive if its not our current one
                 var key = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users,
                     Environment.MachineName.Equals(target.Split('.')[0], StringComparison.CurrentCultureIgnoreCase)
                         ? ""
                         : target);
-                var filtered = key.GetSubKeyNames()
-                    .Where(sub => Regex.IsMatch(sub, "S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$"));
 
+                //Find all the subkeys that match our regex
+                var filtered = key.GetSubKeyNames()
+                    .Where(sub => SidRegex.IsMatch(sub));
+                
                 foreach (var subkey in filtered)
                 {
+                    //Convert our sid to a username
                     var user = _utils.SidToDisplay(subkey, _utils.SidToDomainName(subkey),
-                        new[] { "samaccounttype", "samaccountname", "distinguishedname" }, "user");
+                        RegistryProps, "user");
 
                     if (user == null) continue;
-                    toReturn.Add(new Session { ComputerName = target, UserName = user, Weight = 1 });
+                    temp.Add(new Session { ComputerName = target, UserName = user, Weight = 1 });
                 }
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                yield break;
             }
-            return toReturn.Distinct().ToList();
+
+            foreach (var sess in temp.Distinct())
+            {
+                yield return sess;
+            }
         }
 
-        public static List<Session> GetNetLoggedOn(string server, string serverShortName, string computerDomain)
+        public static IEnumerable<Session> GetNetLoggedOn(string server, string serverShortName, string computerDomain)
         {
             var toReturn = new List<Session>();
 
@@ -228,13 +231,16 @@ namespace Sharphound2.Enumeration
 
             var tWui1 = typeof(WKSTA_USER_INFO_1);
 
+            //Call the API to get logged on users
             var result = NetWkstaUserEnum(server, queryLevel, out IntPtr intPtr, -1, out int entriesRead, out int _, ref resumeHandle);
 
-            if (result != 0 && result != 234) return toReturn;
+            //If we don't get 0 or 234 return
+            if (result != 0 && result != 234) yield break;
             var iter = intPtr;
             for (var i = 0; i < entriesRead; i++)
             {
                 var data = (WKSTA_USER_INFO_1)Marshal.PtrToStructure(iter, tWui1);
+                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(tWui1));
 
                 var domain = data.wkui1_logon_domain;
                 var username = data.wkui1_username;
@@ -245,6 +251,7 @@ namespace Sharphound2.Enumeration
                     continue;
                 }
 
+                //Try to convert the domain part to a FQDN, if it doesn't work just use the computer's domain
                 var domainName = _utils.DomainNetbiosToFqdn(domain) ?? computerDomain;
                 toReturn.Add(new Session
                 {
@@ -253,7 +260,11 @@ namespace Sharphound2.Enumeration
                     Weight = 1
                 });
             }
-            return toReturn.Distinct().ToList();
+
+            foreach (var sess in  toReturn.Distinct())
+            {
+                yield return sess;
+            }
         }
 
         #region PInvoke Imports

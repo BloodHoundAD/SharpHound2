@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Security.Principal;
@@ -11,6 +12,7 @@ namespace Sharphound2
         private static readonly HashSet<string> Groups = new HashSet<string> { "268435456", "268435457", "536870912", "536870913" };
         private static readonly HashSet<string> Computers = new HashSet<string> { "805306369" };
         private static readonly HashSet<string> Users = new HashSet<string> { "805306368" };
+        private static readonly HashSet<string> TrustAccount = new HashSet<string> { "805306370" };
         private static readonly Regex SpnSearch = new Regex(@"HOST\/([A-Za-z0-9-_]*\.[A-Za-z0-9-_]*\.[A-Za-z0-9-_]*)$", RegexOptions.Compiled);
 
         static Extensions()
@@ -35,6 +37,16 @@ namespace Sharphound2
             if (Computers.Contains(accountType))
             {
                 return "computer";
+            }
+
+            if (TrustAccount.Contains(accountType))
+            {
+                return "trustaccount";
+            }
+
+            if (result.DistinguishedName.Contains("ForeignSecurityPrincipals"))
+            {
+                return "foreignsecurityprincipal";
             }
 
             return "domain";

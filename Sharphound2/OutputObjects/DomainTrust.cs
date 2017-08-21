@@ -11,6 +11,11 @@ namespace Sharphound2.OutputObjects
         public string TrustType { get; set; }
         public bool IsTransitive { get; set; }
 
+        public override string ToString()
+        {
+            return $"{nameof(SourceDomain)}: {SourceDomain}, {nameof(TargetDomain)}: {TargetDomain}, {nameof(TrustDirection)}: {TrustDirection}, {nameof(TrustType)}: {TrustType}, {nameof(IsTransitive)}: {IsTransitive}";
+        }
+
         public override string ToCsv()
         {
             return $"{SourceDomain},{TargetDomain},{TrustDirection},{TrustType},{IsTransitive}";

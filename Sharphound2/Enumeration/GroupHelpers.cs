@@ -19,25 +19,25 @@ namespace Sharphound2.Enumeration
             _cache = Cache.Instance;
         }
 
-        public static List<GroupMember> ProcessAdObject(SearchResultEntry entry, string domainSid)
+        public static IEnumerable<GroupMember> ProcessAdObject(SearchResultEntry entry, string domainSid)
         {
-            var toReturn = new List<GroupMember>();
-            
+            //Start by checking the cache to see if this entry is already there (this is ideal!)
             if (!_cache.GetMapValue(entry.DistinguishedName, entry.GetObjectType(), out string principalDisplayName))
             {
                 principalDisplayName = entry.ResolveBloodhoundDisplay();
             }
-
+            
+            //If the principal name is null, no point in continuing.
             if (principalDisplayName == null)
             {
-                Console.WriteLine($"null principal {entry.DistinguishedName}");
-                return toReturn;
+                Utils.Verbose($"null principal {entry.DistinguishedName}");
+                yield break;
             }
 
             var principalDomainName = Utils.ConvertDnToDomain(entry.DistinguishedName);
-
             var objectType = entry.GetObjectType();
 
+            //If this object is a group, add it to our DN cache
             if (objectType.Equals("group"))
             {
                 _cache.AddMapValue(entry.DistinguishedName, "group", principalDisplayName);
@@ -45,55 +45,63 @@ namespace Sharphound2.Enumeration
 
             foreach (var dn in entry.GetPropArray("memberof"))
             {
+                //Check our cache first
                 if (!_cache.GetMapValue(dn, "group", out string groupName))
                 {
-                    using (var conn = _utils.GetLdapConnection(principalDomainName))
-                    {
-                        var response = (SearchResponse)conn.SendRequest(_utils.GetSearchRequest("(objectClass=group)", SearchScope.Base, Props, Utils.ConvertDnToDomain(dn), dn));
+                    //Search for the object directly
+                    var groupEntry = _utils
+                        .DoSearch("(objectclass=group)", SearchScope.Base, Props, Utils.ConvertDnToDomain(dn), dn)
+                        .DefaultIfEmpty(null).FirstOrDefault();
 
-                        if (response != null && response.Entries.Count >= 1)
-                        {
-                            var e = response.Entries[0];
-                            groupName = e.ResolveBloodhoundDisplay();
-                        }
-                        else
-                        {
-                            groupName = ConvertADName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
-                            groupName = groupName != null ? groupName.Split('\\').Last() : dn.Substring(0, dn.IndexOf(",", StringComparison.Ordinal)).Split('=').Last();
-                        }
+                    if (groupEntry == null)
+                    {
+                        //Our search didn't return anything so fallback
+                        //Try convertadname first
+                        groupName = ConvertADName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
+
+                        //If convertadname is null, just screw with the distinguishedname to get the group
+                        groupName = groupName != null
+                            ? groupName.Split('\\').Last()
+                            : dn.Substring(0, dn.IndexOf(",", StringComparison.Ordinal)).Split('=').Last();
+                    }
+                    else
+                    {
+                        //We got an object back!
+                        groupName = groupEntry.ResolveBloodhoundDisplay();
                     }
 
+                    //If we got a group back, add it to the cache for later use
                     if (groupName != null)
                     {
                         _cache.AddMapValue(dn, "group", groupName);
                     }
                 }
 
+                //We got our group! Return it
                 if (groupName != null)
-                    toReturn.Add(new GroupMember
+                    yield return new GroupMember
                     {
                         AccountName = principalDisplayName,
                         GroupName = groupName,
                         ObjectType = objectType
-                    });
+                    };
             }
 
             var primaryGroupId = entry.GetProp("primarygroupid");
-            if (primaryGroupId != null)
-            {
-                var pgsid = $"{domainSid}-{primaryGroupId}";
-                var groupName = _utils.SidToDisplay(pgsid, principalDomainName, Props, "group");
-                
-                if (groupName != null)
-                    toReturn.Add(new GroupMember
-                    {
-                        AccountName = principalDisplayName,
-                        GroupName = groupName,
-                        ObjectType = objectType
-                    });
-            }
-
-            return toReturn;
+            if (primaryGroupId == null) yield break;
+            
+            //As far as I know you cant belong to a primary group of another domain
+            var pgsid = $"{domainSid}-{primaryGroupId}";
+            var primaryGroupName = _utils.SidToDisplay(pgsid, principalDomainName, Props, "group");
+            
+            if (primaryGroupName != null)
+                yield return new GroupMember
+                {
+                    AccountName = principalDisplayName,
+                    GroupName = primaryGroupName,
+                    ObjectType = objectType
+                };
+            
         }
 
         #region Pinvoke

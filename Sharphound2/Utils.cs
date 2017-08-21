@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
@@ -150,7 +151,7 @@ namespace Sharphound2
         /// <param name="domainName"></param>
         /// <param name="props"></param>
         /// <param name="type"></param>
-        /// <returns></returns>
+        /// <returns>Resolved bloodhound name or null</returns>
         public string SidToDisplay(string sid, string domainName, string[] props, string type)
         {
             var found = false;
@@ -175,19 +176,20 @@ namespace Sharphound2
                 return resolved.ToUpper();
             }
 
-            using (var conn = GetLdapConnection(domainName))
-            {
-                var response = (SearchResponse)conn.SendRequest(GetSearchRequest($"(objectsid={sid})", SearchScope.Subtree, props, domainName));
-                if (response == null || response.Entries.Count < 1) return null;
-                var e = response.Entries[0];
-                var name = e.ResolveBloodhoundDisplay();
-                if (name != null)
-                {
-                    _cache.AddMapValue(sid, type, name);
-                }
+            var entry = DoSearch($"(objectsid={sid})", SearchScope.Subtree, props, domainName).DefaultIfEmpty(null)
+                .FirstOrDefault();
 
-                return name;
+            if (entry == null)
+            {
+                return null;
             }
+            
+            var name = entry.ResolveBloodhoundDisplay();
+            if (name != null)
+            {
+                _cache.AddMapValue(sid, type, name);
+            }
+            return name;
         }
 
         public MappedPrincipal UnknownSidTypeToDisplay(string sid, string domainName, string[] props)
@@ -197,33 +199,37 @@ namespace Sharphound2
                 return principal;
             }
 
-            using (var conn = GetLdapConnection(domainName))
+            var entry = DoSearch($"(objectsid={sid})", SearchScope.Subtree, props, domainName).DefaultIfEmpty(null)
+                .FirstOrDefault();
+
+            if (entry == null)
             {
-                var response = (SearchResponse)conn.SendRequest(GetSearchRequest($"(objectsid={sid})", SearchScope.Subtree, props, domainName));
-
-                if (response == null || response.Entries.Count < 1) return null;
-                var e = response.Entries[0];
-                var name = e.ResolveBloodhoundDisplay();
-                var type = e.GetObjectType();
-                if (name != null)
-                {
-                    _cache.AddMapValue(sid, type, name);
-                }
-
-                return new MappedPrincipal(name, type);
+                return null;
             }
+
+            var name = entry.ResolveBloodhoundDisplay();
+            var type = entry.GetObjectType();
+            if (name != null)
+            {
+                _cache.AddMapValue(sid, type, name);
+            }
+            return new MappedPrincipal(name, type);
         }
 
-        public IEnumerable<Wrapper<SearchResultEntry>> DoSearch(string filter, SearchScope scope, string[] props,
+        public IEnumerable<Wrapper<SearchResultEntry>> DoWrappedSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
             using (var conn = useGc ? GetGcConnection() : GetLdapConnection(domainName))
             {
+                if (conn == null)
+                {
+                    yield break;
+                }
                 var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
 
                 if (request == null)
                 {
-                    Console.WriteLine("Unable to contact domain");
+                    Verbose($"Unable to contact domain {domainName}");
                     yield break;
                 }
 
@@ -269,6 +275,66 @@ namespace Sharphound2
             }
         }
 
+        public IEnumerable<SearchResultEntry> DoSearch(string filter, SearchScope scope, string[] props,
+            string domainName = null, string adsPath = null, bool useGc = false)
+        {
+            using (var conn = useGc ? GetGcConnection() : GetLdapConnection(domainName))
+            {
+                if (conn == null)
+                {
+                    yield break;
+                }
+                var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
+
+                if (request == null)
+                {
+                    Verbose($"Unable to contact domain {domainName}");
+                    yield break;
+                }
+
+                var prc = new PageResultRequestControl(500);
+                request.Controls.Add(prc);
+
+                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                {
+                    var sdfc =
+                        new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
+                    request.Controls.Add(sdfc);
+                }
+
+                PageResultResponseControl pageResponse = null;
+                while (true)
+                {
+                    SearchResponse response;
+                    try
+                    {
+                        response = (SearchResponse)conn.SendRequest(request);
+                        if (response != null)
+                        {
+                            pageResponse = (PageResultResponseControl)response.Controls[0];
+                        }
+                    }
+                    catch
+                    {
+                        yield break;
+                    }
+                    if (response == null || pageResponse == null) continue;
+                    foreach (SearchResultEntry entry in response.Entries)
+                    {
+                        yield return entry;
+                    }
+
+                    if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
+                    {
+                        yield break;
+                    }
+
+                    prc.Cookie = pageResponse.Cookie;
+                }
+            }
+        }
+
+
         public LdapConnection GetLdapConnection(string domainName = null, string domainController = null)
         {
             Domain targetDomain;
@@ -278,7 +344,7 @@ namespace Sharphound2
             }
             catch
             {
-                Console.WriteLine("Unable to contact domain");
+                Verbose($"Unable to contact domain {domainName}");
                 return null;
             }
             
@@ -315,7 +381,7 @@ namespace Sharphound2
             }
             catch
             {
-                Console.WriteLine("Unable to contact domain");
+                Verbose($"Unable to contact domain {domainName}");
                 return null;
             }
 
@@ -350,10 +416,10 @@ namespace Sharphound2
             return new List<string>() { GetDomain().Name };
         }
 
-        List<string> GetForestDomains()
+        private static List<string> GetForestDomains()
         {
-            Forest f = Forest.GetCurrentForest();
-            List<string> domains = new List<string>();
+            var f = Forest.GetCurrentForest();
+            var domains = new List<string>();
             foreach (var d in f.Domains)
             {
                 domains.Add(d.ToString());
