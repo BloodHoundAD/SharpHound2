@@ -324,7 +324,7 @@ namespace Sharphound2.Enumeration
                     };
                     break;
                 case CollectionMethod.Default:
-                    ldapFilter = "(|(objectclass=domain)(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
+                    ldapFilter = "(|(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
                     props = new[]
                     {
                         "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "serviceprincipalname",
@@ -336,6 +336,7 @@ namespace Sharphound2.Enumeration
             foreach (var domainName in _utils.GetDomainList())
             {
                 Console.WriteLine($"Starting enumeration for {domainName}");
+
                 _watch = Stopwatch.StartNew();
                 _currentDomain = domainName;
                 _currentDomainSid = _utils.GetDomainSid(domainName);
@@ -348,6 +349,21 @@ namespace Sharphound2.Enumeration
                 var taskhandles = new Task[_options.Threads];
 
                 var writer = StartOutputWriter(factory, outputQueue);
+
+                if (_options.CollectMethod.Equals(CollectionMethod.Trusts) ||
+                    _options.CollectMethod.Equals(CollectionMethod.Default))
+                {
+                    foreach (var domain in DomainTrustEnumeration.DoTrustEnumeration(domainName))
+                    {
+                        outputQueue.Add(new Wrapper<OutputBase> { Item = domain });
+                    }
+                    if (_options.CollectMethod.Equals(CollectionMethod.Trusts))
+                    {
+                        outputQueue.CompleteAdding();
+                        continue;
+                    }
+                }
+
                 for (var i = 0; i < _options.Threads; i++)
                 {
                     taskhandles[i] = StartRunner(factory, inputQueue, outputQueue);
@@ -415,6 +431,7 @@ namespace Sharphound2.Enumeration
 
                     var type = entry.GetObjectType();
                     var name = entry.ResolveBloodhoundDisplay();
+
                     Interlocked.Increment(ref _currentCount);
                     switch (_options.CollectMethod)
                     {
@@ -457,6 +474,7 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(name))
                                 {
+                                    Utils.Verbose($"{name} did not respond to ping");
                                     wrapper.Item = null;
                                     continue;
                                 }
@@ -464,6 +482,7 @@ namespace Sharphound2.Enumeration
                                 var admins =
                                     LocalAdminHelpers.GetLocalAdmins(name, "Administrators", _currentDomain,
                                         _currentDomainSid);
+
                                 foreach (var a in admins)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = a });
@@ -520,11 +539,6 @@ namespace Sharphound2.Enumeration
                             }
                             break;
                         case CollectionMethod.Trusts:
-                            var trusts = DomainTrustEnumeration.DoTrustEnumeration(entry.ResolveBloodhoundDisplay());
-                            foreach (var trust in trusts)
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase>{Item = trust});
-                            }
                             break;
                         case CollectionMethod.ACL:
                             {
@@ -543,15 +557,6 @@ namespace Sharphound2.Enumeration
                             foreach (var g in groups)
                             {
                                 writeQueue.Add(new Wrapper<OutputBase> { Item = g });
-                            }
-
-                            if (type.Equals("domain"))
-                            {
-                                foreach (var trust in DomainTrustEnumeration.DoTrustEnumeration(entry
-                                    .ResolveBloodhoundDisplay()))
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> {Item = trust});
-                                }
                             }
 
                             if (!type.Equals("computer"))
@@ -589,6 +594,7 @@ namespace Sharphound2.Enumeration
                     }
                     wrapper.Item = null;
                 }
+                
             });
         }
 

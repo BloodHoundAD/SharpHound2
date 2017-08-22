@@ -77,6 +77,11 @@ namespace Sharphound2
                 return true;
             }
 
+            if (hostName == null)
+            {
+                return false;
+            }
+
             if (_options.CollectMethod.Equals(CollectionMethod.SessionLoop))
             {
                 return DoPing(hostName);
@@ -92,7 +97,7 @@ namespace Sharphound2
             return hostIsUp;
         }
 
-        private bool DoPing(string hostName)
+        private static bool DoPing(string hostName)
         {
             var ping = new Ping();
             try
@@ -108,39 +113,63 @@ namespace Sharphound2
 
         public string SidToDomainName(string sid, string domainController = null)
         {
-            sid = new SecurityIdentifier(sid).AccountDomainSid.Value;
+            var id = new SecurityIdentifier(sid);
+            if (id.AccountDomainSid == null)
+            {
+                return null;
+            }
+            sid = id.AccountDomainSid.Value;
 
             if (_cache.GetDomainFromSid(sid, out string domainName))
             {
                 return domainName;
             }
 
-            using (var conn = GetGcConnection(domainController))
+            var entry = DoSearch($"(objectsid={sid})", SearchScope.Subtree, new[] {"distinguishedname"}, useGc: true)
+                .DefaultIfEmpty(null).FirstOrDefault();
+
+            if (entry == null)
             {
-                var request = new SearchRequest(null, $"(objectsid={sid})", SearchScope.Subtree, "distinguishedname");
-                var searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
-                request.Controls.Add(searchOptions);
-                var response = (SearchResponse)conn.SendRequest(request);
-
-                if (response != null && response.Entries.Count > 0)
-                {
-                    domainName = ConvertDnToDomain(response.Entries[0].DistinguishedName);
-                    _cache.AddDomainFromSid(sid, domainName);
-                    _cache.AddDomainFromSid(domainName, sid);
-                    return domainName;
-                }
-
-                request = new SearchRequest(null, $"(securityidentifier={sid}", SearchScope.Subtree, "distinguishedname ");
-                searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
-                request.Controls.Add(searchOptions);
-                response = (SearchResponse)conn.SendRequest(request);
-
-                if (response != null && response.Entries.Count <= 0) return null;
-                domainName = ConvertDnToDomain(response.Entries[0].DistinguishedName);
-                _cache.AddDomainFromSid(sid, domainName);
-                _cache.AddDomainFromSid(domainName, sid);
-                return domainName;
+                entry = DoSearch($"(securityidentifier={sid})", SearchScope.Subtree, new[] { "distinguishedname" }, useGc: true)
+                    .DefaultIfEmpty(null).FirstOrDefault();
             }
+
+            if (entry == null)
+            {
+                return null;
+            }
+            domainName = ConvertDnToDomain(entry.DistinguishedName);
+            _cache.AddDomainFromSid(sid, domainName);
+            _cache.AddDomainFromSid(domainName, sid);
+            return domainName;
+
+
+            //using (var conn = GetGcConnection(domainController))
+            //{
+            //    var request = new SearchRequest(null, $"(objectsid={sid})", SearchScope.Subtree, "distinguishedname");
+            //    var searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
+            //    request.Controls.Add(searchOptions);
+            //    var response = (SearchResponse)conn.SendRequest(request);
+
+            //    if (response != null && response.Entries.Count > 0)
+            //    {
+            //        domainName = ConvertDnToDomain(response.Entries[0].DistinguishedName);
+            //        _cache.AddDomainFromSid(sid, domainName);
+            //        _cache.AddDomainFromSid(domainName, sid);
+            //        return domainName;
+            //    }
+
+            //    request = new SearchRequest(null, $"(securityidentifier={sid}", SearchScope.Subtree, "distinguishedname ");
+            //    searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
+            //    request.Controls.Add(searchOptions);
+            //    response = (SearchResponse)conn.SendRequest(request);
+
+            //    if (response != null && response.Entries.Count <= 0) return null;
+            //    domainName = ConvertDnToDomain(response.Entries[0].DistinguishedName);
+            //    _cache.AddDomainFromSid(sid, domainName);
+            //    _cache.AddDomainFromSid(domainName, sid);
+            //    return domainName;
+            //}
         }
 
         /// <summary>
@@ -244,8 +273,10 @@ namespace Sharphound2
                 }
 
                 PageResultResponseControl pageResponse = null;
+                var pagecount = 0;
                 while (true)
                 {
+                    pagecount++;
                     SearchResponse response;
                     try
                     {
@@ -264,6 +295,10 @@ namespace Sharphound2
                     {
                         yield return new Wrapper<SearchResultEntry>{Item = entry};
                     }
+
+                    //Console.WriteLine($"PageCount: {pagecount}");
+                    //Console.WriteLine($"Cookie Length: {pageResponse.Cookie.Length}");
+                    //Console.WriteLine($"Response Count: {response.Entries.Count}");
 
                     if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
                     {

@@ -145,7 +145,7 @@ namespace Sharphound2.Enumeration
             }
         }
 
-        public static IEnumerable<LocalAdmin> GetLocalAdmins(string target, string group, string domainName, string domainSid)
+        public static List<LocalAdmin> GetLocalAdmins(string target, string group, string domainName, string domainSid)
         {
             var toReturn = new List<LocalAdmin>();
             try
@@ -159,6 +159,7 @@ namespace Sharphound2.Enumeration
             }
             catch (ApiFailedException)
             {
+                Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target}");
                 try
                 {
                     toReturn = LocalGroupWinNt(target, group);
@@ -168,6 +169,11 @@ namespace Sharphound2.Enumeration
                 {
                     return toReturn;
                 }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return toReturn;
             }
         }
         
@@ -244,7 +250,7 @@ namespace Sharphound2.Enumeration
             var machineSid = "DUMMYSTRING";
 
             var LMI2 = typeof(LOCALGROUP_MEMBERS_INFO_2);
-
+            
             var returnValue = NetLocalGroupGetMembers(target, group, queryLevel, out IntPtr ptrInfo, -1, out int entriesRead, out int _, resumeHandle);
 
             //Return value of 1722 indicates the system is down, so no reason to fallback to WinNT
@@ -278,10 +284,10 @@ namespace Sharphound2.Enumeration
                 });
                 iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(LMI2));
             }
-
+            
             NetApiBufferFree(ptrInfo);
-
             //Try and determine the machine sid
+            
             foreach (var data in list)
             {
                 if (data.sid == null)
@@ -296,9 +302,11 @@ namespace Sharphound2.Enumeration
                 machineSid = new SecurityIdentifier(data.sid).AccountDomainSid.Value;
                 break;
             }
-
+            
             foreach (var data in list)
             {
+                if (data.sid == null)
+                    continue;
                 var objectName = data.Lgmi2.lgrmi2_domainandname;
                 if (objectName.Split('\\').Last().Equals(""))
                 {
@@ -342,8 +350,13 @@ namespace Sharphound2.Enumeration
                 {
                     type = "computer";
                 }
-
+                
                 var resolved = _utils.SidToDisplay(data.sid, _utils.SidToDomainName(data.sid), AdminProps, type);
+                if (resolved == null)
+                {
+                    continue;
+                }
+
                 toReturn.Add(new LocalAdmin
                 {
                     ObjectName = resolved,
