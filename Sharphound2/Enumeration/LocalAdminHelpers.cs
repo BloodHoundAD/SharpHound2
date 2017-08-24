@@ -5,6 +5,7 @@ using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 using Sharphound2.OutputObjects;
@@ -39,6 +40,342 @@ namespace Sharphound2.Enumeration
             _utils = Utils.Instance;
         }
 
+        
+        public static void GetSamAdmins(string target)
+        {
+            //Huge thanks to Simon Mourier on for putting me on the right track
+            //https://stackoverflow.com/questions/31464835/how-to-programatically-check-the-password-must-meet-complexity-requirements-gr/31748252
+
+            var sid = new SecurityIdentifier("S-1-5-32");
+            var sidbytes = new byte[sid.BinaryLength];
+            sid.GetBinaryForm(sidbytes, 0);
+
+            var server = new UNICODE_STRING(target);
+            SamConnect(server, out IntPtr serverHandle, SamAccessMasks.SAM_SERVER_CONNECT | SamAccessMasks.SAM_SERVER_LOOKUP_DOMAIN | SamAccessMasks.SAM_SERVER_ENUMERATE_DOMAINS, false);
+            string machineSid;
+            try
+            {
+                SamLookupDomainInSamServer(serverHandle, server, out IntPtr temp);
+                machineSid = new SecurityIdentifier(temp).Value;
+            }
+            catch
+            {
+                machineSid = "DUMMYSTRINGSHOULDNOTMATCH";
+            }
+
+            Console.WriteLine(machineSid);
+            
+            SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, sidbytes, out IntPtr domainHandle);
+            SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out IntPtr aliasHandle);
+            
+            SamGetMembersInAlias(aliasHandle, out IntPtr members, out int count);
+            if (count == 0) return;
+
+            var grabbedSids = new IntPtr[count];
+            Marshal.Copy(members, grabbedSids, 0, count);
+
+            var sids = new string[count];
+
+            for (var i = 0; i < count; i++)
+            {
+                sids[i] = new SecurityIdentifier(grabbedSids[i]).Value;
+            }
+
+            LsaOpenPolicy(server, default(OBJECT_ATTRIBUTES),
+                LsaOpenMask.ViewLocalInfo | LsaOpenMask.LookupNames, out IntPtr policyHandle);
+            
+            LsaLookupSids(policyHandle, count, members, out IntPtr domainList,
+                out IntPtr nameList);
+
+            var iter = nameList;
+            var translatedNames = new LSA_TRANSLATED_NAMES[count];
+            for (var i = 0; i < count; i++)
+            {
+                translatedNames[i] = (LSA_TRANSLATED_NAMES) Marshal.PtrToStructure(iter, typeof(LSA_TRANSLATED_NAMES));
+                iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRANSLATED_NAMES)));
+            }
+
+            var lsaDomainList =
+                (LSA_REFERENCED_DOMAIN_LIST) (Marshal.PtrToStructure(domainList, typeof(LSA_REFERENCED_DOMAIN_LIST)));
+
+            var trustInfos = new LSA_TRUST_INFORMATION[lsaDomainList.count];
+            iter = lsaDomainList.domains;
+            for (var i = 0; i < lsaDomainList.count; i++)
+            {
+                trustInfos[i] = (LSA_TRUST_INFORMATION) Marshal.PtrToStructure(iter, typeof(LSA_TRUST_INFORMATION));
+                iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRUST_INFORMATION)));
+            }
+
+            for (var i = 0; i < translatedNames.Length; i++)
+            {
+                var x = translatedNames[i];
+                Console.WriteLine($"{sids[i]} - {trustInfos[x.domainIndex].name}\\{x.name}");
+            }
+        }
+
+        #region LSA Imports
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS LsaLookupSids(
+            IntPtr policyHandle,
+            int count,
+            IntPtr enumBuffer,
+            out IntPtr domainList,
+            out IntPtr nameList
+        );
+
+        [DllImport("advapi32.dll")]
+        private static extern NTSTATUS LsaOpenPolicy(
+            UNICODE_STRING server,
+            OBJECT_ATTRIBUTES objectAttributes,
+            LsaOpenMask desiredAccess,
+            out IntPtr policyHandle
+        );
+
+        [DllImport("advapi32.dll")]
+        private static extern NTSTATUS LsaFreeMemory(
+            IntPtr buffer
+        );
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct LSA_TRUST_INFORMATION
+        {
+            internal LSA_UNICODE_STRING name;
+            internal IntPtr sid;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct LSA_UNICODE_STRING
+        {
+            internal ushort length;
+            internal ushort maxLen;
+            [MarshalAs(UnmanagedType.LPWStr)] internal string name;
+
+            public override string ToString()
+            {
+                return $"{name.Substring(0, length / 2)}";
+            }
+        }
+
+        private struct LSA_TRANSLATED_NAMES
+        {
+            internal SID_NAME_USE use;
+            internal LSA_UNICODE_STRING name;
+            internal int domainIndex;
+        }
+
+        private struct LSA_REFERENCED_DOMAIN_LIST
+        {
+            public int count;
+            public IntPtr domains;
+        }
+        #endregion
+
+        #region SAMR Imports
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS SamLookupDomainInSamServer(
+            IntPtr serverHandle,
+            UNICODE_STRING name,
+            out IntPtr sid);
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS SamGetMembersInAlias(
+            IntPtr aliasHandle,
+            out IntPtr members,
+            out int count);
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS SamOpenAlias(
+            IntPtr domainHandle,
+            AliasOpenFlags desiredAccess,
+            int aliasId,
+            out IntPtr aliasHandle
+        );
+
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS SamConnect(
+            UNICODE_STRING serverName,
+            out IntPtr serverHandle,
+            SamAccessMasks desiredAccess,
+            bool objectAttributes
+            );
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS SamEnumerateAliasesInDomain(
+            IntPtr domainHandle,
+            ref int enumerationContext,
+            out IntPtr buffer,
+            int preferredMaxLen,
+            out int count
+            );
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS SamOpenAlias(
+            IntPtr domainHandle, 
+            SamAliasFlags desiredAccess,
+            int aliasId,
+            out IntPtr aliasHandle
+        );
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern NTSTATUS SamOpenDomain(
+            IntPtr serverHandle,
+            DomainAccessMask desiredAccess,
+            byte[] DomainSid,
+            out IntPtr DomainHandle
+        );
+
+        [Flags]
+        private enum AliasOpenFlags
+        {
+            AddMember = 0x1,
+            RemoveMember = 0x2,
+            ListMembers = 0x4,
+            ReadInfo = 0x8,
+            WriteAccount = 0x10,
+            AllAccess = 0xf001f,
+            Read = 0x20004,
+            Write = 0x20013,
+            Execute = 0x20008
+        }
+
+        [Flags]
+        private enum LsaOpenMask
+        {
+            ViewLocalInfo = 0x1,
+            ViewAuditInfo = 0x2,
+            GetPrivateInfo = 0x4,
+            TrustAdmin = 0x8,
+            CreateAccount = 0x10,
+            CreateSecret = 0x20,
+            CreatePrivilege = 0x40,
+            SetDefaultQuotaLimits = 0x80,
+            SetAuditRequirements = 0x100,
+            AuditLogAdmin = 0x200,
+            ServerAdmin = 0x400,
+            LookupNames = 0x800,
+            Notification = 0x1000
+        }
+
+        [Flags]
+        private enum DomainAccessMask
+        {
+            ReadPasswordParameters = 0x1,
+            WritePasswordParameters = 0x2,
+            ReadOtherParameters = 0x4,
+            WriteOtherParameters = 0x8,
+            CreateUser = 0x10,
+            CreateGroup = 0x20,
+            CreateAlias = 0x40,
+            GetAliasMembership = 0x80,
+            ListAccounts = 0x100,
+            Lookup = 0x200,
+            AdministerServer = 0x400,
+            AllAccess = 0xf07ff,
+            Read = 0x20084,
+            Write = 0x2047A,
+            Execute = 0x20301
+        }
+
+        [Flags]
+        private enum SamAliasFlags
+        {
+            AddMembers = 0x1,
+            RemoveMembers = 0x2,
+            ListMembers = 0x4,
+            ReadInfo = 0x8,
+            WriteAccount = 0x10,
+            AllAccess = 0xf001f,
+            Read = 0x20004,
+            Write = 0x20013,
+            Execute = 0x20008
+        }
+
+        [Flags]
+        private enum SamAccessMasks
+        {
+            SAM_SERVER_CONNECT = 0x1,
+            SAM_SERVER_SHUTDOWN = 0x2,
+            SAM_SERVER_INITIALIZE = 0x4,
+            SAM_SERVER_CREATE_DOMAINS = 0x8,
+            SAM_SERVER_ENUMERATE_DOMAINS = 0x10,
+            SAM_SERVER_LOOKUP_DOMAIN = 0x20,
+            SAM_SERVER_ALL_ACCESS = 0xf003f,
+            SAM_SERVER_READ = 0x20010,
+            SAM_SERVER_WRITE = 0x2000e,
+            SAM_SERVER_EXECUTE = 0x20021
+        }
+
+        private struct SAM_RID_ENUMERATION
+        {
+            public uint RelativeId;
+            public UNICODE_STRING name;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct UNICODE_STRING : IDisposable
+        {
+            public ushort Length;
+            public ushort MaximumLength;
+            private IntPtr Buffer;
+
+            public UNICODE_STRING(string s)
+                : this()
+            {
+                if (s != null)
+                {
+                    Length = (ushort)(s.Length * 2);
+                    MaximumLength = (ushort)(Length + 2);
+                    Buffer = Marshal.StringToHGlobalUni(s);
+                }
+            }
+
+            public void Dispose()
+            {
+                if (Buffer != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(Buffer);
+                    Buffer = IntPtr.Zero;
+                }
+            }
+
+            public override string ToString()
+            {
+                return Buffer != IntPtr.Zero ? Marshal.PtrToStringUni(Buffer) : null;
+            }
+        }
+
+        private struct OBJECT_ATTRIBUTES : IDisposable
+        {
+            public void Dispose()
+            {
+                if (objectName == IntPtr.Zero) return;
+                Marshal.DestroyStructure(objectName, typeof(UNICODE_STRING));
+                Marshal.FreeHGlobal(objectName);
+                objectName = IntPtr.Zero;
+            }
+            public int len;
+            public IntPtr rootDirectory;
+            public uint attribs;
+            public IntPtr sid;
+            public IntPtr qos;
+            private IntPtr objectName;
+            public UNICODE_STRING ObjectName;
+        }
+
+        private enum NTSTATUS
+        {
+            STATUS_SUCCESS = 0x0,
+            STATUS_MORE_ENTRIES = 0x105,
+            STATUS_INVALID_HANDLE = unchecked((int)0xC0000008),
+            STATUS_INVALID_PARAMETER = unchecked((int)0xC000000D),
+            STATUS_ACCESS_DENIED = unchecked((int)0xC0000022),
+            STATUS_OBJECT_TYPE_MISMATCH = unchecked((int)0xC0000024),
+            STATUS_NO_SUCH_DOMAIN = unchecked((int)0xC00000DF),
+        }
+        #endregion
+
         public static IEnumerable<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
         {
             const string targetSid = "S-1-5-32-544__Members";
@@ -56,6 +393,9 @@ namespace Sharphound2.Enumeration
             var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
             var currentSection = string.Empty;
             var resolvedList = new List<MappedPrincipal>();
+
+            if (!File.Exists(template))
+                yield break;
 
             using (var reader = new StreamReader(template))
             {

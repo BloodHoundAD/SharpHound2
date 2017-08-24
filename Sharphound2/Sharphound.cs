@@ -53,7 +53,7 @@ namespace Sharphound2
             [Option(HelpText = "Invalidate and build new cache", DefaultValue = false)]
             public bool Invalidate { get; set; }
 
-            [Option(HelpText = "Save the cache file to disk", DefaultValue = true)]
+            [Option(HelpText = "Don't save the cache file to disk", DefaultValue = false)]
             public bool NoSaveCache { get; set; }
 
             [Option("LoopTime", DefaultValue = 5, HelpText = "Time in minutes between each session loop")]
@@ -156,7 +156,7 @@ Cache Options
         Invalidate the cache and build a new one
 
 General Options
-    -i , --Interval (Default: 30000)
+    --StatusInterval (Default: 30000)
         Interval to display progress during enumeration in milliseconds
 
     -v , --Verbose
@@ -194,12 +194,6 @@ General Options
             Cache.CreateInstance(options);
             Utils.CreateInstance(options);
 
-            if (options.Test)
-            {
-                Test.DoStuff();
-                return;
-            }
-
             if (!Utils.CheckWritePrivs())
             {
                 Console.WriteLine("Unable to write in chosen directory. Please check privs");
@@ -211,6 +205,12 @@ General Options
             GroupHelpers.Init();
             AclHelpers.Init();
             DomainTrustEnumeration.Init();
+
+            if (options.Test)
+            {
+                Test.DoStuff();
+                return;
+            }
 
             if (options.Stealth)
             {
@@ -224,9 +224,6 @@ General Options
             }
 
             var runner = new EnumerationRunner(options);
-            
-            //DomainTrustEnumeration.DoTrustEnumeration(options.Domain);
-            
 
             if (options.Stealth)
             {

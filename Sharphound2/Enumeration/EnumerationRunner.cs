@@ -432,7 +432,6 @@ namespace Sharphound2.Enumeration
                     var type = entry.GetObjectType();
                     var name = entry.ResolveBloodhoundDisplay();
 
-                    Interlocked.Increment(ref _currentCount);
                     switch (_options.CollectMethod)
                     {
                         case CollectionMethod.Group:
@@ -448,8 +447,7 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(name))
                                 {
-                                    wrapper.Item = null;
-                                    continue;
+                                    break;
                                 }
                                 var admins =
                                     LocalAdminHelpers.GetLocalAdmins(name, "Administrators", _currentDomain,
@@ -460,7 +458,7 @@ namespace Sharphound2.Enumeration
                                 }
                                 if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
                                 {
-                                    continue;
+                                    break;
                                 }
                                 var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
                                 foreach (var s in sessions)
@@ -475,8 +473,7 @@ namespace Sharphound2.Enumeration
                                 if (!_utils.PingHost(name))
                                 {
                                     Utils.Verbose($"{name} did not respond to ping");
-                                    wrapper.Item = null;
-                                    continue;
+                                    break;
                                 }
 
                                 var admins =
@@ -499,13 +496,12 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(name))
                                 {
-                                    wrapper.Item = null;
-                                    continue;
+                                    break;
                                 }
 
                                 if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
                                 {
-                                    continue;
+                                    break;
                                 }
 
                                 var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
@@ -519,8 +515,7 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(name))
                                 {
-                                    wrapper.Item = null;
-                                    continue;
+                                    break;
                                 }
                                 var samAccountName = entry.GetProp("samaccountname");
                                 var sessions =
@@ -561,13 +556,12 @@ namespace Sharphound2.Enumeration
 
                             if (!type.Equals("computer"))
                             {
-                                continue;
+                                break;
                             }
                             
                             if (!_utils.PingHost(name))
                             {
-                                wrapper.Item = null;
-                                continue;
+                                break;
                             }
 
                             var admins =
@@ -580,7 +574,7 @@ namespace Sharphound2.Enumeration
 
                             if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
                             {
-                                continue;
+                                break;
                             }
                             var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
                             foreach (var s in sessions)
@@ -592,6 +586,7 @@ namespace Sharphound2.Enumeration
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
+                    Interlocked.Increment(ref _currentCount);
                     wrapper.Item = null;
                 }
                 

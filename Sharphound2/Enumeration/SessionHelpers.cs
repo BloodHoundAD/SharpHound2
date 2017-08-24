@@ -129,7 +129,7 @@ namespace Sharphound2.Enumeration
                 else
                 {
                     //Check our cache first
-                    if (!_cache.GetGcMap(username, out string[] possible))
+                    if (!_cache.GetGcMap(username, out string[] possible) || possible == null)
                     {
                         //If we didn't get a cache hit, search the global catalog
                         var temp = new List<string>();
@@ -143,7 +143,6 @@ namespace Sharphound2.Enumeration
                         possible = temp.ToArray();
                         _cache.AddGcMap(username, possible);
                     }
-
 
                     switch (possible.Length)
                     {
