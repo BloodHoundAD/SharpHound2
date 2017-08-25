@@ -34,24 +34,43 @@ namespace Sharphound2.Enumeration
 
         private static readonly string[] AdminProps = {"samaccountname", "dnshostname", "distinguishedname", "samaccounttype"};
 
+        private static byte[] _sidbytes;
+
         public static void Init()
         {
             _cache = Cache.Instance;
             _utils = Utils.Instance;
+            var sid = new SecurityIdentifier("S-1-5-32");
+            _sidbytes = new byte[sid.BinaryLength];
+            sid.GetBinaryForm(_sidbytes, 0);
         }
 
         
-        public static void GetSamAdmins(string target)
+        public static List<LocalAdmin> GetSamAdmins(string target)
         {
-            //Huge thanks to Simon Mourier on for putting me on the right track
+            //Huge thanks to Simon Mourier on StackOverflow for putting me on the right track
             //https://stackoverflow.com/questions/31464835/how-to-programatically-check-the-password-must-meet-complexity-requirements-gr/31748252
-
-            var sid = new SecurityIdentifier("S-1-5-32");
-            var sidbytes = new byte[sid.BinaryLength];
-            sid.GetBinaryForm(sidbytes, 0);
-
+            
             var server = new UNICODE_STRING(target);
-            SamConnect(server, out IntPtr serverHandle, SamAccessMasks.SAM_SERVER_CONNECT | SamAccessMasks.SAM_SERVER_LOOKUP_DOMAIN | SamAccessMasks.SAM_SERVER_ENUMERATE_DOMAINS, false);
+            var toReturn = new List<LocalAdmin>();
+
+            //Connect to the server with the proper access maskes. This gives us our server handle
+
+            IntPtr serverHandle;
+            try
+            {
+                SamConnect(server, out serverHandle,
+                    SamAccessMasks.SAM_SERVER_CONNECT | SamAccessMasks.SAM_SERVER_LOOKUP_DOMAIN |
+                    SamAccessMasks.SAM_SERVER_ENUMERATE_DOMAINS, false);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return toReturn;
+            }
+            
+
+            //Use SamLookupDomainInServer with the hostname to find the machine sid if possible
             string machineSid;
             try
             {
@@ -62,31 +81,36 @@ namespace Sharphound2.Enumeration
             {
                 machineSid = "DUMMYSTRINGSHOULDNOTMATCH";
             }
-
-            Console.WriteLine(machineSid);
             
-            SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, sidbytes, out IntPtr domainHandle);
+            //Open the domain for the S-1-5-32 (BUILTIN) alias
+            SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, _sidbytes, out IntPtr domainHandle);
+            //Open the alias for Local Administrators (always RID 544)
             SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out IntPtr aliasHandle);
-            
+            //Get the members in the alias. This returns a list of SIDs
             SamGetMembersInAlias(aliasHandle, out IntPtr members, out int count);
-            if (count == 0) return;
+            if (count == 0) return toReturn;
 
+            //Copy the data of our sids to a new array so it doesn't get eaten
             var grabbedSids = new IntPtr[count];
             Marshal.Copy(members, grabbedSids, 0, count);
 
             var sids = new string[count];
 
+            //Convert the bytes to strings for usage
             for (var i = 0; i < count; i++)
             {
                 sids[i] = new SecurityIdentifier(grabbedSids[i]).Value;
             }
 
+            //Open the LSA policy on the target machine
             LsaOpenPolicy(server, default(OBJECT_ATTRIBUTES),
                 LsaOpenMask.ViewLocalInfo | LsaOpenMask.LookupNames, out IntPtr policyHandle);
             
+            //Call LsaLookupSids using the sids we got from SamGetMembersInAlias
             LsaLookupSids(policyHandle, count, members, out IntPtr domainList,
                 out IntPtr nameList);
 
+            //Convert the returned names into structures
             var iter = nameList;
             var translatedNames = new LSA_TRANSLATED_NAMES[count];
             for (var i = 0; i < count; i++)
@@ -95,9 +119,11 @@ namespace Sharphound2.Enumeration
                 iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRANSLATED_NAMES)));
             }
 
+            //Convert the returned domain list to a structure
             var lsaDomainList =
                 (LSA_REFERENCED_DOMAIN_LIST) (Marshal.PtrToStructure(domainList, typeof(LSA_REFERENCED_DOMAIN_LIST)));
 
+            //Convert the domain list to individual structures
             var trustInfos = new LSA_TRUST_INFORMATION[lsaDomainList.count];
             iter = lsaDomainList.domains;
             for (var i = 0; i < lsaDomainList.count; i++)
@@ -106,11 +132,95 @@ namespace Sharphound2.Enumeration
                 iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRUST_INFORMATION)));
             }
 
+            var resolvedObjects = new SamEnumerationObject[translatedNames.Length];
+
+            //Match up sids, domain names, and account names
             for (var i = 0; i < translatedNames.Length; i++)
             {
                 var x = translatedNames[i];
-                Console.WriteLine($"{sids[i]} - {trustInfos[x.domainIndex].name}\\{x.name}");
+                resolvedObjects[i] = new SamEnumerationObject
+                {
+                    AccountDomain = trustInfos[x.domainIndex].name.ToString(),
+                    AccountName = x.name.ToString(),
+                    AccountSid = sids[i],
+                    SidUsage = x.use
+                };
             }
+
+            //Process our list of stuff now
+
+            foreach (var data in resolvedObjects)
+            {
+                var sid = data.AccountSid;
+                if (sid == null)
+                    continue;
+
+                if (data.AccountName.Equals(string.Empty))
+                    continue;
+                
+                if (sid.StartsWith(machineSid))
+                    continue;
+
+                string type;
+                switch (data.SidUsage)
+                {
+                    case SID_NAME_USE.SidTypeUser:
+                        type = "user";
+                        break;
+                    case SID_NAME_USE.SidTypeGroup:
+                        type = "group";
+                        break;
+                    case SID_NAME_USE.SidTypeComputer:
+                        type = "computer";
+                        break;
+                    case SID_NAME_USE.SidTypeWellKnownGroup:
+                        type = "wellknown";
+                        break;
+                    default:
+                        type = null;
+                        break;
+                }
+
+                if (type == null)
+                    continue;
+
+                if (data.AccountName.EndsWith("$"))
+                    type = "unknown";
+
+                string resolvedName;
+                
+                if (type.Equals("unknown"))
+                {
+                    var mp = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid),
+                        AdminProps);
+                    if (mp == null)
+                        continue;
+                    resolvedName = mp.PrincipalName;
+                    type = mp.ObjectType;
+                }
+                else
+                {
+                    resolvedName = _utils.SidToDisplay(sid, _utils.SidToDomainName(sid), AdminProps, type);
+                    if (resolvedName == null)
+                        continue;
+                }
+
+                toReturn.Add(new LocalAdmin
+                {
+                    ObjectType = type,
+                    ObjectName = resolvedName,
+                    Server = target
+                });
+            }
+            return toReturn;
+        }
+
+        private class SamEnumerationObject
+        {
+            internal string AccountName { get; set; }
+            internal string AccountDomain { get; set; }
+            internal string AccountSid { get; set; }
+            internal SID_NAME_USE SidUsage { get; set; }
         }
 
         #region LSA Imports
