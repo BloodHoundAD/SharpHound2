@@ -545,6 +545,23 @@ namespace Sharphound2.Enumeration
                             }
                             break;
                         case CollectionMethod.SessionLoop:
+                            {
+                                if (!_utils.PingHost(name))
+                                {
+                                    break;
+                                }
+
+                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
+                                {
+                                    break;
+                                }
+
+                                var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
+                                foreach (var s in sessions)
+                                {
+                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                                }
+                            }
                             break;
                         case CollectionMethod.Default:
                         {
