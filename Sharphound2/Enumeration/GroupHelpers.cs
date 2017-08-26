@@ -57,7 +57,7 @@ namespace Sharphound2.Enumeration
                     {
                         //Our search didn't return anything so fallback
                         //Try convertadname first
-                        groupName = ConvertADName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
+                        groupName = ConvertAdName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
 
                         //If convertadname is null, just screw with the distinguishedname to get the group
                         groupName = groupName != null
@@ -121,7 +121,7 @@ namespace Sharphound2.Enumeration
             ADS_NAME_TYPE_SID_OR_SID_HISTORY_NAME = 12
         }
 
-        public static string ConvertADName(string objectName, ADSTypes inputType, ADSTypes outputType)
+        public static string ConvertAdName(string objectName, ADSTypes inputType, ADSTypes outputType)
         {
             string domain;
 

@@ -59,13 +59,19 @@ namespace Sharphound2.Enumeration
             IntPtr serverHandle;
             try
             {
-                SamConnect(server, out serverHandle,
-                    SamAccessMasks.SAM_SERVER_CONNECT | SamAccessMasks.SAM_SERVER_LOOKUP_DOMAIN |
-                    SamAccessMasks.SAM_SERVER_ENUMERATE_DOMAINS, false);
+                var status = SamConnect(server, out serverHandle,
+                    SamAccessMasks.SamServerConnect | SamAccessMasks.SamServerLookupDomain |
+                    SamAccessMasks.SamServerEnumerateDomains, false);
+
+                if (status.Equals(NTSTATUS.StatusRpcServerUnavailable))
+                {
+                    SamCloseHandle(serverHandle);
+                    throw new SystemDownException();
+                }
+                Console.WriteLine(status);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
                 return toReturn;
             }
             
@@ -76,6 +82,7 @@ namespace Sharphound2.Enumeration
             {
                 SamLookupDomainInSamServer(serverHandle, server, out IntPtr temp);
                 machineSid = new SecurityIdentifier(temp).Value;
+                SamFreeMemory(temp);
             }
             catch
             {
@@ -88,7 +95,16 @@ namespace Sharphound2.Enumeration
             SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out IntPtr aliasHandle);
             //Get the members in the alias. This returns a list of SIDs
             SamGetMembersInAlias(aliasHandle, out IntPtr members, out int count);
-            if (count == 0) return toReturn;
+
+            SamCloseHandle(aliasHandle);
+            SamCloseHandle(domainHandle);
+            SamCloseHandle(serverHandle);
+
+            if (count == 0)
+            {
+                SamFreeMemory(members);
+                return toReturn;
+            }
 
             //Copy the data of our sids to a new array so it doesn't get eaten
             var grabbedSids = new IntPtr[count];
@@ -147,8 +163,13 @@ namespace Sharphound2.Enumeration
                 };
             }
 
-            //Process our list of stuff now
+            //Cleanup
+            SamFreeMemory(members);
+            LsaFreeMemory(domainList);
+            LsaFreeMemory(nameList);
+            LsaClose(policyHandle);
 
+            //Process our list of stuff now
             foreach (var data in resolvedObjects)
             {
                 var sid = data.AccountSid;
@@ -246,6 +267,11 @@ namespace Sharphound2.Enumeration
             IntPtr buffer
         );
 
+        [DllImport("advapi32.dll")]
+        private static extern NTSTATUS LsaClose(
+            IntPtr buffer
+        );
+
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct LSA_TRUST_INFORMATION
         {
@@ -281,6 +307,16 @@ namespace Sharphound2.Enumeration
         #endregion
 
         #region SAMR Imports
+
+        [DllImport("samlib.dll")]
+        private static extern NTSTATUS SamCloseHandle(
+            IntPtr handle
+        );
+
+        [DllImport("samlib.dll")]
+        private static extern NTSTATUS SamFreeMemory(
+            IntPtr handle
+        );
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
         private static extern NTSTATUS SamLookupDomainInSamServer(
@@ -405,49 +441,39 @@ namespace Sharphound2.Enumeration
         [Flags]
         private enum SamAccessMasks
         {
-            SAM_SERVER_CONNECT = 0x1,
-            SAM_SERVER_SHUTDOWN = 0x2,
-            SAM_SERVER_INITIALIZE = 0x4,
-            SAM_SERVER_CREATE_DOMAINS = 0x8,
-            SAM_SERVER_ENUMERATE_DOMAINS = 0x10,
-            SAM_SERVER_LOOKUP_DOMAIN = 0x20,
-            SAM_SERVER_ALL_ACCESS = 0xf003f,
-            SAM_SERVER_READ = 0x20010,
-            SAM_SERVER_WRITE = 0x2000e,
-            SAM_SERVER_EXECUTE = 0x20021
-        }
-
-        private struct SAM_RID_ENUMERATION
-        {
-            public uint RelativeId;
-            public UNICODE_STRING name;
+            SamServerConnect = 0x1,
+            SamServerShutdown = 0x2,
+            SamServerInitialize = 0x4,
+            SamServerCreateDomains = 0x8,
+            SamServerEnumerateDomains = 0x10,
+            SamServerLookupDomain = 0x20,
+            SamServerAllAccess = 0xf003f,
+            SamServerRead = 0x20010,
+            SamServerWrite = 0x2000e,
+            SamServerExecute = 0x20021
         }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct UNICODE_STRING : IDisposable
         {
-            public ushort Length;
-            public ushort MaximumLength;
+            private readonly ushort Length;
+            private readonly ushort MaximumLength;
             private IntPtr Buffer;
 
             public UNICODE_STRING(string s)
                 : this()
             {
-                if (s != null)
-                {
-                    Length = (ushort)(s.Length * 2);
-                    MaximumLength = (ushort)(Length + 2);
-                    Buffer = Marshal.StringToHGlobalUni(s);
-                }
+                if (s == null) return;
+                Length = (ushort)(s.Length * 2);
+                MaximumLength = (ushort)(Length + 2);
+                Buffer = Marshal.StringToHGlobalUni(s);
             }
 
             public void Dispose()
             {
-                if (Buffer != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(Buffer);
-                    Buffer = IntPtr.Zero;
-                }
+                if (Buffer == IntPtr.Zero) return;
+                Marshal.FreeHGlobal(Buffer);
+                Buffer = IntPtr.Zero;
             }
 
             public override string ToString()
@@ -476,13 +502,14 @@ namespace Sharphound2.Enumeration
 
         private enum NTSTATUS
         {
-            STATUS_SUCCESS = 0x0,
-            STATUS_MORE_ENTRIES = 0x105,
-            STATUS_INVALID_HANDLE = unchecked((int)0xC0000008),
-            STATUS_INVALID_PARAMETER = unchecked((int)0xC000000D),
-            STATUS_ACCESS_DENIED = unchecked((int)0xC0000022),
-            STATUS_OBJECT_TYPE_MISMATCH = unchecked((int)0xC0000024),
-            STATUS_NO_SUCH_DOMAIN = unchecked((int)0xC00000DF),
+            StatusSuccess = 0x0,
+            StatusMoreEntries = 0x105,
+            StatusInvalidHandle = unchecked((int)0xC0000008),
+            StatusInvalidParameter = unchecked((int)0xC000000D),
+            StatusAccessDenied = unchecked((int)0xC0000022),
+            StatusObjectTypeMismatch = unchecked((int)0xC0000024),
+            StatusNoSuchDomain = unchecked((int)0xC00000DF),
+            StatusRpcServerUnavailable = unchecked((int)0xC0020017)
         }
         #endregion
 

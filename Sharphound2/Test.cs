@@ -14,7 +14,7 @@ namespace Sharphound2
             //LocalAdminHelpers.LocalGroupApi("primary.testlab.local", "Administrators", "testlab.local", "");
             //LocalAdminHelpers.GetSamAdmins("primary.testlab.local", "S-1-5-21-883232822-274137685-4173207997");
             //Console.WriteLine("Test 1");
-            foreach (var x in LocalAdminHelpers.GetSamAdmins("windows1"))
+            foreach (var x in LocalAdminHelpers.GetSamAdmins("abc123"))
             {
                 Console.WriteLine(x.ToCsv());
             }
