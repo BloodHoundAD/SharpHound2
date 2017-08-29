@@ -58,16 +58,18 @@ namespace Sharphound2.Enumeration
             }
             catch (ApiFailedException)
             {
-                Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target.BloodHoundDisplay}");
-                try
-                {
-                    toReturn = LocalGroupWinNt(target.BloodHoundDisplay, group);
-                    return toReturn;
-                }
-                catch
-                {
-                    return toReturn;
-                }
+                //Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target.BloodHoundDisplay}");
+                //try
+                //{
+                //    toReturn = LocalGroupWinNt(target.BloodHoundDisplay, group);
+                //    Console.WriteLine(toReturn.Count);
+                //    return toReturn;
+                //}
+                //catch
+                //{
+                //    return toReturn;
+                //}
+                return toReturn;
             }
             catch (Exception e)
             {
@@ -219,7 +221,7 @@ namespace Sharphound2.Enumeration
                 var x = translatedNames[i];
                 resolvedObjects[i] = new SamEnumerationObject();
                 
-                if (x.domainIndex > trustInfos.Length || x.domainIndex > 0 || trustInfos.Length > 0)
+                if (x.domainIndex > trustInfos.Length || x.domainIndex < 0 || trustInfos.Length == 0)
                     continue;
 
                 resolvedObjects[i].AccountDomain = trustInfos[x.domainIndex].name.ToString();
