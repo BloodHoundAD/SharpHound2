@@ -19,23 +19,11 @@ namespace Sharphound2.Enumeration
             _cache = Cache.Instance;
         }
 
-        public static IEnumerable<GroupMember> ProcessAdObject(SearchResultEntry entry, string domainSid)
+        public static IEnumerable<GroupMember> ProcessAdObject(SearchResultEntry entry, ResolvedEntry resolvedEntry, string domainSid)
         {
-            //Start by checking the cache to see if this entry is already there (this is ideal!)
-            if (!_cache.GetMapValue(entry.DistinguishedName, entry.GetObjectType(), out string principalDisplayName))
-            {
-                principalDisplayName = entry.ResolveBloodhoundDisplay();
-            }
-            
-            //If the principal name is null, no point in continuing.
-            if (principalDisplayName == null)
-            {
-                Utils.Verbose($"null principal {entry.DistinguishedName}");
-                yield break;
-            }
-
             var principalDomainName = Utils.ConvertDnToDomain(entry.DistinguishedName);
-            var objectType = entry.GetObjectType();
+            var principalDisplayName = resolvedEntry.BloodHoundDisplay;
+            var objectType = resolvedEntry.ObjectType;
 
             //If this object is a group, add it to our DN cache
             if (objectType.Equals("group"))
@@ -46,7 +34,7 @@ namespace Sharphound2.Enumeration
             foreach (var dn in entry.GetPropArray("memberof"))
             {
                 //Check our cache first
-                if (!_cache.GetMapValue(dn, "group", out string groupName))
+                if (!_cache.GetMapValue(dn, "group", out var groupName))
                 {
                     //Search for the object directly
                     var groupEntry = _utils
@@ -67,7 +55,7 @@ namespace Sharphound2.Enumeration
                     else
                     {
                         //We got an object back!
-                        groupName = groupEntry.ResolveBloodhoundDisplay();
+                        groupName = groupEntry.ResolveAdEntry().BloodHoundDisplay;
                     }
 
                     //If we got a group back, add it to the cache for later use

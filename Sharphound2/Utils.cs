@@ -55,7 +55,7 @@ namespace Sharphound2
         
         public string ResolveHost(string hostName)
         {
-            if (_dnsResolveCache.TryGetValue(hostName, out string dnsHostName)) return dnsHostName;
+            if (_dnsResolveCache.TryGetValue(hostName, out var dnsHostName)) return dnsHostName;
             try
             {
                 dnsHostName = Dns.GetHostEntry(hostName).HostName;
@@ -87,7 +87,7 @@ namespace Sharphound2
                 return DoPing(hostName);
             }
 
-            if (_pingCache.TryGetValue(hostName, out bool hostIsUp))
+            if (_pingCache.TryGetValue(hostName, out var hostIsUp))
             {
                 return hostIsUp;
             }
@@ -142,34 +142,6 @@ namespace Sharphound2
             _cache.AddDomainFromSid(sid, domainName);
             _cache.AddDomainFromSid(domainName, sid);
             return domainName;
-
-
-            //using (var conn = GetGcConnection(domainController))
-            //{
-            //    var request = new SearchRequest(null, $"(objectsid={sid})", SearchScope.Subtree, "distinguishedname");
-            //    var searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
-            //    request.Controls.Add(searchOptions);
-            //    var response = (SearchResponse)conn.SendRequest(request);
-
-            //    if (response != null && response.Entries.Count > 0)
-            //    {
-            //        domainName = ConvertDnToDomain(response.Entries[0].DistinguishedName);
-            //        _cache.AddDomainFromSid(sid, domainName);
-            //        _cache.AddDomainFromSid(domainName, sid);
-            //        return domainName;
-            //    }
-
-            //    request = new SearchRequest(null, $"(securityidentifier={sid}", SearchScope.Subtree, "distinguishedname ");
-            //    searchOptions = new SearchOptionsControl(SearchOption.DomainScope);
-            //    request.Controls.Add(searchOptions);
-            //    response = (SearchResponse)conn.SendRequest(request);
-
-            //    if (response != null && response.Entries.Count <= 0) return null;
-            //    domainName = ConvertDnToDomain(response.Entries[0].DistinguishedName);
-            //    _cache.AddDomainFromSid(sid, domainName);
-            //    _cache.AddDomainFromSid(domainName, sid);
-            //    return domainName;
-            //}
         }
 
         /// <summary>
@@ -213,17 +185,17 @@ namespace Sharphound2
                 return null;
             }
             
-            var name = entry.ResolveBloodhoundDisplay();
+            var name = entry.ResolveAdEntry();
             if (name != null)
             {
-                _cache.AddMapValue(sid, type, name);
+                _cache.AddMapValue(sid, type, name.BloodHoundDisplay);
             }
-            return name;
+            return name?.BloodHoundDisplay;
         }
 
         public MappedPrincipal UnknownSidTypeToDisplay(string sid, string domainName, string[] props)
         {
-            if (_cache.GetMapValueUnknownType(sid, out MappedPrincipal principal))
+            if (_cache.GetMapValueUnknownType(sid, out var principal))
             {
                 return principal;
             }
@@ -236,8 +208,9 @@ namespace Sharphound2
                 return null;
             }
 
-            var name = entry.ResolveBloodhoundDisplay();
-            var type = entry.GetObjectType();
+            var resolvedEntry = entry.ResolveAdEntry();
+            var name = resolvedEntry.BloodHoundDisplay;
+            var type = resolvedEntry.ObjectType;
             if (name != null)
             {
                 _cache.AddMapValue(sid, type, name);
@@ -273,10 +246,8 @@ namespace Sharphound2
                 }
 
                 PageResultResponseControl pageResponse = null;
-                var pagecount = 0;
                 while (true)
                 {
-                    pagecount++;
                     SearchResponse response;
                     try
                     {
@@ -295,10 +266,6 @@ namespace Sharphound2
                     {
                         yield return new Wrapper<SearchResultEntry>{Item = entry};
                     }
-
-                    //Console.WriteLine($"PageCount: {pagecount}");
-                    //Console.WriteLine($"Cookie Length: {pageResponse.Cookie.Length}");
-                    //Console.WriteLine($"Response Count: {response.Entries.Count}");
 
                     if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
                     {
@@ -543,6 +510,11 @@ namespace Sharphound2
             {
                 return false;
             }
+        }
+
+        public static void CompressFiles()
+        {
+            
         }
 
         public string GetWellKnownSid(string sid)

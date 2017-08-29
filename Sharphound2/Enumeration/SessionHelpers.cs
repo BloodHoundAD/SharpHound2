@@ -27,17 +27,17 @@ namespace Sharphound2.Enumeration
             _options = opts;
         }
 
-        public static IEnumerable<string> CollectStealthTargets(string domainName)
+        public static IEnumerable<ResolvedEntry> CollectStealthTargets(string domainName)
         {
             //Use a dictionary to unique stuff.
             var paths = new ConcurrentDictionary<string, byte>();
             //First we want to get all user script paths/home directories/profilepaths
-            Parallel.ForEach(_utils.DoWrappedSearch(
+            Parallel.ForEach(_utils.DoSearch(
                 "(&(samAccountType=805306368)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(|(homedirectory=*)(scriptpath=*)(profilepath=*)))",
                 SearchScope.Subtree, new[] { "homedirectory", "scriptpath", "profilepath" },
                 domainName), (x) =>
             {
-                var result = x.Item;
+                var result = x;
                 var poss = new[]
                 {
                     result.GetProp("homedirectory"), result.GetProp("scriptpath"),
@@ -51,19 +51,18 @@ namespace Sharphound2.Enumeration
                     var path = split[2];
                     paths.TryAdd(path, new byte());
                 }
-                x.Item = null;
             });
 
             //Lets grab domain controllers as well
             if (!_options.ExcludeDC)
             {
-                foreach (var entry in _utils.DoWrappedSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)",
+                foreach (var entry in _utils.DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)",
                     SearchScope.Subtree,
                     new[] { "dnshostname", "samaccounttype", "samaccountname", "serviceprincipalname" },
                     domainName))
                 {
-                    var path = entry.Item.ResolveBloodhoundDisplay();
-                    paths.TryAdd(path, new byte());
+                    var path = entry.ResolveAdEntry();
+                    paths.TryAdd(path.BloodHoundDisplay, new byte());
                 }
             }
 
@@ -76,16 +75,21 @@ namespace Sharphound2.Enumeration
                         continue;
                     }
                 }
-                yield return path;
+                yield return new ResolvedEntry
+                {
+                    BloodHoundDisplay = path,
+                    ObjectType = "computer",
+                    ComputerSamAccountName = "FAKESTRING"
+                };
             }
         }
 
-        public static IEnumerable<Session> GetNetSessions(string target, string computerDomain)
+        public static IEnumerable<Session> GetNetSessions(ResolvedEntry target, string computerDomain)
         {
             var resumeHandle = IntPtr.Zero;
             var si10 = typeof(SESSION_INFO_10);
 
-            var returnValue = NetSessionEnum(target, null, null, 10, out IntPtr ptrInfo, -1, out int entriesRead,
+            var returnValue = NetSessionEnum(target.BloodHoundDisplay, null, null, 10, out IntPtr ptrInfo, -1, out int entriesRead,
                 out int _, ref resumeHandle);
 
             //If we don't get a success, just break
@@ -117,7 +121,7 @@ namespace Sharphound2.Enumeration
                     cname = cname.TrimStart('\\');
 
                 if (cname.Equals("[::1]") || cname.Equals("127.0.0.1"))
-                    cname = target;
+                    cname = target.BloodHoundDisplay;
 
                 var dnsHostName = _utils.ResolveHost(cname);
 
@@ -184,16 +188,16 @@ namespace Sharphound2.Enumeration
             }
         }
 
-        public static IEnumerable<Session> GetRegistryLoggedOn(string target)
+        public static IEnumerable<Session> GetRegistryLoggedOn(ResolvedEntry target)
         {
             var temp = new List<Session>();
             try
             {
                 //Remotely open the registry hive if its not our current one
                 var key = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users,
-                    Environment.MachineName.Equals(target.Split('.')[0], StringComparison.CurrentCultureIgnoreCase)
+                    Environment.MachineName.Equals(target.BloodHoundDisplay.Split('.')[0], StringComparison.CurrentCultureIgnoreCase)
                         ? ""
-                        : target);
+                        : target.BloodHoundDisplay);
 
                 //Find all the subkeys that match our regex
                 var filtered = key.GetSubKeyNames()
@@ -206,7 +210,7 @@ namespace Sharphound2.Enumeration
                         RegistryProps, "user");
 
                     if (user == null) continue;
-                    temp.Add(new Session { ComputerName = target, UserName = user, Weight = 1 });
+                    temp.Add(new Session { ComputerName = target.BloodHoundDisplay, UserName = user, Weight = 1 });
                 }
             }
             catch (Exception e)
@@ -221,7 +225,7 @@ namespace Sharphound2.Enumeration
             }
         }
 
-        public static IEnumerable<Session> GetNetLoggedOn(string server, string serverShortName, string computerDomain)
+        public static IEnumerable<Session> GetNetLoggedOn(ResolvedEntry entry, string computerDomain)
         {
             var toReturn = new List<Session>();
 
@@ -231,7 +235,7 @@ namespace Sharphound2.Enumeration
             var tWui1 = typeof(WKSTA_USER_INFO_1);
 
             //Call the API to get logged on users
-            var result = NetWkstaUserEnum(server, queryLevel, out IntPtr intPtr, -1, out int entriesRead, out int _, ref resumeHandle);
+            var result = NetWkstaUserEnum(entry.BloodHoundDisplay, queryLevel, out IntPtr intPtr, -1, out int entriesRead, out int _, ref resumeHandle);
 
             //If we don't get 0 or 234 return
             if (result != 0 && result != 234) yield break;
@@ -244,7 +248,7 @@ namespace Sharphound2.Enumeration
                 var domain = data.wkui1_logon_domain;
                 var username = data.wkui1_username;
 
-                if (domain.Equals(serverShortName, StringComparison.CurrentCultureIgnoreCase) ||
+                if (domain.Equals(entry.ComputerSamAccountName, StringComparison.CurrentCultureIgnoreCase) ||
                     username.Trim().Equals("") || username.EndsWith("$", StringComparison.Ordinal))
                 {
                     continue;
@@ -254,7 +258,7 @@ namespace Sharphound2.Enumeration
                 var domainName = _utils.DomainNetbiosToFqdn(domain) ?? computerDomain;
                 toReturn.Add(new Session
                 {
-                    ComputerName = server,
+                    ComputerName = entry.ComputerSamAccountName,
                     UserName = $"{username}@{domainName}",
                     Weight = 1
                 });

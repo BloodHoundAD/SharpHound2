@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SharpHound2
+namespace Sharphound2
 {
     public class LimitedConcurrencyLevelTaskScheduler : TaskScheduler
     {

@@ -3,11 +3,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
-using System.Runtime.Remoting.Messaging;
 using System.Threading;
 using System.Threading.Tasks;
 using Sharphound2.OutputObjects;
-using SharpHound2;
 using static Sharphound2.Sharphound;
 
 namespace Sharphound2.Enumeration
@@ -89,11 +87,11 @@ namespace Sharphound2.Enumeration
                         }
 
                         Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var wrapper in _utils.DoWrappedSearch(
+                        foreach (var entry in _utils.DoSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
                         {
-                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(wrapper.Item, domainName))
+                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = admin });
                             }
@@ -111,18 +109,18 @@ namespace Sharphound2.Enumeration
                         }
 
                         Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var wrapper in _utils.DoWrappedSearch(
+                        foreach (var entry in _utils.DoSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
                         {
-                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(wrapper.Item, domainName))
+                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
                             {
                                 output.Add(new Wrapper<OutputBase>{Item = admin});
                             }
                         }
 
                         Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var wrapper in _utils.DoWrappedSearch("(|(memberof=*)(primarygroupid=*))",
+                        foreach (var entry in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
                             SearchScope.Subtree,
                             new[]
                             {
@@ -130,7 +128,8 @@ namespace Sharphound2.Enumeration
                                 "primarygroupid", "memberof", "serviceprincipalname"
                             }, domainName))
                         {
-                            foreach (var group in GroupHelpers.ProcessAdObject(wrapper.Item, domainSid))
+                            var resolvedEntry = entry.ResolveAdEntry();
+                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolvedEntry, domainSid))
                             {
                                 output.Add(new Wrapper<OutputBase> {Item = group});
                             }
@@ -151,7 +150,7 @@ namespace Sharphound2.Enumeration
                         Console.WriteLine("Doing LoggedOn enumeration for stealth targets");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
-                            var sessions = SessionHelpers.GetNetLoggedOn(path, "FAKESTRING", domainName);
+                            var sessions = SessionHelpers.GetNetLoggedOn(path, domainName);
                             foreach (var s in sessions)
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = s });
@@ -165,7 +164,7 @@ namespace Sharphound2.Enumeration
                         break;
                     case CollectionMethod.Group:
                         Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var wrapper in _utils.DoWrappedSearch("(|(memberof=*)(primarygroupid=*))",
+                        foreach (var entry in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
                             SearchScope.Subtree,
                             new[]
                             {
@@ -173,7 +172,8 @@ namespace Sharphound2.Enumeration
                                 "primarygroupid", "memberof", "serviceprincipalname"
                             }, domainName))
                         {
-                            foreach (var group in GroupHelpers.ProcessAdObject(wrapper.Item, domainSid))
+                            var resolvedEntry = entry.ResolveAdEntry();
+                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolvedEntry, domainSid))
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = group });
                             }
@@ -184,11 +184,11 @@ namespace Sharphound2.Enumeration
                         break;
                     case CollectionMethod.GPOLocalGroup:
                         Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var wrapper in _utils.DoWrappedSearch(
+                        foreach (var entry in _utils.DoSearch(
                             "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
                             new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
                         {
-                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(wrapper.Item, domainName))
+                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = admin });
                             }
@@ -203,7 +203,7 @@ namespace Sharphound2.Enumeration
                         break;
                     case CollectionMethod.ACL:
                         Console.WriteLine("Doing stealth enumeration for ACLs");
-                        foreach (var wrapper in _utils.DoWrappedSearch(
+                        foreach (var entry in _utils.DoSearch(
                             "(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain))",
                             SearchScope.Subtree,
                             new[]
@@ -212,7 +212,7 @@ namespace Sharphound2.Enumeration
                                 "ntsecuritydescriptor"
                             }, domainName))
                         {
-                            foreach (var acl in AclHelpers.ProcessAdObject(wrapper.Item, domainName))
+                            foreach (var acl in AclHelpers.ProcessAdObject(entry, domainName))
                             {
                                 output.Add(new Wrapper<OutputBase>{Item = acl});
                             }
@@ -259,7 +259,7 @@ namespace Sharphound2.Enumeration
                     props = new[]
                     {
                         "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
-                        "memberof", "serviceprincipalname"
+                        "memberof"
                     };
                     break;
                 case CollectionMethod.ComputerOnly:
@@ -327,7 +327,7 @@ namespace Sharphound2.Enumeration
                     ldapFilter = "(|(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
                     props = new[]
                     {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "serviceprincipalname",
+                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
                         "memberof"
                     };
                     break;
@@ -429,14 +429,20 @@ namespace Sharphound2.Enumeration
                 {
                     var entry = wrapper.Item;
 
-                    var type = entry.GetObjectType();
-                    var name = entry.ResolveBloodhoundDisplay();
+                    var resolved = entry.ResolveAdEntry();
+
+                    if (resolved == null)
+                    {
+                        Interlocked.Increment(ref _currentCount);
+                        wrapper.Item = null;
+                        continue;
+                    }
 
                     switch (_options.CollectMethod)
                     {
                         case CollectionMethod.Group:
                             {
-                                var groups = GroupHelpers.ProcessAdObject(entry, _currentDomainSid);
+                                var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
                                 foreach (var g in groups)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = g });
@@ -445,12 +451,12 @@ namespace Sharphound2.Enumeration
                             break;
                         case CollectionMethod.ComputerOnly:
                             {
-                                if (!_utils.PingHost(name))
+                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
                                     break;
                                 }
                                 var admins =
-                                    LocalAdminHelpers.GetLocalAdmins(name, "Administrators", _currentDomain,
+                                    LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
                                         _currentDomainSid);
                                 foreach (var a in admins)
                                 {
@@ -460,7 +466,7 @@ namespace Sharphound2.Enumeration
                                 {
                                     break;
                                 }
-                                var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
+                                var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
                                 foreach (var s in sessions)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
@@ -470,14 +476,14 @@ namespace Sharphound2.Enumeration
                             break;
                         case CollectionMethod.LocalGroup:
                             {
-                                if (!_utils.PingHost(name))
+                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
-                                    Utils.Verbose($"{name} did not respond to ping");
+                                    Utils.Verbose($"{resolved.BloodHoundDisplay} did not respond to ping");
                                     break;
                                 }
 
                                 var admins =
-                                    LocalAdminHelpers.GetLocalAdmins(name, "Administrators", _currentDomain,
+                                    LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
                                         _currentDomainSid);
 
                                 foreach (var a in admins)
@@ -494,7 +500,7 @@ namespace Sharphound2.Enumeration
                             break;
                         case CollectionMethod.Session:
                             {
-                                if (!_utils.PingHost(name))
+                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
                                     break;
                                 }
@@ -504,7 +510,7 @@ namespace Sharphound2.Enumeration
                                     break;
                                 }
 
-                                var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
+                                var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
                                 foreach (var s in sessions)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
@@ -513,20 +519,19 @@ namespace Sharphound2.Enumeration
                             break;
                         case CollectionMethod.LoggedOn:
                             {
-                                if (!_utils.PingHost(name))
+                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
                                     break;
                                 }
-                                var samAccountName = entry.GetProp("samaccountname");
                                 var sessions =
-                                    SessionHelpers.GetNetLoggedOn(name, samAccountName,
+                                    SessionHelpers.GetNetLoggedOn(resolved,
                                         _currentDomain);
 
                                 foreach (var s in sessions)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
                                 }
-                                sessions = SessionHelpers.GetRegistryLoggedOn(name);
+                                sessions = SessionHelpers.GetRegistryLoggedOn(resolved);
                                 foreach (var s in sessions)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
@@ -546,7 +551,7 @@ namespace Sharphound2.Enumeration
                             break;
                         case CollectionMethod.SessionLoop:
                             {
-                                if (!_utils.PingHost(name))
+                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
                                     break;
                                 }
@@ -556,7 +561,7 @@ namespace Sharphound2.Enumeration
                                     break;
                                 }
 
-                                var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
+                                var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
                                 foreach (var s in sessions)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
@@ -565,24 +570,24 @@ namespace Sharphound2.Enumeration
                             break;
                         case CollectionMethod.Default:
                         {
-                            var groups = GroupHelpers.ProcessAdObject(entry, _currentDomainSid);
+                            var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
                             foreach (var g in groups)
                             {
                                 writeQueue.Add(new Wrapper<OutputBase> { Item = g });
                             }
 
-                            if (!type.Equals("computer"))
+                            if (!resolved.ObjectType.Equals("computer"))
                             {
                                 break;
                             }
                             
-                            if (!_utils.PingHost(name))
+                            if (!_utils.PingHost(resolved.BloodHoundDisplay))
                             {
                                 break;
                             }
 
                             var admins =
-                                LocalAdminHelpers.GetLocalAdmins(name, "Administrators", _currentDomain,
+                                LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
                                     _currentDomainSid);
                             foreach (var a in admins)
                             {
@@ -593,7 +598,7 @@ namespace Sharphound2.Enumeration
                             {
                                 break;
                             }
-                            var sessions = SessionHelpers.GetNetSessions(name, _currentDomain);
+                            var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
                             foreach (var s in sessions)
                             {
                                 writeQueue.Add(new Wrapper<OutputBase> { Item = s });
@@ -618,7 +623,6 @@ namespace Sharphound2.Enumeration
                 var sessionCount = 0;
                 var aclCount = 0;
                 var groupCount = 0;
-                var trustCount = 0;
 
                 StreamWriter admins = null;
                 StreamWriter sessions = null;
@@ -705,11 +709,7 @@ namespace Sharphound2.Enumeration
                                 trusts.WriteLine("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive");
                         }
                         trusts.WriteLine(item.ToCsv());
-                        trustCount++;
-                        if (trustCount % 100 == 0)
-                        {
-                            trusts.Flush();
-                        }
+                        trusts.Flush();
                     }
                     obj.Item = null;
                 }

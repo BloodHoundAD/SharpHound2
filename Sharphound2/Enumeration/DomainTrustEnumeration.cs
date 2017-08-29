@@ -18,93 +18,76 @@ namespace Sharphound2.Enumeration
 
         public static IEnumerable<DomainTrust> DoTrustEnumeration(string domain)
         {
-            var seen = new HashSet<string>();
-            var stack = new Stack<string>();
+            if (domain == null || domain.Trim() == "")
+                yield break;
+            
+            Utils.Verbose($"Enumerating trusts for {domain}");
 
-            stack.Push(domain);
+            var dc = _utils
+                .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
+                    new[] {"dnshostname"}, domain).DefaultIfEmpty(null).FirstOrDefault();
 
-            while (stack.Count > 0)
+            if (dc == null)
+                yield break;
+            
+
+            const uint flags = 63;
+            var ddt = typeof(DS_DOMAIN_TRUSTS);
+            var result = DsEnumerateDomainTrusts(dc.GetProp("dnshostname"), flags, out var ptr, out var domainCount);
+
+            if (result != 0)
+                yield break;
+                
+            var array = new DS_DOMAIN_TRUSTS[domainCount];
+
+            var iter = ptr;
+                
+            //Loop over the data and store it in an array
+            for (var i = 0; i < domainCount; i++)
             {
-                var current = stack.Pop();
-
-                if (current == null || current.Trim() == "" || seen.Contains(current))
-                    continue;
-
-                seen.Add(current);
-
-                Utils.Verbose($"Enumerating trusts for {current}");
-
-                var dc = _utils
-                    .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
-                        new[] {"dnshostname"}, current).DefaultIfEmpty(null).FirstOrDefault();
-
-                if (dc == null)
-                {
-                    continue;
-                }
-
-                const uint flags = 63;
-                var ddt = typeof(DS_DOMAIN_TRUSTS);
-                var result = DsEnumerateDomainTrusts(dc.GetProp("dnshostname"), flags, out IntPtr ptr, out uint domainCount);
-
-                if (result != 0)
-                    continue;
-                
-                var array = new DS_DOMAIN_TRUSTS[domainCount];
-
-                var iter = ptr;
-                
-                //Loop over the data and store it in an array
-                for (var i = 0; i < domainCount; i++)
-                {
-                    array[i] = (DS_DOMAIN_TRUSTS) Marshal.PtrToStructure(iter, ddt);
-                    iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(ddt));
-                }
-
-                NetApiBufferFree(ptr);
-
-                for (var i = 0; i < domainCount; i++)
-                {
-                    var trust = new DomainTrust {SourceDomain = current};
-                    var data = array[i];
-                    var trustType = (TRUST_TYPE) data.Flags;
-                    var trustAttribs = (TRUST_ATTRIB) data.TrustAttributes;
-
-                    if ((trustType & TRUST_TYPE.DS_DOMAIN_TREE_ROOT) == TRUST_TYPE.DS_DOMAIN_TREE_ROOT)
-                        continue;
-
-                    trust.TargetDomain = data.DnsDomainName;
-
-                    var inbound = (trustType & TRUST_TYPE.DS_DOMAIN_DIRECT_INBOUND) == TRUST_TYPE.DS_DOMAIN_DIRECT_INBOUND;
-                    var outbound = (trustType & TRUST_TYPE.DS_DOMAIN_DIRECT_OUTBOUND) == TRUST_TYPE.DS_DOMAIN_DIRECT_OUTBOUND;
-
-                    if (inbound && outbound)
-                    {
-                        trust.TrustDirection = "Bidirectional";
-                    }else if (inbound)
-                    {
-                        trust.TrustDirection = "Inbound";
-                    }
-                    else
-                    {
-                        trust.TrustDirection = "Outbound";
-                    }
-
-                    trust.TrustType = (trustType & TRUST_TYPE.DS_DOMAIN_IN_FOREST) == TRUST_TYPE.DS_DOMAIN_IN_FOREST ? "ParentChild" : "External";
-
-                    if ((trustAttribs & TRUST_ATTRIB.NON_TRANSITIVE) == TRUST_ATTRIB.NON_TRANSITIVE)
-                    {
-                        trust.IsTransitive = false;
-                    }
-
-                    if (!seen.Contains(data.DnsDomainName))
-                    {
-                        stack.Push(data.DnsDomainName);
-                    }
-                    
-                    yield return trust;
-                }
+                array[i] = (DS_DOMAIN_TRUSTS) Marshal.PtrToStructure(iter, ddt);
+                iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(ddt));
             }
+
+            NetApiBufferFree(ptr);
+
+            for (var i = 0; i < domainCount; i++)
+            {
+                var trust = new DomainTrust {SourceDomain = domain};
+                var data = array[i];
+                var trustType = (TRUST_TYPE) data.Flags;
+                var trustAttribs = (TRUST_ATTRIB) data.TrustAttributes;
+
+                if ((trustType & TRUST_TYPE.DS_DOMAIN_TREE_ROOT) == TRUST_TYPE.DS_DOMAIN_TREE_ROOT)
+                    continue;
+
+                trust.TargetDomain = data.DnsDomainName;
+
+                var inbound = (trustType & TRUST_TYPE.DS_DOMAIN_DIRECT_INBOUND) == TRUST_TYPE.DS_DOMAIN_DIRECT_INBOUND;
+                var outbound = (trustType & TRUST_TYPE.DS_DOMAIN_DIRECT_OUTBOUND) == TRUST_TYPE.DS_DOMAIN_DIRECT_OUTBOUND;
+
+                if (inbound && outbound)
+                {
+                    trust.TrustDirection = "Bidirectional";
+                }else if (inbound)
+                {
+                    trust.TrustDirection = "Inbound";
+                }
+                else
+                {
+                    trust.TrustDirection = "Outbound";
+                }
+
+                trust.TrustType = (trustType & TRUST_TYPE.DS_DOMAIN_IN_FOREST) == TRUST_TYPE.DS_DOMAIN_IN_FOREST ? "ParentChild" : "External";
+
+                if ((trustAttribs & TRUST_ATTRIB.NON_TRANSITIVE) == TRUST_ATTRIB.NON_TRANSITIVE)
+                {
+                    trust.IsTransitive = false;
+                }
+                    
+                yield return trust;
+            }
+            
         }
 
         #region PINVOKE

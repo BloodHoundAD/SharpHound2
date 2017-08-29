@@ -64,15 +64,16 @@ namespace Sharphound2.Enumeration
             var ownerSid = descriptor.Owner.ToString();
 
             //Resolve the entry name/type
-            var entryDisplayName = entry.ResolveBloodhoundDisplay();
+            var resolvedEntry = entry.ResolveAdEntry();
 
             //If our name is null, we dont know what the principal is
-            if (entryDisplayName == null)
+            if (resolvedEntry == null)
             {
                 yield break;
             }
 
-            var entryType = entry.GetObjectType();
+            var entryDisplayName = resolvedEntry.BloodHoundDisplay;
+            var entryType = resolvedEntry.ObjectType;
             
             //Determine the owner of the object. Start by checking if we've already determined this is null
             if (!_nullSids.TryGetValue(ownerSid, out byte _))

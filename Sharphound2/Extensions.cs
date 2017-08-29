@@ -15,10 +15,15 @@ namespace Sharphound2
         private static readonly HashSet<string> Users = new HashSet<string> { "805306368" };
         private static readonly HashSet<string> TrustAccount = new HashSet<string> { "805306370" };
         //private static readonly Regex SpnSearch = new Regex(@"HOST\/([A-Za-z0-9-_]*\.[A-Za-z0-9-_]*\.[A-Za-z0-9-_]*)$", RegexOptions.Compiled);
+        private static string _primaryDomain;
 
         static Extensions()
         {
-                
+        }
+
+        public static void Init()
+        {
+            _primaryDomain = Utils.Instance.GetDomain().Name;
         }
 
         public static string GetObjectType(this SearchResultEntry result)
@@ -83,7 +88,28 @@ namespace Sharphound2
             if (Computers.Contains(accountType))
             {
                 var shortName = accountName.TrimEnd('$');
-                var dnshostname = result.GetProp("dnshostname") ?? $"{shortName}.{domainName}";
+                var dnshostname = result.GetProp("dnshostname");
+
+                if (dnshostname == null)
+                {
+                    bool hostFound;
+                    if (domainName.Equals(_primaryDomain, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        hostFound = DnsManager.HostExistsDns(shortName, out dnshostname);
+                        if (!hostFound)
+                            hostFound = DnsManager.HostExistsDns($"{shortName}.{domainName}", out dnshostname);
+                    }
+                    else
+                    {
+                        hostFound = DnsManager.HostExistsDns($"{shortName}.{domainName}", out dnshostname);
+                        if (!hostFound)
+                            hostFound = DnsManager.HostExistsDns(shortName, out dnshostname);
+                    }
+
+                    if (!hostFound)
+                        return null;
+                    
+                }
                 entry.BloodHoundDisplay = dnshostname;
                 entry.ObjectType = "computer";
                 entry.ComputerSamAccountName = shortName;

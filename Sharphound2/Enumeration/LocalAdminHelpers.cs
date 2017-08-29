@@ -5,7 +5,6 @@ using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 using Sharphound2.OutputObjects;
@@ -45,42 +44,69 @@ namespace Sharphound2.Enumeration
             sid.GetBinaryForm(_sidbytes, 0);
         }
 
-        
-        public static List<LocalAdmin> GetSamAdmins(string target)
+        public static List<LocalAdmin> GetLocalAdmins(ResolvedEntry target, string group, string domainName, string domainSid)
+        {
+            var toReturn = new List<LocalAdmin>();
+            try
+            {
+                toReturn = GetSamAdmins(target);
+                return toReturn;
+            }
+            catch (SystemDownException)
+            {
+                return toReturn;
+            }
+            catch (ApiFailedException)
+            {
+                Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target}");
+                try
+                {
+                    toReturn = LocalGroupWinNt(target.BloodHoundDisplay, group);
+                    return toReturn;
+                }
+                catch
+                {
+                    return toReturn;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return toReturn;
+            }
+        }
+
+        public static List<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
         {
             //Huge thanks to Simon Mourier on StackOverflow for putting me on the right track
             //https://stackoverflow.com/questions/31464835/how-to-programatically-check-the-password-must-meet-complexity-requirements-gr/31748252
-            
-            var server = new UNICODE_STRING(target);
+
+            var server = new UNICODE_STRING(entry.BloodHoundDisplay);
             var toReturn = new List<LocalAdmin>();
 
             //Connect to the server with the proper access maskes. This gives us our server handle
 
-            IntPtr serverHandle;
-            try
-            {
-                var status = SamConnect(server, out serverHandle,
-                    SamAccessMasks.SamServerConnect | SamAccessMasks.SamServerLookupDomain |
-                    SamAccessMasks.SamServerEnumerateDomains, false);
+            var status = SamConnect(server, out var serverHandle,
+                SamAccessMasks.SamServerLookupDomain |
+                SamAccessMasks.SamServerEnumerateDomains, false);
 
-                if (status.Equals(NTSTATUS.StatusRpcServerUnavailable))
-                {
+            switch (status)
+            {
+                case NTSTATUS.StatusRpcServerUnavailable:
                     SamCloseHandle(serverHandle);
                     throw new SystemDownException();
-                }
-                Console.WriteLine(status);
+                case NTSTATUS.StatusSuccess:
+                    break;
+                default:
+                    throw new ApiFailedException();
             }
-            catch (Exception e)
-            {
-                return toReturn;
-            }
-            
 
             //Use SamLookupDomainInServer with the hostname to find the machine sid if possible
             string machineSid;
             try
             {
-                SamLookupDomainInSamServer(serverHandle, server, out IntPtr temp);
+                SamLookupDomainInSamServer(serverHandle, new UNICODE_STRING(entry.ComputerSamAccountName), out var temp);
+                //This will throw an exception if we didn't actually find the alias
                 machineSid = new SecurityIdentifier(temp).Value;
                 SamFreeMemory(temp);
             }
@@ -88,13 +114,34 @@ namespace Sharphound2.Enumeration
             {
                 machineSid = "DUMMYSTRINGSHOULDNOTMATCH";
             }
-            
+
             //Open the domain for the S-1-5-32 (BUILTIN) alias
-            SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, _sidbytes, out IntPtr domainHandle);
+            status = SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, _sidbytes, out var domainHandle);
+            if (!status.Equals(NTSTATUS.StatusSuccess))
+            {
+                SamCloseHandle(serverHandle);
+                throw new ApiFailedException();
+            }
+
             //Open the alias for Local Administrators (always RID 544)
-            SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out IntPtr aliasHandle);
+            status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out var aliasHandle);
+            if (!status.Equals(NTSTATUS.StatusSuccess))
+            {
+                SamCloseHandle(domainHandle);
+                SamCloseHandle(serverHandle);
+                throw new ApiFailedException();
+            }
+
             //Get the members in the alias. This returns a list of SIDs
-            SamGetMembersInAlias(aliasHandle, out IntPtr members, out int count);
+            status = SamGetMembersInAlias(aliasHandle, out var members, out var count);
+
+            if (!status.Equals(NTSTATUS.StatusSuccess))
+            {
+                SamCloseHandle(aliasHandle);
+                SamCloseHandle(domainHandle);
+                SamCloseHandle(serverHandle);
+                throw new ApiFailedException();
+            }
 
             SamCloseHandle(aliasHandle);
             SamCloseHandle(domainHandle);
@@ -119,33 +166,49 @@ namespace Sharphound2.Enumeration
             }
 
             //Open the LSA policy on the target machine
-            LsaOpenPolicy(server, default(OBJECT_ATTRIBUTES),
-                LsaOpenMask.ViewLocalInfo | LsaOpenMask.LookupNames, out IntPtr policyHandle);
-            
+            status = LsaOpenPolicy(server, default(OBJECT_ATTRIBUTES),
+                LsaOpenMask.ViewLocalInfo | LsaOpenMask.LookupNames, out var policyHandle);
+
+            if (!status.Equals(NTSTATUS.StatusSuccess))
+            {
+                LsaClose(policyHandle);
+                SamFreeMemory(members);
+                throw new ApiFailedException();
+            }
+
             //Call LsaLookupSids using the sids we got from SamGetMembersInAlias
-            LsaLookupSids(policyHandle, count, members, out IntPtr domainList,
-                out IntPtr nameList);
+            LsaLookupSids(policyHandle, count, members, out var domainList,
+                out var nameList);
+
+            if (!status.Equals(NTSTATUS.StatusSuccess))
+            {
+                LsaClose(policyHandle);
+                LsaFreeMemory(domainList);
+                LsaFreeMemory(nameList);
+                SamFreeMemory(members);
+                throw new ApiFailedException();
+            }
 
             //Convert the returned names into structures
             var iter = nameList;
             var translatedNames = new LSA_TRANSLATED_NAMES[count];
             for (var i = 0; i < count; i++)
             {
-                translatedNames[i] = (LSA_TRANSLATED_NAMES) Marshal.PtrToStructure(iter, typeof(LSA_TRANSLATED_NAMES));
-                iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRANSLATED_NAMES)));
+                translatedNames[i] = (LSA_TRANSLATED_NAMES)Marshal.PtrToStructure(iter, typeof(LSA_TRANSLATED_NAMES));
+                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRANSLATED_NAMES)));
             }
 
             //Convert the returned domain list to a structure
             var lsaDomainList =
-                (LSA_REFERENCED_DOMAIN_LIST) (Marshal.PtrToStructure(domainList, typeof(LSA_REFERENCED_DOMAIN_LIST)));
+                (LSA_REFERENCED_DOMAIN_LIST)(Marshal.PtrToStructure(domainList, typeof(LSA_REFERENCED_DOMAIN_LIST)));
 
             //Convert the domain list to individual structures
             var trustInfos = new LSA_TRUST_INFORMATION[lsaDomainList.count];
             iter = lsaDomainList.domains;
             for (var i = 0; i < lsaDomainList.count; i++)
             {
-                trustInfos[i] = (LSA_TRUST_INFORMATION) Marshal.PtrToStructure(iter, typeof(LSA_TRUST_INFORMATION));
-                iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRUST_INFORMATION)));
+                trustInfos[i] = (LSA_TRUST_INFORMATION)Marshal.PtrToStructure(iter, typeof(LSA_TRUST_INFORMATION));
+                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRUST_INFORMATION)));
             }
 
             var resolvedObjects = new SamEnumerationObject[translatedNames.Length];
@@ -178,7 +241,7 @@ namespace Sharphound2.Enumeration
 
                 if (data.AccountName.Equals(string.Empty))
                     continue;
-                
+
                 if (sid.StartsWith(machineSid))
                     continue;
 
@@ -209,7 +272,7 @@ namespace Sharphound2.Enumeration
                     type = "unknown";
 
                 string resolvedName;
-                
+
                 if (type.Equals("unknown"))
                 {
                     var mp = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid),
@@ -230,10 +293,309 @@ namespace Sharphound2.Enumeration
                 {
                     ObjectType = type,
                     ObjectName = resolvedName,
-                    Server = target
+                    Server = entry.BloodHoundDisplay
                 });
             }
             return toReturn;
+        }
+
+        public static List<LocalAdmin> LocalGroupWinNt(string target, string group)
+        {
+            var members = new DirectoryEntry($"WinNT://{target}/{group},group");
+            var localAdmins = new List<LocalAdmin>();
+            try
+            {
+                foreach (var member in (System.Collections.IEnumerable)members.Invoke("Members"))
+                {
+                    using (var m = new DirectoryEntry(member))
+                    {
+                        //Convert sid bytes to a string
+                        var sidstring = new SecurityIdentifier(m.GetSid(), 0).ToString();
+                        string type;
+                        switch (m.SchemaClassName)
+                        {
+                            case "Group":
+                                type = "group";
+                                break;
+                            case "User":
+                                //If its a user but the name ends in $, it's actually a computer (probably)
+                                type = m.Properties["Name"][0].ToString().EndsWith("$", StringComparison.Ordinal) ? "computer" : "user";
+                                break;
+                            default:
+                                type = "group";
+                                break;
+                        }
+
+                        //Start by checking the cache
+                        if (!_cache.GetMapValue(sidstring, type, out var adminName))
+                        {
+                            //Get the domain from the SID
+                            var domainName = _utils.SidToDomainName(sidstring);
+
+                            //Search for the object in AD
+                            var entry = _utils
+                                .DoSearch($"(objectsid={sidstring})", SearchScope.Subtree, AdminProps, domainName)
+                                .DefaultIfEmpty(null).FirstOrDefault();
+
+                            //If it's not null, we have an object, yay! Otherwise, meh
+                            if (entry != null)
+                            {
+                                adminName = entry.ResolveAdEntry().BloodHoundDisplay;
+                                _cache.AddMapValue(sidstring, type, adminName);
+                            }
+                            else
+                            {
+                                adminName = null;
+                            }
+                        }
+
+                        if (adminName != null)
+                        {
+                            localAdmins.Add(new LocalAdmin { ObjectName = adminName, ObjectType = type, Server = target });
+                        }
+                    }
+                }
+            }
+            catch (COMException)
+            {
+                //You can get a COMException, so just return a blank array
+                return localAdmins;
+            }
+
+            return localAdmins;
+        }
+
+        //public static List<LocalAdmin> LocalGroupApi(string target, string group, string domainName, string domainSid)
+        //{
+        //    const int queryLevel = 2;
+        //    var resumeHandle = IntPtr.Zero;
+        //    var machineSid = "DUMMYSTRING";
+
+        //    var LMI2 = typeof(LOCALGROUP_MEMBERS_INFO_2);
+            
+        //    var returnValue = NetLocalGroupGetMembers(target, group, queryLevel, out IntPtr ptrInfo, -1, out int entriesRead, out int _, resumeHandle);
+
+        //    //Return value of 1722 indicates the system is down, so no reason to fallback to WinNT
+        //    if (returnValue == 1722)
+        //    {
+        //        throw new SystemDownException();
+        //    }
+
+        //    //If its not 0, something went wrong, but we can fallback to WinNT provider. Throw an exception
+        //    if (returnValue != 0)
+        //    {
+        //        throw new ApiFailedException();
+        //    }
+
+        //    var toReturn = new List<LocalAdmin>();
+
+        //    if (entriesRead <= 0) return toReturn;
+
+        //    var iter = ptrInfo;
+        //    var list = new List<API_Encapsulator>();
+
+        //    //Loop through the data and save them into a list for processing
+        //    for (var i = 0; i < entriesRead; i++)
+        //    {
+        //        var data = (LOCALGROUP_MEMBERS_INFO_2)Marshal.PtrToStructure(iter, LMI2);
+        //        ConvertSidToStringSid(data.lgrmi2_sid, out string sid);
+        //        list.Add(new API_Encapsulator
+        //        {
+        //            Lgmi2 = data,
+        //            sid = sid
+        //        });
+        //        iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(LMI2));
+        //    }
+            
+        //    NetApiBufferFree(ptrInfo);
+        //    //Try and determine the machine sid
+            
+        //    foreach (var data in list)
+        //    {
+        //        if (data.sid == null)
+        //        {
+        //            continue;
+        //        }
+
+        //        //If the sid ends with -500 and doesn't start with the DomainSID, there's a very good chance we've identified the RID500 account
+        //        //Take the machine sid from there. If we don't find it, we use a dummy string
+        //        if (!data.sid.EndsWith("-500", StringComparison.Ordinal) ||
+        //            data.sid.StartsWith(domainSid, StringComparison.Ordinal)) continue;
+        //        machineSid = new SecurityIdentifier(data.sid).AccountDomainSid.Value;
+        //        break;
+        //    }
+            
+        //    foreach (var data in list)
+        //    {
+        //        if (data.sid == null)
+        //            continue;
+        //        var objectName = data.Lgmi2.lgrmi2_domainandname;
+        //        if (objectName.Split('\\').Last().Equals(""))
+        //        {
+        //            //Sometimes we get weird objects that are just a domain name with no user behind it.
+        //            continue;
+        //        }
+
+        //        if (data.sid.StartsWith(machineSid, StringComparison.Ordinal))
+        //        {
+        //            //This should filter out local accounts
+        //            continue;
+        //        }
+
+        //        string type;
+        //        switch (data.Lgmi2.lgrmi2_sidusage)
+        //        {
+        //            case SID_NAME_USE.SidTypeUser:
+        //                type = "user";
+        //                break;
+        //            case SID_NAME_USE.SidTypeGroup:
+        //                type = "group";
+        //                break;
+        //            case SID_NAME_USE.SidTypeComputer:
+        //                type = "computer";
+        //                break;
+        //            case SID_NAME_USE.SidTypeWellKnownGroup:
+        //                type = "wellknown";
+        //                break;
+        //            default:
+        //                type = null;
+        //                break;
+        //        }
+
+        //        //I have no idea what would cause this condition
+        //        if (type == null)
+        //        {
+        //            continue;
+        //        }
+
+        //        if (objectName.EndsWith("$", StringComparison.Ordinal))
+        //        {
+        //            type = "computer";
+        //        }
+                
+        //        var resolved = _utils.SidToDisplay(data.sid, _utils.SidToDomainName(data.sid), AdminProps, type);
+        //        if (resolved == null)
+        //        {
+        //            continue;
+        //        }
+
+        //        toReturn.Add(new LocalAdmin
+        //        {
+        //            ObjectName = resolved,
+        //            ObjectType = type,
+        //            Server = target
+        //        });
+        //    }
+        //    return toReturn;
+        //}
+
+        public static IEnumerable<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
+        {
+            const string targetSid = "S-1-5-32-544__Members";
+
+            var displayName = entry.GetProp("displayname");
+            var name = entry.GetProp("name");
+            var path = entry.GetProp("gpcfilesyspath");
+
+
+            if (displayName == null || name == null || path == null)
+            {
+                yield break;
+            }
+
+            var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
+            var currentSection = string.Empty;
+            var resolvedList = new List<MappedPrincipal>();
+
+            if (!File.Exists(template))
+                yield break;
+
+            using (var reader = new StreamReader(template))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    var sMatch = SectionRegex.Match(line);
+                    if (sMatch.Success)
+                    {
+                        currentSection = sMatch.Captures[0].Value.Trim();
+                    }
+
+                    if (!currentSection.Equals("[Group Membership]"))
+                    {
+                        continue;
+                    }
+
+                    var kMatch = KeyRegex.Match(line);
+
+                    if (!kMatch.Success)
+                        continue;
+
+                    var n = kMatch.Groups[1].Value;
+                    var v = kMatch.Groups[2].Value;
+
+                    if (!n.Contains(targetSid))
+                        continue;
+
+                    v = v.Trim();
+                    var members = v.Split(',');
+
+
+                    foreach (var m in members)
+                    {
+                        var member = m.Trim('*');
+                        string sid;
+                        if (!member.StartsWith("S-1-", StringComparison.CurrentCulture))
+                        {
+                            try
+                            {
+                                sid = new NTAccount(domainName, m).Translate(typeof(SecurityIdentifier)).Value;
+                            }
+                            catch
+                            {
+                                sid = null;
+                            }
+                        }
+                        else
+                        {
+                            sid = member;
+                        }
+
+                        if (sid == null)
+                            continue;
+
+                        var domain = _utils.SidToDomainName(sid) ?? domainName;
+                        var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                        if (resolvedPrincipal != null)
+                            resolvedList.Add(resolvedPrincipal);
+                    }
+                }
+            }
+
+            foreach (var ouObject in _utils.DoSearch($"(gplink=*{name}*)", SearchScope.Subtree, GpLinkProps, domainName))
+            {
+                var adspath = ouObject.DistinguishedName;
+
+                foreach (var compEntry in _utils.DoSearch("(objectclass=computer)", SearchScope.Subtree, GpoProps,
+                    domainName, adspath))
+                {
+                    var samAccountType = compEntry.GetProp("samaccounttype");
+                    if (samAccountType == null || samAccountType != "805306369")
+                        continue;
+
+                    var server = compEntry.ResolveAdEntry().BloodHoundDisplay;
+
+                    foreach (var user in resolvedList)
+                    {
+                        yield return new LocalAdmin
+                        {
+                            ObjectName = user.PrincipalName,
+                            ObjectType = user.ObjectType,
+                            Server = server
+                        };
+                    }
+                }
+            }
         }
 
         private class SamEnumerationObject
@@ -276,15 +638,15 @@ namespace Sharphound2.Enumeration
         private struct LSA_TRUST_INFORMATION
         {
             internal LSA_UNICODE_STRING name;
-            internal IntPtr sid;
+            private IntPtr sid;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct LSA_UNICODE_STRING
         {
-            internal ushort length;
-            internal ushort maxLen;
-            [MarshalAs(UnmanagedType.LPWStr)] internal string name;
+            private ushort length;
+            private ushort maxLen;
+            [MarshalAs(UnmanagedType.LPWStr)] private string name;
 
             public override string ToString()
             {
@@ -358,7 +720,7 @@ namespace Sharphound2.Enumeration
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
         private static extern NTSTATUS SamOpenAlias(
-            IntPtr domainHandle, 
+            IntPtr domainHandle,
             SamAliasFlags desiredAccess,
             int aliasId,
             out IntPtr aliasHandle
@@ -512,337 +874,6 @@ namespace Sharphound2.Enumeration
             StatusRpcServerUnavailable = unchecked((int)0xC0020017)
         }
         #endregion
-
-        public static IEnumerable<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
-        {
-            const string targetSid = "S-1-5-32-544__Members";
-
-            var displayName = entry.GetProp("displayname");
-            var name = entry.GetProp("name");
-            var path = entry.GetProp("gpcfilesyspath");
-            
-
-            if (displayName == null || name == null || path == null)
-            {
-                yield break;
-            }
-
-            var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
-            var currentSection = string.Empty;
-            var resolvedList = new List<MappedPrincipal>();
-
-            if (!File.Exists(template))
-                yield break;
-
-            using (var reader = new StreamReader(template))
-            {
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    var sMatch = SectionRegex.Match(line);
-                    if (sMatch.Success)
-                    {
-                        currentSection = sMatch.Captures[0].Value.Trim();
-                    }
-
-                    if (!currentSection.Equals("[Group Membership]"))
-                    {
-                        continue;
-                    }
-
-                    var kMatch = KeyRegex.Match(line);
-
-                    if (!kMatch.Success)
-                        continue;
-
-                    var n = kMatch.Groups[1].Value;
-                    var v = kMatch.Groups[2].Value;
-
-                    if (!n.Contains(targetSid))
-                        continue;
-
-                    v = v.Trim();
-                    var members = v.Split(',');
-
-
-                    foreach (var m in members)
-                    {
-                        var member = m.Trim('*');
-                        string sid;
-                        if (!member.StartsWith("S-1-", StringComparison.CurrentCulture))
-                        {
-                            try
-                            {
-                                sid = new NTAccount(domainName, m).Translate(typeof(SecurityIdentifier)).Value;
-                            }
-                            catch
-                            {
-                                sid = null;
-                            }
-                        }
-                        else
-                        {
-                            sid = member;
-                        }
-
-                        if (sid == null)
-                            continue;
-
-                        var domain = _utils.SidToDomainName(sid) ?? domainName;
-                        var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
-                        if (resolvedPrincipal != null)
-                            resolvedList.Add(resolvedPrincipal);
-                    }
-                }
-            }
-
-            foreach (var ouObject in _utils.DoSearch($"(gplink=*{name}*)", SearchScope.Subtree, GpLinkProps, domainName))
-            {
-                var adspath = ouObject.DistinguishedName;
-
-                foreach (var compEntry in _utils.DoSearch("(objectclass=computer)", SearchScope.Subtree, GpoProps,
-                    domainName, adspath))
-                {
-                    var samAccountType = compEntry.GetProp("samaccounttype");
-                    if (samAccountType == null || samAccountType != "805306369")
-                        continue;
-
-                    var server = compEntry.ResolveBloodhoundDisplay();
-
-                    foreach (var user in resolvedList)
-                    {
-                        yield return new LocalAdmin
-                        {
-                            ObjectName = user.PrincipalName,
-                            ObjectType = user.ObjectType,
-                            Server = server
-                        };
-                    }
-                }
-            }
-        }
-
-        public static List<LocalAdmin> GetLocalAdmins(string target, string group, string domainName, string domainSid)
-        {
-            var toReturn = new List<LocalAdmin>();
-            try
-            {
-                toReturn = LocalGroupApi(target, group, domainName, domainSid);
-                return toReturn;
-            }
-            catch (SystemDownException)
-            {
-                return toReturn;
-            }
-            catch (ApiFailedException)
-            {
-                Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target}");
-                try
-                {
-                    toReturn = LocalGroupWinNt(target, group);
-                    return toReturn;
-                }
-                catch
-                {
-                    return toReturn;
-                }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                return toReturn;
-            }
-        }
-        
-        public static List<LocalAdmin> LocalGroupWinNt(string target, string group)
-        {
-            var members = new DirectoryEntry($"WinNT://{target}/{group},group");
-            var localAdmins = new List<LocalAdmin>();
-            try
-            {
-                foreach (var member in (System.Collections.IEnumerable)members.Invoke("Members"))
-                {
-                    using (var m = new DirectoryEntry(member))
-                    {
-                        //Convert sid bytes to a string
-                        var sidstring = new SecurityIdentifier(m.GetSid(), 0).ToString();
-                        string type;
-                        switch (m.SchemaClassName)
-                        {
-                            case "Group":
-                                type = "group";
-                                break;
-                            case "User":
-                                //If its a user but the name ends in $, it's actually a computer (probably)
-                                type = m.Properties["Name"][0].ToString().EndsWith("$", StringComparison.Ordinal) ? "computer" : "user";
-                                break;
-                            default:
-                                type = "group";
-                                break;
-                        }
-
-                        //Start by checking the cache
-                        if (!_cache.GetMapValue(sidstring, type, out string adminName))
-                        {
-                            //Get the domain from the SID
-                            var domainName = _utils.SidToDomainName(sidstring);
-
-                            //Search for the object in AD
-                            var entry = _utils
-                                .DoSearch($"(objectsid={sidstring})", SearchScope.Subtree, AdminProps, domainName)
-                                .DefaultIfEmpty(null).FirstOrDefault();
-
-                            //If it's not null, we have an object, yay! Otherwise, meh
-                            if (entry != null)
-                            {
-                                adminName = entry.ResolveBloodhoundDisplay();
-                                _cache.AddMapValue(sidstring, type, adminName);
-                            }
-                            else
-                            {
-                                adminName = null;
-                            }
-                        }
-
-                        if (adminName != null)
-                        {
-                            localAdmins.Add(new LocalAdmin { ObjectName = adminName, ObjectType = type, Server = target });
-                        }
-                    }
-                }
-            }
-            catch (COMException)
-            {
-                //You can get a COMException, so just return a blank array
-                return localAdmins;
-            }
-
-            return localAdmins;
-        }
-
-        public static List<LocalAdmin> LocalGroupApi(string target, string group, string domainName, string domainSid)
-        {
-            const int queryLevel = 2;
-            var resumeHandle = IntPtr.Zero;
-            var machineSid = "DUMMYSTRING";
-
-            var LMI2 = typeof(LOCALGROUP_MEMBERS_INFO_2);
-            
-            var returnValue = NetLocalGroupGetMembers(target, group, queryLevel, out IntPtr ptrInfo, -1, out int entriesRead, out int _, resumeHandle);
-
-            //Return value of 1722 indicates the system is down, so no reason to fallback to WinNT
-            if (returnValue == 1722)
-            {
-                throw new SystemDownException();
-            }
-
-            //If its not 0, something went wrong, but we can fallback to WinNT provider. Throw an exception
-            if (returnValue != 0)
-            {
-                throw new ApiFailedException();
-            }
-
-            var toReturn = new List<LocalAdmin>();
-
-            if (entriesRead <= 0) return toReturn;
-
-            var iter = ptrInfo;
-            var list = new List<API_Encapsulator>();
-
-            //Loop through the data and save them into a list for processing
-            for (var i = 0; i < entriesRead; i++)
-            {
-                var data = (LOCALGROUP_MEMBERS_INFO_2)Marshal.PtrToStructure(iter, LMI2);
-                ConvertSidToStringSid(data.lgrmi2_sid, out string sid);
-                list.Add(new API_Encapsulator
-                {
-                    Lgmi2 = data,
-                    sid = sid
-                });
-                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(LMI2));
-            }
-            
-            NetApiBufferFree(ptrInfo);
-            //Try and determine the machine sid
-            
-            foreach (var data in list)
-            {
-                if (data.sid == null)
-                {
-                    continue;
-                }
-
-                //If the sid ends with -500 and doesn't start with the DomainSID, there's a very good chance we've identified the RID500 account
-                //Take the machine sid from there. If we don't find it, we use a dummy string
-                if (!data.sid.EndsWith("-500", StringComparison.Ordinal) ||
-                    data.sid.StartsWith(domainSid, StringComparison.Ordinal)) continue;
-                machineSid = new SecurityIdentifier(data.sid).AccountDomainSid.Value;
-                break;
-            }
-            
-            foreach (var data in list)
-            {
-                if (data.sid == null)
-                    continue;
-                var objectName = data.Lgmi2.lgrmi2_domainandname;
-                if (objectName.Split('\\').Last().Equals(""))
-                {
-                    //Sometimes we get weird objects that are just a domain name with no user behind it.
-                    continue;
-                }
-
-                if (data.sid.StartsWith(machineSid, StringComparison.Ordinal))
-                {
-                    //This should filter out local accounts
-                    continue;
-                }
-
-                string type;
-                switch (data.Lgmi2.lgrmi2_sidusage)
-                {
-                    case SID_NAME_USE.SidTypeUser:
-                        type = "user";
-                        break;
-                    case SID_NAME_USE.SidTypeGroup:
-                        type = "group";
-                        break;
-                    case SID_NAME_USE.SidTypeComputer:
-                        type = "computer";
-                        break;
-                    case SID_NAME_USE.SidTypeWellKnownGroup:
-                        type = "wellknown";
-                        break;
-                    default:
-                        type = null;
-                        break;
-                }
-
-                //I have no idea what would cause this condition
-                if (type == null)
-                {
-                    continue;
-                }
-
-                if (objectName.EndsWith("$", StringComparison.Ordinal))
-                {
-                    type = "computer";
-                }
-                
-                var resolved = _utils.SidToDisplay(data.sid, _utils.SidToDomainName(data.sid), AdminProps, type);
-                if (resolved == null)
-                {
-                    continue;
-                }
-
-                toReturn.Add(new LocalAdmin
-                {
-                    ObjectName = resolved,
-                    ObjectType = type,
-                    Server = target
-                });
-            }
-            return toReturn;
-        }
 
         #region pinvoke-imports
         [DllImport("NetAPI32.dll", CharSet = CharSet.Unicode)]
