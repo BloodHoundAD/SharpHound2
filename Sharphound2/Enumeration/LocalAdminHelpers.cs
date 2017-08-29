@@ -12,7 +12,7 @@ using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
 namespace Sharphound2.Enumeration
 {
-    internal class ApiFailedException : Exception { }
+    internal class ApiFailedException : Exception {}
 
     internal class SystemDownException : Exception { }
 
@@ -58,7 +58,7 @@ namespace Sharphound2.Enumeration
             }
             catch (ApiFailedException)
             {
-                Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target}");
+                Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target.BloodHoundDisplay}");
                 try
                 {
                     toReturn = LocalGroupWinNt(target.BloodHoundDisplay, group);
@@ -177,10 +177,10 @@ namespace Sharphound2.Enumeration
             }
 
             //Call LsaLookupSids using the sids we got from SamGetMembersInAlias
-            LsaLookupSids(policyHandle, count, members, out var domainList,
+            status = LsaLookupSids(policyHandle, count, members, out var domainList,
                 out var nameList);
 
-            if (!status.Equals(NTSTATUS.StatusSuccess))
+            if (!status.Equals(NTSTATUS.StatusSuccess) && !status.Equals(NTSTATUS.StatusSomeMapped))
             {
                 LsaClose(policyHandle);
                 LsaFreeMemory(domainList);
@@ -217,13 +217,15 @@ namespace Sharphound2.Enumeration
             for (var i = 0; i < translatedNames.Length; i++)
             {
                 var x = translatedNames[i];
-                resolvedObjects[i] = new SamEnumerationObject
-                {
-                    AccountDomain = trustInfos[x.domainIndex].name.ToString(),
-                    AccountName = x.name.ToString(),
-                    AccountSid = sids[i],
-                    SidUsage = x.use
-                };
+                resolvedObjects[i] = new SamEnumerationObject();
+                
+                if (x.domainIndex > trustInfos.Length || x.domainIndex > 0 || trustInfos.Length > 0)
+                    continue;
+
+                resolvedObjects[i].AccountDomain = trustInfos[x.domainIndex].name.ToString();
+                resolvedObjects[i].AccountName = x.name.ToString();
+                resolvedObjects[i].AccountSid = sids[i];
+                resolvedObjects[i].SidUsage = x.use;
             }
 
             //Cleanup
@@ -663,7 +665,7 @@ namespace Sharphound2.Enumeration
 
         private struct LSA_REFERENCED_DOMAIN_LIST
         {
-            public int count;
+            public uint count;
             public IntPtr domains;
         }
         #endregion
@@ -866,6 +868,7 @@ namespace Sharphound2.Enumeration
         {
             StatusSuccess = 0x0,
             StatusMoreEntries = 0x105,
+            StatusSomeMapped = 0x107,
             StatusInvalidHandle = unchecked((int)0xC0000008),
             StatusInvalidParameter = unchecked((int)0xC000000D),
             StatusAccessDenied = unchecked((int)0xC0000022),
