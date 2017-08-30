@@ -4,6 +4,7 @@ using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 using Sharphound2.Enumeration;
 
 namespace Sharphound2
@@ -36,8 +37,22 @@ namespace Sharphound2
             //}
 
             //Console.WriteLine(DnsManager.HostExists("abc123"));
-            Console.WriteLine(DnsManager.HostExistsDns("primary", out var realName));
+            //Console.WriteLine(DnsManager.HostExistsDns("primary", out var realName));
             //Console.WriteLine(DnsManager.HostExists("primary.testlab.local"));
+
+
+            var conn = Utils.Instance.GetLdapConnection("testlab.local");
+            try
+            {
+                conn.Bind();
+
+                conn.SendRequest(Utils.Instance.GetSearchRequest("(objectclass=*)", SearchScope.Subtree, null));
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
     }
 }

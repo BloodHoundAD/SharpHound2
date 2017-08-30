@@ -52,11 +52,8 @@ namespace Sharphound2.Enumeration
 
         public void StartStealthEnumeration()
         {
-            var scheduler = new LimitedConcurrencyLevelTaskScheduler(1);
-            var factory = new TaskFactory(scheduler);
-
             var output = new BlockingCollection<Wrapper<OutputBase>>();
-            var writer = StartOutputWriter(factory, output);
+            var writer = StartOutputWriter(Task.Factory, output);
 
             foreach (var domainName in _utils.GetDomainList())
             {
@@ -218,6 +215,9 @@ namespace Sharphound2.Enumeration
                             }
                         }
                         break;
+                    case CollectionMethod.All:
+                        Console.WriteLine("All enumeration only usable without stealth");
+                        break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
@@ -331,6 +331,15 @@ namespace Sharphound2.Enumeration
                         "memberof"
                     };
                     break;
+                case CollectionMethod.All:
+                    ldapFilter =
+                        "(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain)(memberof=*)(primarygroupid=*))";
+                    props = new[]
+                    {
+                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
+                        "memberof", "ntsecuritydescriptor"
+                    };
+                    break;
             }
 
             foreach (var domainName in _utils.GetDomainList())
@@ -344,11 +353,9 @@ namespace Sharphound2.Enumeration
                 var outputQueue = new BlockingCollection<Wrapper<OutputBase>>();
                 var inputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
 
-                var scheduler = new LimitedConcurrencyLevelTaskScheduler(_options.Threads);
-                var factory = new TaskFactory(scheduler);
                 var taskhandles = new Task[_options.Threads];
 
-                var writer = StartOutputWriter(factory, outputQueue);
+                var writer = StartOutputWriter(Task.Factory, outputQueue);
 
                 if (_options.CollectMethod.Equals(CollectionMethod.Trusts) ||
                     _options.CollectMethod.Equals(CollectionMethod.Default))
@@ -366,7 +373,7 @@ namespace Sharphound2.Enumeration
 
                 for (var i = 0; i < _options.Threads; i++)
                 {
-                    taskhandles[i] = StartRunner(factory, inputQueue, outputQueue);
+                    taskhandles[i] = StartRunner(Task.Factory, inputQueue, outputQueue);
                 }
 
                 _statusTimer.Start();
@@ -430,7 +437,7 @@ namespace Sharphound2.Enumeration
                     var entry = wrapper.Item;
 
                     var resolved = entry.ResolveAdEntry();
-
+                    
                     if (resolved == null)
                     {
                         Interlocked.Increment(ref _currentCount);
@@ -478,7 +485,7 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
-                                    Utils.Verbose($"{resolved.BloodHoundDisplay} did not respond to ping");
+
                                     break;
                                 }
 
@@ -603,7 +610,50 @@ namespace Sharphound2.Enumeration
                             {
                                 writeQueue.Add(new Wrapper<OutputBase> { Item = s });
                             }
+                        }
+                        break;
+                        case CollectionMethod.All:
+                        {
+                            var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
+                            foreach (var g in groups)
+                            {
+                                writeQueue.Add(new Wrapper<OutputBase> { Item = g });
                             }
+
+                            var acls = AclHelpers.ProcessAdObject(entry, _currentDomain);
+                            foreach (var a in acls)
+                            {
+                                writeQueue.Add(new Wrapper<OutputBase> { Item = a });
+                            }
+
+                            if (!resolved.ObjectType.Equals("computer"))
+                            {
+                                break;
+                            }
+
+                            if (!_utils.PingHost(resolved.BloodHoundDisplay))
+                            {
+                                break;
+                            }
+
+                            var admins =
+                                LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
+                                    _currentDomainSid);
+                            foreach (var a in admins)
+                            {
+                                writeQueue.Add(new Wrapper<OutputBase> { Item = a });
+                            }
+
+                            if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
+                            {
+                                break;
+                            }
+                            var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
+                            foreach (var s in sessions)
+                            {
+                                writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                            }
+                        }
                         break;
                         default:
                             throw new ArgumentOutOfRangeException();
@@ -611,8 +661,7 @@ namespace Sharphound2.Enumeration
                     Interlocked.Increment(ref _currentCount);
                     wrapper.Item = null;
                 }
-                
-            });
+            }, TaskCreationOptions.LongRunning);
         }
 
         private static Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<OutputBase>> output)
@@ -638,6 +687,7 @@ namespace Sharphound2.Enumeration
                         if (groups == null)
                         {
                             var f = Utils.GetCsvFileName("group_membership.csv");
+                            Utils.AddUsedFile(f);
                             var exists = File.Exists(f);
                             groups = new StreamWriter(f, exists);
                             if (!exists)
@@ -654,6 +704,7 @@ namespace Sharphound2.Enumeration
                         if (sessions == null)
                         {
                             var f = Utils.GetCsvFileName("sessions.csv");
+                            Utils.AddUsedFile(f);
                             var exists = File.Exists(f);
                             sessions = new StreamWriter(f, exists);
                             if (!exists)
@@ -670,6 +721,7 @@ namespace Sharphound2.Enumeration
                         if (admins == null)
                         {
                             var f = Utils.GetCsvFileName("local_admins.csv");
+                            Utils.AddUsedFile(f);
                             var exists = File.Exists(f);
                             admins = new StreamWriter(f, exists);
                             if (!exists)
@@ -686,6 +738,7 @@ namespace Sharphound2.Enumeration
                         if (acls == null)
                         {
                             var f = Utils.GetCsvFileName("acls.csv");
+                            Utils.AddUsedFile(f);
                             var exists = File.Exists(f);
                             acls = new StreamWriter(f, exists);
                             if (!exists)
@@ -703,6 +756,7 @@ namespace Sharphound2.Enumeration
                         if (trusts == null)
                         {
                             var f = Utils.GetCsvFileName("trusts.csv");
+                            Utils.AddUsedFile(f);
                             var exists = File.Exists(f);
                             trusts = new StreamWriter(f, exists);
                             if (!exists)
@@ -718,7 +772,7 @@ namespace Sharphound2.Enumeration
                 acls?.Dispose();
                 admins?.Dispose();
                 trusts?.Dispose();
-            });
+            }, TaskCreationOptions.LongRunning);
         }
     }
 }

@@ -1,14 +1,19 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Permissions;
 using System.Security.Principal;
+using System.Threading;
+using ICSharpCode.SharpZipLib.Zip;
 using Sharphound2.Enumeration;
 using SearchOption = System.DirectoryServices.Protocols.SearchOption;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
@@ -22,9 +27,12 @@ namespace Sharphound2
         private readonly ConcurrentDictionary<string, bool> _pingCache = new ConcurrentDictionary<string, bool>();
         private readonly ConcurrentDictionary<string, string> _netbiosConversionCache = new ConcurrentDictionary<string, string>();
 
+        private readonly TimeSpan _pingTimeout;
         private static Sharphound.Options _options;
         private readonly List<string> _domainList;
         private readonly Cache _cache;
+
+        private static readonly HashSet<string> UsedFiles = new HashSet<string>();
 
         public static void CreateInstance(Sharphound.Options cli)
         {
@@ -46,6 +54,7 @@ namespace Sharphound2
             _options = cli;
             _cache = Cache.Instance;
             _domainList = CreateDomainList();
+            _pingTimeout = TimeSpan.FromMilliseconds(_options.PingTimeout);
         }
 
         public static string ConvertDnToDomain(string dn)
@@ -97,19 +106,44 @@ namespace Sharphound2
             return hostIsUp;
         }
 
-        private static bool DoPing(string hostName)
+        internal bool DoPing(string hostname)
         {
-            var ping = new Ping();
             try
             {
-                var reply = ping.Send(hostName, _options.PingTimeout);
-                return reply != null && reply.Status.Equals(IPStatus.Success);
+                using (var client = new TcpClient())
+                {
+                    var result = client.BeginConnect(hostname, 445, null, null);
+                    var success = result.AsyncWaitHandle.WaitOne(_pingTimeout);
+                    if (!success)
+                    {
+                        Verbose($"{hostname} did not respond to ping");
+                        return false;
+                    }
+
+                    client.EndConnect(result);
+                }
             }
             catch
             {
+                Verbose($"{hostname} did not respond to ping");
                 return false;
             }
+            return true;
         }
+
+        //private static bool DoPing(string hostName)
+        //{
+        //    var ping = new Ping();
+        //    try
+        //    {
+        //        var reply = ping.Send(hostName, _options.PingTimeout);
+        //        return reply != null && reply.Status.Equals(IPStatus.Success);
+        //    }
+        //    catch
+        //    {
+        //        return false;
+        //    }
+        //}
 
         public string SidToDomainName(string sid, string domainController = null)
         {
@@ -120,7 +154,7 @@ namespace Sharphound2
             }
             sid = id.AccountDomainSid.Value;
 
-            if (_cache.GetDomainFromSid(sid, out string domainName))
+            if (_cache.GetDomainFromSid(sid, out var domainName))
             {
                 return domainName;
             }
@@ -238,7 +272,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                if (_options.CollectMethod.Equals(CollectionMethod.ACL) || _options.CollectMethod.Equals(CollectionMethod.All))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
@@ -297,7 +331,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                if (_options.CollectMethod.Equals(CollectionMethod.ACL) || _options.CollectMethod.Equals(CollectionMethod.All))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
@@ -355,10 +389,22 @@ namespace Sharphound2
                 domainController = targetDomain.PdcRoleOwner.Name;
             }
 
-            var connection = new LdapConnection(new LdapDirectoryIdentifier(domainController));
+            var identifier = _options.SecureLdap
+                ? new LdapDirectoryIdentifier(domainController, 636)
+                : new LdapDirectoryIdentifier(domainController);
 
+            var connection = new LdapConnection(identifier);
+            
             //Add LdapSessionOptions
             var lso = connection.SessionOptions;
+            if (_options.SecureLdap)
+            {
+                lso.ProtocolVersion = 3;
+                lso.SecureSocketLayer = true;
+                if (_options.IgnoreLdapCert)
+                    connection.SessionOptions.VerifyServerCertificate = (con, cer) => true;
+            }
+
             lso.ReferralChasing = ReferralChasingOptions.None;
             return connection;
         }
@@ -512,9 +558,41 @@ namespace Sharphound2
             }
         }
 
-        public static void CompressFiles()
+        internal static void AddUsedFile(string filename)
         {
-            
+            UsedFiles.Add(filename);
+        }
+
+        internal static void CompressFiles()
+        {
+            var zipfilepath = $"BloodHound_{DateTime.Now:yyyyMMddHHmmssfff}.zip";
+            zipfilepath = GetCsvFileName(zipfilepath);
+
+            Console.WriteLine($"Compressing data to {zipfilepath}");
+
+            var buffer = new byte[4096];
+            using (var s = new ZipOutputStream(File.Create(zipfilepath)))
+            {
+                s.SetLevel(9);
+                foreach (var file in UsedFiles)
+                {
+                    var entry = new ZipEntry(Path.GetFileName(file)) {DateTime = DateTime.Now};
+                    s.PutNextEntry(entry);
+
+                    using (var fs = File.OpenRead(file))
+                    {
+                        int source;
+                        do
+                        {
+                            source = fs.Read(buffer, 0, buffer.Length);
+                            s.Write(buffer, 0, source);
+                        } while (source > 0);
+                    }
+                }
+
+                s.Finish();
+                s.Close();
+            }
         }
 
         public string GetWellKnownSid(string sid)

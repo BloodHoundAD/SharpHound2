@@ -5,5 +5,10 @@
         public string BloodHoundDisplay { get; set; }
         public string ObjectType { get; set; }
         public string ComputerSamAccountName { get; set; }
+
+        public override string ToString()
+        {
+            return $"{BloodHoundDisplay} - {ObjectType}";
+        }
     }
 }

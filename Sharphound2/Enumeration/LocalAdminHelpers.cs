@@ -219,15 +219,18 @@ namespace Sharphound2.Enumeration
             for (var i = 0; i < translatedNames.Length; i++)
             {
                 var x = translatedNames[i];
-                resolvedObjects[i] = new SamEnumerationObject();
                 
                 if (x.domainIndex > trustInfos.Length || x.domainIndex < 0 || trustInfos.Length == 0)
                     continue;
 
-                resolvedObjects[i].AccountDomain = trustInfos[x.domainIndex].name.ToString();
-                resolvedObjects[i].AccountName = x.name.ToString();
-                resolvedObjects[i].AccountSid = sids[i];
-                resolvedObjects[i].SidUsage = x.use;
+                resolvedObjects[i] =
+                    new SamEnumerationObject
+                    {
+                        AccountDomain = trustInfos[x.domainIndex].name.ToString(),
+                        AccountName = x.name.ToString(),
+                        AccountSid = sids[i],
+                        SidUsage = x.use
+                    };
             }
 
             //Cleanup

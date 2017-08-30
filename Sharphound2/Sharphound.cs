@@ -69,6 +69,15 @@ namespace Sharphound2
             public bool ExcludeDC { get; set; }
 
             [Option(DefaultValue = false)]
+            public bool SecureLdap { get; set; }
+
+            [Option(DefaultValue = false)]
+            public bool IgnoreLdapCert { get; set; }
+
+            [Option(DefaultValue = false)]
+            public bool CompressData { get; set; }
+
+            [Option(DefaultValue = false)]
             public bool Test { get; set; }
             
             [ParserState]
@@ -234,6 +243,10 @@ General Options
                 runner.StartEnumeration();
             }
             Cache.Instance.SaveCache();
+            if (options.CompressData)
+            {
+                Utils.CompressFiles();
+            }
         }
 
         public static void InvokeBloodHound(string[] args)
