@@ -112,6 +112,18 @@ function Invoke-BloodHound{
     .PARAMETER Interval
 
         Interval to display progress during enumeration in milliseconds (Default 30000)
+
+    .PARAMETER CompressData
+       
+        Compresses any used CSV files into a timestamped zip after running
+
+    .PARAMETER SecureLdap
+
+        Uses LDAPs instead of unencrypted LDAP on port 636
+
+    .PARAMETER IgnoreLdapCert
+
+        Ignores the certificate for LDAP
         
     .EXAMPLE
 
@@ -135,7 +147,7 @@ function Invoke-BloodHound{
 #>
     param(
         [String]
-        [ValidateSet('Group', 'ComputerOnly', 'LocalGroup', 'GPOLocalGroup', 'Session', 'LoggedOn', 'Trusts', 'Cache','ACL', 'SessionLoop', 'Default')]
+        [ValidateSet('Group', 'ComputerOnly', 'LocalGroup', 'GPOLocalGroup', 'Session', 'LoggedOn', 'Trusts', 'Cache','ACL', 'SessionLoop', 'Default', 'All')]
         $CollectionMethod = 'Default',
 
         [Switch]
@@ -202,7 +214,16 @@ function Invoke-BloodHound{
 
         [ValidateRange(1,50000000)]
         [int]
-        $MaxLoopTime
+        $MaxLoopTime,
+
+        [Switch]
+        $CompressData,
+
+        [Switch]
+        $SecureLdap,
+
+        [Switch]
+        $IgnoreLdapCert
     )
 
     $vars = New-Object System.Collections.Generic.List[System.Object]
@@ -295,6 +316,18 @@ function Invoke-BloodHound{
 
     if ($ExcludeDC){
         $vars.Add("--ExcludeDC")
+    }
+
+    if ($CompressData){
+        $vars.Add("--CompressData");
+    }
+
+    if ($SecureLdap){
+        $vars.Add("--SecureLdap");
+    }
+
+    if ($IgnoreLdapCert){
+        $vars.Add("--IgnoreLdapCert");
     }
 
     $passed = [string[]]$vars.ToArray()

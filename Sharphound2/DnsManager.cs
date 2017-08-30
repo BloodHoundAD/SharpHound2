@@ -1,10 +1,18 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace Sharphound2
 {
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
     internal static class DnsManager
     {
+        /// <summary>
+        /// Resolves a host using DNS and suppresses LLMNR and NBNS
+        /// </summary>
+        /// <param name="host">The host to resolve</param>
+        /// <param name="name">The full hostname of the host returned after resolution</param>
+        /// <returns>Boolean representing if the host exists in DNS</returns>
        internal static bool HostExistsDns(string host, out string name)
         {
             //We actually dont care about a couple vars, but we need to pass them in for the API call
@@ -39,6 +47,7 @@ namespace Sharphound2
 
 
         #region PInvoke
+        #pragma warning disable 169
         [DllImport("dnsapi", EntryPoint = "DnsQuery_W", CharSet = CharSet.Unicode)]
         private static extern int DnsQuery(
             [MarshalAs(UnmanagedType.LPWStr)] string name,
@@ -54,7 +63,8 @@ namespace Sharphound2
             IntPtr recordList,
             DnsFreeType freeType
         );
-
+        
+        #pragma warning disable 649
         private struct TypeADnsRecord
         {
             public IntPtr next;
@@ -66,22 +76,23 @@ namespace Sharphound2
             public uint reserved;
             public ARecordType aRecord;
         }
+        #pragma warning restore 649
 
         private struct ARecordType
         {
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public byte[] record;
         }
 
-        private struct DnsRecord
-        {
-            public IntPtr nextRecord;
-            [MarshalAs(UnmanagedType.LPWStr)] public string name;
-            public DnsType type;
-            public ushort dataLength;
-            public DnsRecordFlag flags;
-            public uint ttl;
-            public uint reserved;
-        }
+        //private struct DnsRecord
+        //{
+        //    public IntPtr nextRecord;
+        //    [MarshalAs(UnmanagedType.LPWStr)] public string name;
+        //    public DnsType type;
+        //    public ushort dataLength;
+        //    public DnsRecordFlag flags;
+        //    public uint ttl;
+        //    public uint reserved;
+        //}
 
         private struct DnsRecordFlag
         {
@@ -92,6 +103,7 @@ namespace Sharphound2
             private ulong reserved;
         }
 
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
         private enum DnsFreeType
         {
             DnsFreeFlat = 0,
@@ -100,6 +112,7 @@ namespace Sharphound2
         }
 
         [Flags]
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
         private enum DnsType : ushort
         {
             TypeA = 0x1,
@@ -118,6 +131,7 @@ namespace Sharphound2
             TypeWins = 0xff01,
             Nbstat = 0xff02
         }
+        #pragma warning restore 169
         #endregion
     }
 }

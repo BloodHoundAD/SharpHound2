@@ -2,6 +2,7 @@
 using Sharphound2.Enumeration;
 using System;
 using System.Collections.Generic;
+using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Security.Principal;
 using System.Text;
@@ -117,7 +118,13 @@ Enumeration Options:
 
     --ExcludeDC
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
-    
+   
+Connection Options:
+    --SecureLdap
+        Uses secure LDAP (LDAPS) instead of regular
+
+    --IgnoreLdapCert
+        Ignores the SSL certificate for LDAP. Use for self-signed certs
 
 Performance Tuning:
     -t , --Threads (Default: 20)
@@ -153,6 +160,9 @@ Output Options
 
     --UserPass (Default: """")
         username:password for the Neo4j REST API
+
+    --CompressData
+        Compress CSVs into a zip file after run
 
 Cache Options
     --NoSaveCache
@@ -219,6 +229,22 @@ General Options
             {
                 Test.DoStuff();
                 return;
+            }
+
+            if (options.SecureLdap)
+            {
+                try
+                {
+                    using (var conn = Utils.Instance.GetLdapConnection(options.Domain))
+                    {
+                        conn.Bind();
+                    }
+                }
+                catch (LdapException)
+                {
+                    Console.WriteLine("Ldap Connection failure, try again with the IgnoreLdapCert option");
+                    return;
+                }
             }
 
             if (options.Stealth)

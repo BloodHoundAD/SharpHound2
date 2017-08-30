@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.IO;
@@ -16,6 +17,7 @@ namespace Sharphound2.Enumeration
 
     internal class SystemDownException : Exception { }
 
+    [SuppressMessage("ReSharper", "FieldCanBeMadeReadOnly.Local")]
     internal static class LocalAdminHelpers
     {
         private static Cache _cache;
@@ -58,17 +60,6 @@ namespace Sharphound2.Enumeration
             }
             catch (ApiFailedException)
             {
-                //Utils.Verbose($"LocalGroup: Falling back to WinNT Provider for {target.BloodHoundDisplay}");
-                //try
-                //{
-                //    toReturn = LocalGroupWinNt(target.BloodHoundDisplay, group);
-                //    Console.WriteLine(toReturn.Count);
-                //    return toReturn;
-                //}
-                //catch
-                //{
-                //    return toReturn;
-                //}
                 return toReturn;
             }
             catch (Exception e)
@@ -94,10 +85,10 @@ namespace Sharphound2.Enumeration
 
             switch (status)
             {
-                case NTSTATUS.StatusRpcServerUnavailable:
+                case NtStatus.StatusRpcServerUnavailable:
                     SamCloseHandle(serverHandle);
                     throw new SystemDownException();
-                case NTSTATUS.StatusSuccess:
+                case NtStatus.StatusSuccess:
                     break;
                 default:
                     throw new ApiFailedException();
@@ -119,7 +110,7 @@ namespace Sharphound2.Enumeration
 
             //Open the domain for the S-1-5-32 (BUILTIN) alias
             status = SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, _sidbytes, out var domainHandle);
-            if (!status.Equals(NTSTATUS.StatusSuccess))
+            if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(serverHandle);
                 throw new ApiFailedException();
@@ -127,7 +118,7 @@ namespace Sharphound2.Enumeration
 
             //Open the alias for Local Administrators (always RID 544)
             status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out var aliasHandle);
-            if (!status.Equals(NTSTATUS.StatusSuccess))
+            if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(domainHandle);
                 SamCloseHandle(serverHandle);
@@ -137,7 +128,7 @@ namespace Sharphound2.Enumeration
             //Get the members in the alias. This returns a list of SIDs
             status = SamGetMembersInAlias(aliasHandle, out var members, out var count);
 
-            if (!status.Equals(NTSTATUS.StatusSuccess))
+            if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(aliasHandle);
                 SamCloseHandle(domainHandle);
@@ -171,7 +162,7 @@ namespace Sharphound2.Enumeration
             status = LsaOpenPolicy(server, default(OBJECT_ATTRIBUTES),
                 LsaOpenMask.ViewLocalInfo | LsaOpenMask.LookupNames, out var policyHandle);
 
-            if (!status.Equals(NTSTATUS.StatusSuccess))
+            if (!status.Equals(NtStatus.StatusSuccess))
             {
                 LsaClose(policyHandle);
                 SamFreeMemory(members);
@@ -182,7 +173,7 @@ namespace Sharphound2.Enumeration
             status = LsaLookupSids(policyHandle, count, members, out var domainList,
                 out var nameList);
 
-            if (!status.Equals(NTSTATUS.StatusSuccess) && !status.Equals(NTSTATUS.StatusSomeMapped))
+            if (!status.Equals(NtStatus.StatusSuccess) && !status.Equals(NtStatus.StatusSomeMapped))
             {
                 LsaClose(policyHandle);
                 LsaFreeMemory(domainList);
@@ -193,24 +184,24 @@ namespace Sharphound2.Enumeration
 
             //Convert the returned names into structures
             var iter = nameList;
-            var translatedNames = new LSA_TRANSLATED_NAMES[count];
+            var translatedNames = new LsaTranslatedNames[count];
             for (var i = 0; i < count; i++)
             {
-                translatedNames[i] = (LSA_TRANSLATED_NAMES)Marshal.PtrToStructure(iter, typeof(LSA_TRANSLATED_NAMES));
-                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRANSLATED_NAMES)));
+                translatedNames[i] = (LsaTranslatedNames)Marshal.PtrToStructure(iter, typeof(LsaTranslatedNames));
+                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LsaTranslatedNames)));
             }
 
             //Convert the returned domain list to a structure
             var lsaDomainList =
-                (LSA_REFERENCED_DOMAIN_LIST)(Marshal.PtrToStructure(domainList, typeof(LSA_REFERENCED_DOMAIN_LIST)));
+                (LsaReferencedDomainList)(Marshal.PtrToStructure(domainList, typeof(LsaReferencedDomainList)));
 
             //Convert the domain list to individual structures
-            var trustInfos = new LSA_TRUST_INFORMATION[lsaDomainList.count];
+            var trustInfos = new LsaTrustInformation[lsaDomainList.count];
             iter = lsaDomainList.domains;
             for (var i = 0; i < lsaDomainList.count; i++)
             {
-                trustInfos[i] = (LSA_TRUST_INFORMATION)Marshal.PtrToStructure(iter, typeof(LSA_TRUST_INFORMATION));
-                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LSA_TRUST_INFORMATION)));
+                trustInfos[i] = (LsaTrustInformation)Marshal.PtrToStructure(iter, typeof(LsaTrustInformation));
+                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LsaTrustInformation)));
             }
 
             var resolvedObjects = new SamEnumerationObject[translatedNames.Length];
@@ -220,16 +211,16 @@ namespace Sharphound2.Enumeration
             {
                 var x = translatedNames[i];
                 
-                if (x.domainIndex > trustInfos.Length || x.domainIndex < 0 || trustInfos.Length == 0)
+                if (x.DomainIndex > trustInfos.Length || x.DomainIndex < 0 || trustInfos.Length == 0)
                     continue;
 
                 resolvedObjects[i] =
                     new SamEnumerationObject
                     {
-                        AccountDomain = trustInfos[x.domainIndex].name.ToString(),
-                        AccountName = x.name.ToString(),
+                        AccountDomain = trustInfos[x.DomainIndex].name.ToString(),
+                        AccountName = x.Name.ToString(),
                         AccountSid = sids[i],
-                        SidUsage = x.use
+                        SidUsage = x.Use
                     };
             }
 
@@ -255,16 +246,16 @@ namespace Sharphound2.Enumeration
                 string type;
                 switch (data.SidUsage)
                 {
-                    case SID_NAME_USE.SidTypeUser:
+                    case SidNameUse.SidTypeUser:
                         type = "user";
                         break;
-                    case SID_NAME_USE.SidTypeGroup:
+                    case SidNameUse.SidTypeGroup:
                         type = "group";
                         break;
-                    case SID_NAME_USE.SidTypeComputer:
+                    case SidNameUse.SidTypeComputer:
                         type = "computer";
                         break;
-                    case SID_NAME_USE.SidTypeWellKnownGroup:
+                    case SidNameUse.SidTypeWellKnownGroup:
                         type = "wellknown";
                         break;
                     default:
@@ -610,12 +601,12 @@ namespace Sharphound2.Enumeration
             internal string AccountName { get; set; }
             internal string AccountDomain { get; set; }
             internal string AccountSid { get; set; }
-            internal SID_NAME_USE SidUsage { get; set; }
+            internal SidNameUse SidUsage { get; set; }
         }
 
         #region LSA Imports
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS LsaLookupSids(
+        private static extern NtStatus LsaLookupSids(
             IntPtr policyHandle,
             int count,
             IntPtr enumBuffer,
@@ -624,7 +615,7 @@ namespace Sharphound2.Enumeration
         );
 
         [DllImport("advapi32.dll")]
-        private static extern NTSTATUS LsaOpenPolicy(
+        private static extern NtStatus LsaOpenPolicy(
             UNICODE_STRING server,
             OBJECT_ATTRIBUTES objectAttributes,
             LsaOpenMask desiredAccess,
@@ -632,24 +623,24 @@ namespace Sharphound2.Enumeration
         );
 
         [DllImport("advapi32.dll")]
-        private static extern NTSTATUS LsaFreeMemory(
+        private static extern NtStatus LsaFreeMemory(
             IntPtr buffer
         );
 
         [DllImport("advapi32.dll")]
-        private static extern NTSTATUS LsaClose(
+        private static extern NtStatus LsaClose(
             IntPtr buffer
         );
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        private struct LSA_TRUST_INFORMATION
+        private struct LsaTrustInformation
         {
-            internal LSA_UNICODE_STRING name;
+            internal LsaUnicodeString name;
             private IntPtr sid;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        private struct LSA_UNICODE_STRING
+        private struct LsaUnicodeString
         {
             private ushort length;
             private ushort maxLen;
@@ -660,47 +651,61 @@ namespace Sharphound2.Enumeration
                 return $"{name.Substring(0, length / 2)}";
             }
         }
-
-        private struct LSA_TRANSLATED_NAMES
+        #pragma warning disable 649
+        private struct LsaTranslatedNames
         {
-            internal SID_NAME_USE use;
-            internal LSA_UNICODE_STRING name;
-            internal int domainIndex;
+            internal SidNameUse Use;
+            internal LsaUnicodeString Name;
+            internal int DomainIndex;
+        }
+        #pragma warning restore 649
+
+        private struct LsaReferencedDomainList
+        {
+            internal uint count;
+            internal IntPtr domains;
         }
 
-        private struct LSA_REFERENCED_DOMAIN_LIST
+        private enum SidNameUse
         {
-            public uint count;
-            public IntPtr domains;
+            SidTypeUser = 1,
+            SidTypeGroup,
+            SidTypeDomain,
+            SidTypeAlias,
+            SidTypeWellKnownGroup,
+            SidTypeDeletedAccount,
+            SidTypeInvalid,
+            SidTypeUnknown,
+            SidTypeComputer
         }
         #endregion
 
         #region SAMR Imports
 
         [DllImport("samlib.dll")]
-        private static extern NTSTATUS SamCloseHandle(
+        private static extern NtStatus SamCloseHandle(
             IntPtr handle
         );
 
         [DllImport("samlib.dll")]
-        private static extern NTSTATUS SamFreeMemory(
+        private static extern NtStatus SamFreeMemory(
             IntPtr handle
         );
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS SamLookupDomainInSamServer(
+        private static extern NtStatus SamLookupDomainInSamServer(
             IntPtr serverHandle,
             UNICODE_STRING name,
             out IntPtr sid);
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS SamGetMembersInAlias(
+        private static extern NtStatus SamGetMembersInAlias(
             IntPtr aliasHandle,
             out IntPtr members,
             out int count);
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS SamOpenAlias(
+        private static extern NtStatus SamOpenAlias(
             IntPtr domainHandle,
             AliasOpenFlags desiredAccess,
             int aliasId,
@@ -709,39 +714,40 @@ namespace Sharphound2.Enumeration
 
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS SamConnect(
+        private static extern NtStatus SamConnect(
             UNICODE_STRING serverName,
             out IntPtr serverHandle,
             SamAccessMasks desiredAccess,
             bool objectAttributes
             );
 
-        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS SamEnumerateAliasesInDomain(
-            IntPtr domainHandle,
-            ref int enumerationContext,
-            out IntPtr buffer,
-            int preferredMaxLen,
-            out int count
-            );
+        //[DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        //private static extern NTSTATUS SamEnumerateAliasesInDomain(
+        //    IntPtr domainHandle,
+        //    ref int enumerationContext,
+        //    out IntPtr buffer,
+        //    int preferredMaxLen,
+        //    out int count
+        //    );
+
+        //[DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        //private static extern NTSTATUS SamOpenAlias(
+        //    IntPtr domainHandle,
+        //    SamAliasFlags desiredAccess,
+        //    int aliasId,
+        //    out IntPtr aliasHandle
+        //);
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS SamOpenAlias(
-            IntPtr domainHandle,
-            SamAliasFlags desiredAccess,
-            int aliasId,
-            out IntPtr aliasHandle
-        );
-
-        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
-        private static extern NTSTATUS SamOpenDomain(
+        private static extern NtStatus SamOpenDomain(
             IntPtr serverHandle,
             DomainAccessMask desiredAccess,
-            byte[] DomainSid,
-            out IntPtr DomainHandle
+            byte[] domainSid,
+            out IntPtr domainHandle
         );
 
         [Flags]
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
         private enum AliasOpenFlags
         {
             AddMember = 0x1,
@@ -756,6 +762,7 @@ namespace Sharphound2.Enumeration
         }
 
         [Flags]
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
         private enum LsaOpenMask
         {
             ViewLocalInfo = 0x1,
@@ -774,6 +781,7 @@ namespace Sharphound2.Enumeration
         }
 
         [Flags]
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
         private enum DomainAccessMask
         {
             ReadPasswordParameters = 0x1,
@@ -794,6 +802,7 @@ namespace Sharphound2.Enumeration
         }
 
         [Flags]
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
         private enum SamAliasFlags
         {
             AddMembers = 0x1,
@@ -808,6 +817,7 @@ namespace Sharphound2.Enumeration
         }
 
         [Flags]
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
         private enum SamAccessMasks
         {
             SamServerConnect = 0x1,
@@ -825,8 +835,8 @@ namespace Sharphound2.Enumeration
         [StructLayout(LayoutKind.Sequential)]
         private struct UNICODE_STRING : IDisposable
         {
-            private readonly ushort Length;
-            private readonly ushort MaximumLength;
+            private ushort Length;
+            private ushort MaximumLength;
             private IntPtr Buffer;
 
             public UNICODE_STRING(string s)
@@ -847,10 +857,11 @@ namespace Sharphound2.Enumeration
 
             public override string ToString()
             {
-                return Buffer != IntPtr.Zero ? Marshal.PtrToStringUni(Buffer) : null;
+                return (Buffer != IntPtr.Zero ? Marshal.PtrToStringUni(Buffer) : null) ?? throw new InvalidOperationException();
             }
         }
-
+        #pragma warning disable 169
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
         private struct OBJECT_ATTRIBUTES : IDisposable
         {
             public void Dispose()
@@ -860,6 +871,7 @@ namespace Sharphound2.Enumeration
                 Marshal.FreeHGlobal(objectName);
                 objectName = IntPtr.Zero;
             }
+
             public int len;
             public IntPtr rootDirectory;
             public uint attribs;
@@ -868,8 +880,10 @@ namespace Sharphound2.Enumeration
             private IntPtr objectName;
             public UNICODE_STRING ObjectName;
         }
+        #pragma warning restore 169
 
-        private enum NTSTATUS
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
+        private enum NtStatus
         {
             StatusSuccess = 0x0,
             StatusMoreEntries = 0x105,
@@ -883,51 +897,40 @@ namespace Sharphound2.Enumeration
         }
         #endregion
 
-        #region pinvoke-imports
-        [DllImport("NetAPI32.dll", CharSet = CharSet.Unicode)]
-        private static extern int NetLocalGroupGetMembers(
-            [MarshalAs(UnmanagedType.LPWStr)] string servername,
-            [MarshalAs(UnmanagedType.LPWStr)] string localgroupname,
-            int level,
-            out IntPtr bufptr,
-            int prefmaxlen,
-            out int entriesread,
-            out int totalentries,
-            IntPtr resume_handle);
+        //#region pinvoke-imports
+        //[DllImport("NetAPI32.dll", CharSet = CharSet.Unicode)]
+        //private static extern int NetLocalGroupGetMembers(
+        //    [MarshalAs(UnmanagedType.LPWStr)] string servername,
+        //    [MarshalAs(UnmanagedType.LPWStr)] string localgroupname,
+        //    int level,
+        //    out IntPtr bufptr,
+        //    int prefmaxlen,
+        //    out int entriesread,
+        //    out int totalentries,
+        //    IntPtr resume_handle);
 
-        [DllImport("Netapi32.dll", SetLastError = true)]
-        private static extern int NetApiBufferFree(IntPtr buff);
+        //[DllImport("Netapi32.dll", SetLastError = true)]
+        //private static extern int NetApiBufferFree(IntPtr buff);
 
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        public struct LOCALGROUP_MEMBERS_INFO_2
-        {
-            public IntPtr lgrmi2_sid;
-            public SID_NAME_USE lgrmi2_sidusage;
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string lgrmi2_domainandname;
-        }
+        //[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        //public struct LOCALGROUP_MEMBERS_INFO_2
+        //{
+        //    public IntPtr lgrmi2_sid;
+        //    public SidNameUse lgrmi2_sidusage;
+        //    [MarshalAs(UnmanagedType.LPWStr)]
+        //    public string lgrmi2_domainandname;
+        //}
 
-        public class API_Encapsulator
-        {
-            public LOCALGROUP_MEMBERS_INFO_2 Lgmi2 { get; set; }
-            public string sid;
-        }
+        //public class API_Encapsulator
+        //{
+        //    public LOCALGROUP_MEMBERS_INFO_2 Lgmi2 { get; set; }
+        //    public string sid;
+        //}
 
-        public enum SID_NAME_USE
-        {
-            SidTypeUser = 1,
-            SidTypeGroup,
-            SidTypeDomain,
-            SidTypeAlias,
-            SidTypeWellKnownGroup,
-            SidTypeDeletedAccount,
-            SidTypeInvalid,
-            SidTypeUnknown,
-            SidTypeComputer
-        }
+        
 
-        [DllImport("advapi32", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern bool ConvertSidToStringSid(IntPtr pSid, out string strSid);
-        #endregion 
+        //[DllImport("advapi32", CharSet = CharSet.Auto, SetLastError = true)]
+        //private static extern bool ConvertSidToStringSid(IntPtr pSid, out string strSid);
+        //#endregion 
     }
 }

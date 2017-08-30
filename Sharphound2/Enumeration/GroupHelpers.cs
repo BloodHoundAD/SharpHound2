@@ -19,6 +19,13 @@ namespace Sharphound2.Enumeration
             _cache = Cache.Instance;
         }
 
+        /// <summary>
+        /// Processes an LDAP entry to resolve PrimaryGroup/MemberOf properties
+        /// </summary>
+        /// <param name="entry">LDAP entry</param>
+        /// <param name="resolvedEntry">The resolved object with the name/type of the entry</param>
+        /// <param name="domainSid">SID for the domain being enumerated. Used to resolve PrimaryGroupID</param>
+        /// <returns></returns>
         public static IEnumerable<GroupMember> ProcessAdObject(SearchResultEntry entry, ResolvedEntry resolvedEntry, string domainSid)
         {
             var principalDomainName = Utils.ConvertDnToDomain(entry.DistinguishedName);
@@ -45,7 +52,7 @@ namespace Sharphound2.Enumeration
                     {
                         //Our search didn't return anything so fallback
                         //Try convertadname first
-                        groupName = ConvertAdName(dn, ADSTypes.ADS_NAME_TYPE_DN, ADSTypes.ADS_NAME_TYPE_NT4);
+                        groupName = ConvertAdName(dn, AdsTypes.AdsNameTypeDn, AdsTypes.AdsNameTypeNt4);
 
                         //If convertadname is null, just screw with the distinguishedname to get the group
                         groupName = groupName != null
@@ -93,43 +100,43 @@ namespace Sharphound2.Enumeration
         }
 
         #region Pinvoke
-        public enum ADSTypes
+        public enum AdsTypes
         {
-            ADS_NAME_TYPE_DN = 1,
-            ADS_NAME_TYPE_CANONICAL = 2,
-            ADS_NAME_TYPE_NT4 = 3,
-            ADS_NAME_TYPE_DISPLAY = 4,
-            ADS_NAME_TYPE_DOMAIN_SIMPLE = 5,
-            ADS_NAME_TYPE_ENTERPRISE_SIMPLE = 6,
-            ADS_NAME_TYPE_GUID = 7,
-            ADS_NAME_TYPE_UNKNOWN = 8,
-            ADS_NAME_TYPE_USER_PRINCIPAL_NAME = 9,
-            ADS_NAME_TYPE_CANONICAL_EX = 10,
-            ADS_NAME_TYPE_SERVICE_PRINCIPAL_NAME = 11,
-            ADS_NAME_TYPE_SID_OR_SID_HISTORY_NAME = 12
+            AdsNameTypeDn = 1,
+            AdsNameTypeCanonical = 2,
+            AdsNameTypeNt4 = 3,
+            AdsNameTypeDisplay = 4,
+            AdsNameTypeDomainSimple = 5,
+            AdsNameTypeEnterpriseSimple = 6,
+            AdsNameTypeGuid = 7,
+            AdsNameTypeUnknown = 8,
+            AdsNameTypeUserPrincipalName = 9,
+            AdsNameTypeCanonicalEx = 10,
+            AdsNameTypeServicePrincipalName = 11,
+            AdsNameTypeSidOrSidHistoryName = 12
         }
 
-        public static string ConvertAdName(string objectName, ADSTypes inputType, ADSTypes outputType)
+        public static string ConvertAdName(string objectName, AdsTypes inputType, AdsTypes outputType)
         {
             string domain;
 
-            if (inputType.Equals(ADSTypes.ADS_NAME_TYPE_NT4))
+            if (inputType.Equals(AdsTypes.AdsNameTypeNt4))
             {
                 objectName = objectName.Replace("/", "\\");
             }
 
             switch (inputType)
             {
-                case ADSTypes.ADS_NAME_TYPE_NT4:
+                case AdsTypes.AdsNameTypeNt4:
                     domain = objectName.Split('\\')[0];
                     break;
-                case ADSTypes.ADS_NAME_TYPE_DOMAIN_SIMPLE:
+                case AdsTypes.AdsNameTypeDomainSimple:
                     domain = objectName.Split('@')[1];
                     break;
-                case ADSTypes.ADS_NAME_TYPE_CANONICAL:
+                case AdsTypes.AdsNameTypeCanonical:
                     domain = objectName.Split('/')[0];
                     break;
-                case ADSTypes.ADS_NAME_TYPE_DN:
+                case AdsTypes.AdsNameTypeDn:
                     domain = objectName.Substring(objectName.IndexOf("DC=", StringComparison.Ordinal)).Replace("DC=", "").Replace(",", ".");
                     break;
                 default:

@@ -25,18 +25,25 @@ namespace Sharphound2.Enumeration
             _syncers = new ConcurrentDictionary<string, DcSync>();
         }
 
-        public static void ClearSyncers()
+        /// <summary>
+        /// Clear's the DCSync data from the dictionary
+        /// </summary>
+        internal static void ClearSyncers()
         {
             _syncers = new ConcurrentDictionary<string, DcSync>();
         }
 
-        public static List<ACL> GetSyncers()
+        /// <summary>
+        /// Returns a list of ACL items that represent principals that can DCSync
+        /// </summary>
+        /// <returns>List of ACL objects representing DCSyncer</returns>
+        internal static List<ACL> GetSyncers()
         {
             var toReturn = new List<ACL>();
 
             foreach (var key in _syncers.Keys)
             {
-                if (!_syncers.TryGetValue(key, out DcSync temp)) continue;
+                if (!_syncers.TryGetValue(key, out var temp)) continue;
                 if (temp.CanDCSync())
                 {
                     toReturn.Add(temp.GetOutputObj());
@@ -45,6 +52,12 @@ namespace Sharphound2.Enumeration
             return toReturn;
         }
 
+        /// <summary>
+        /// Processes the ACL entries for an AD object
+        /// </summary>
+        /// <param name="entry">LDAP entry to process</param>
+        /// <param name="domainName">Domain name the entry belongs too</param>
+        /// <returns>A list of ACL objects for the entry</returns>
         public static IEnumerable<ACL> ProcessAdObject(SearchResultEntry entry, string domainName)
         {
             var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
@@ -86,6 +99,7 @@ namespace Sharphound2.Enumeration
                     owner = _utils.UnknownSidTypeToDisplay(ownerSid, ownerDomain, Props);
                 }
 
+                //Filter out the Local System principal which pretty much every entry has
                 if (owner != null && !owner.PrincipalName.Contains("Local System"))
                 {
                     yield return new ACL
@@ -281,20 +295,6 @@ namespace Sharphound2.Enumeration
                         yield return new ACL
                         {
                             AceType = "Member",
-                            Inherited = qAce.IsInherited,
-                            PrincipalName = mappedPrincipal.PrincipalName,
-                            PrincipalType = mappedPrincipal.ObjectType,
-                            ObjectType = entryType,
-                            ObjectName = entryDisplayName,
-                            RightName = "WriteProperty",
-                            Qualifier = qAce.AceQualifier.ToString()
-                        };
-                    }
-                    else
-                    {
-                        yield return new ACL
-                        {
-                            AceType = "Script-Path",
                             Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
