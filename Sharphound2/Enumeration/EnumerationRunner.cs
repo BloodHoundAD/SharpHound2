@@ -358,7 +358,8 @@ namespace Sharphound2.Enumeration
                 var writer = StartOutputWriter(Task.Factory, outputQueue);
 
                 if (_options.CollectMethod.Equals(CollectionMethod.Trusts) ||
-                    _options.CollectMethod.Equals(CollectionMethod.Default))
+                    _options.CollectMethod.Equals(CollectionMethod.Default) || 
+                    _options.CollectMethod.Equals(CollectionMethod.All))
                 {
                     foreach (var domain in DomainTrustEnumeration.DoTrustEnumeration(domainName))
                     {

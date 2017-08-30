@@ -233,7 +233,7 @@ namespace Sharphound2.Enumeration
             //Process our list of stuff now
             foreach (var data in resolvedObjects)
             {
-                var sid = data.AccountSid;
+                var sid = data?.AccountSid;
                 if (sid == null)
                     continue;
 
