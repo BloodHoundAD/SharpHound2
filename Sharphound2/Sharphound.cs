@@ -27,7 +27,7 @@ namespace Sharphound2
             [Option('s',HelpText ="Search the entire forest", DefaultValue = false, MutuallyExclusiveSet = "DomainOption")]
             public bool SearchForest { get; set; }
 
-            [Option('t',HelpText ="Number of Threads to use", DefaultValue =20)]
+            [Option('t',HelpText ="Number of Threads to use", DefaultValue =10)]
             public int Threads { get; set; }
 
             [Option('f', HelpText = "Folder to drop CSV files", DefaultValue = ".")]
@@ -42,7 +42,7 @@ namespace Sharphound2
             [Option(HelpText ="Skip ping checks for hosts", DefaultValue =false)]
             public bool SkipPing { get; set; }
 
-            [Option(HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =750)]
+            [Option(HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =200)]
             public int PingTimeout { get; set; }
 
             [Option(HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
@@ -78,8 +78,8 @@ namespace Sharphound2
             [Option(DefaultValue = false)]
             public bool CompressData { get; set; }
 
-            [Option(DefaultValue = false)]
-            public bool Test { get; set; }
+            [Option(DefaultValue = null)]
+            public string Test { get; set; }
             
             [ParserState]
             public IParserState LastParserState { get; set; }
@@ -225,9 +225,9 @@ General Options
             AclHelpers.Init();
             DomainTrustEnumeration.Init();
 
-            if (options.Test)
+            if (options.Test != null)
             {
-                Test.DoStuff();
+                Test.DoStuff(options.Test);
                 return;
             }
 

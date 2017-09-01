@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using System.Security.Permissions;
 using System.Security.Principal;
 using System.Threading;
+using System.Threading.Tasks;
 using ICSharpCode.SharpZipLib.Zip;
 using Sharphound2.Enumeration;
 using SearchOption = System.DirectoryServices.Protocols.SearchOption;
@@ -100,7 +101,6 @@ namespace Sharphound2
             {
                 return hostIsUp;
             }
-
             hostIsUp = DoPing(hostName);
             _pingCache.TryAdd(hostName, hostIsUp);
             return hostIsUp;
@@ -533,6 +533,7 @@ namespace Sharphound2
             _netbiosConversionCache.TryAdd(netbios, info.DomainName);
             return info.DomainName;
         }
+        
 
         public static string GetCsvFileName(string baseFileName)
         {

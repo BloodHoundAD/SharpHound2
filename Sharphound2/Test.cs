@@ -11,7 +11,7 @@ namespace Sharphound2
 {
     internal class Test
     {
-        public static void DoStuff()
+        public static void DoStuff(string host)
         {
             //LocalAdminHelpers.LocalGroupApi("primary.testlab.local", "Administrators", "testlab.local", "");
             //LocalAdminHelpers.GetSamAdmins("primary.testlab.local", "S-1-5-21-883232822-274137685-4173207997");
@@ -41,18 +41,7 @@ namespace Sharphound2
             //Console.WriteLine(DnsManager.HostExists("primary.testlab.local"));
 
 
-            var conn = Utils.Instance.GetLdapConnection("testlab.local");
-            try
-            {
-                conn.Bind();
-
-                conn.SendRequest(Utils.Instance.GetSearchRequest("(objectclass=*)", SearchScope.Subtree, null));
-
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+            Console.WriteLine(Utils.Instance.PingHost(host));
         }
     }
 }

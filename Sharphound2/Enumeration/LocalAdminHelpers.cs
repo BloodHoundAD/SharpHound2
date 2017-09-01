@@ -8,6 +8,8 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using Sharphound2.OutputObjects;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
@@ -47,6 +49,29 @@ namespace Sharphound2.Enumeration
         }
 
         public static List<LocalAdmin> GetLocalAdmins(ResolvedEntry target, string group, string domainName, string domainSid)
+        {
+            var toReturn = new List<LocalAdmin>();
+            try
+            {
+                toReturn = GetSamAdmins(target);
+                return toReturn;
+            }
+            catch (SystemDownException)
+            {
+                return toReturn;
+            }
+            catch (ApiFailedException)
+            {
+                return toReturn;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return toReturn;
+            }
+        }
+        
+        public static List<LocalAdmin> GetLocalAdminsNew(ResolvedEntry target)
         {
             var toReturn = new List<LocalAdmin>();
             try

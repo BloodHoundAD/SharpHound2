@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
+using System.Runtime.Remoting.Messaging;
 using System.Threading;
 using System.Threading.Tasks;
 using Sharphound2.OutputObjects;
@@ -21,6 +23,9 @@ namespace Sharphound2.Enumeration
         private string _currentDomain;
         private Stopwatch _watch;
         private readonly DateTime _loopEndTime;
+
+        private int noping = 0;
+        private int timeout = 0;
 
         public EnumerationRunner(Options opts)
         {
@@ -404,6 +409,7 @@ namespace Sharphound2.Enumeration
                 writer.Wait();
                 _watch.Stop();
                 Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
+                Console.WriteLine($"{noping} hosts failed ping. {timeout} hosts timedout.");
                 _watch = null;
             }
 
@@ -435,6 +441,7 @@ namespace Sharphound2.Enumeration
             {
                 foreach (var wrapper in processQueue.GetConsumingEnumerable())
                 {
+                    
                     var entry = wrapper.Item;
 
                     var resolved = entry.ResolveAdEntry();
@@ -486,17 +493,40 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
-
+                                    Interlocked.Increment(ref noping);
                                     break;
                                 }
 
-                                var admins =
-                                    LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
-                                        _currentDomainSid);
+                                //var w = Stopwatch.StartNew();
+                                //var admins = LocalAdminHelpers.GetLocalAdminsNew(resolved);
+                                //if (w.ElapsedMilliseconds > 5000)
+                                //{
+                                //    Console.WriteLine($"{resolved.BloodHoundDisplay} took {w.ElapsedMilliseconds} ms and returned {admins.Count} entries");
+                                //    Interlocked.Increment(ref timeout);
+                                //}
 
-                                foreach (var a in admins)
+                                //foreach (var a in admins)
+                                //{
+                                //    writeQueue.Add(new Wrapper<OutputBase>{Item = a});
+                                //}
+
+                                var t = Task<List<LocalAdmin>>.Factory.StartNew(() => LocalAdminHelpers
+                                    .GetLocalAdminsNew(resolved));
+
+                                var result = t.Wait(TimeSpan.FromSeconds(20));
+
+                                if (result)
                                 {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = a });
+                                    var admins = t.Result;
+
+                                    foreach (var a in admins)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = a });
+                                    }
+                                }
+                                else
+                                {
+                                    Interlocked.Increment(ref timeout);
                                 }
                             }
                             break;
@@ -527,6 +557,7 @@ namespace Sharphound2.Enumeration
                             break;
                         case CollectionMethod.LoggedOn:
                             {
+                                Console.WriteLine(resolved.BloodHoundDisplay);
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
                                     break;
