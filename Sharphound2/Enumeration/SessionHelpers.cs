@@ -19,6 +19,7 @@ namespace Sharphound2.Enumeration
         private static Sharphound.Options _options;
         private static readonly string[] RegistryProps = {"samaccounttype", "samaccountname", "distinguishedname"};
         private static readonly Regex SidRegex = new Regex(@"S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$", RegexOptions.Compiled);
+        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
         public static void Init(Sharphound.Options opts)
         {
@@ -89,8 +90,22 @@ namespace Sharphound2.Enumeration
             var resumeHandle = IntPtr.Zero;
             var si10 = typeof(SESSION_INFO_10);
 
-            var returnValue = NetSessionEnum(target.BloodHoundDisplay, null, null, 10, out IntPtr ptrInfo, -1, out int entriesRead,
-                out int _, ref resumeHandle);
+
+            var entriesRead = 0;
+            var ptrInfo = IntPtr.Zero;
+
+            var t = Task<int>.Factory.StartNew(() => NetSessionEnum(target.BloodHoundDisplay, null, null, 10,
+                out ptrInfo, -1, out entriesRead,
+                out int _, ref resumeHandle));
+
+            var success = t.Wait(Timeout);
+
+            if (!success)
+            {
+                throw new TimeoutException();
+            }
+
+            var returnValue = t.Result;
 
             //If we don't get a success, just break
             if (returnValue != (int)NERR.NERR_Success) yield break;

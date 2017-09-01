@@ -39,6 +39,8 @@ namespace Sharphound2.Enumeration
 
         private static byte[] _sidbytes;
 
+        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+
         public static void Init()
         {
             _cache = Cache.Instance;
@@ -48,75 +50,39 @@ namespace Sharphound2.Enumeration
             sid.GetBinaryForm(_sidbytes, 0);
         }
 
-        public static List<LocalAdmin> GetLocalAdmins(ResolvedEntry target, string group, string domainName, string domainSid)
-        {
-            var toReturn = new List<LocalAdmin>();
-            try
-            {
-                toReturn = GetSamAdmins(target);
-                return toReturn;
-            }
-            catch (SystemDownException)
-            {
-                return toReturn;
-            }
-            catch (ApiFailedException)
-            {
-                return toReturn;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                return toReturn;
-            }
-        }
-        
-        public static List<LocalAdmin> GetLocalAdminsNew(ResolvedEntry target)
-        {
-            var toReturn = new List<LocalAdmin>();
-            try
-            {
-                toReturn = GetSamAdmins(target);
-                return toReturn;
-            }
-            catch (SystemDownException)
-            {
-                return toReturn;
-            }
-            catch (ApiFailedException)
-            {
-                return toReturn;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                return toReturn;
-            }
-        }
-
-        public static List<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
+        public static IEnumerable<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
         {
             //Huge thanks to Simon Mourier on StackOverflow for putting me on the right track
             //https://stackoverflow.com/questions/31464835/how-to-programatically-check-the-password-must-meet-complexity-requirements-gr/31748252
 
             var server = new UNICODE_STRING(entry.BloodHoundDisplay);
-            var toReturn = new List<LocalAdmin>();
 
-            //Connect to the server with the proper access maskes. This gives us our server handle
+            //Connect to the server with the proper access masks. This gives us our server handle
+            //The call can sometimes take forever, so we'll add a hard timeout of 20 seconds
 
-            var status = SamConnect(server, out var serverHandle,
+            var serverHandle = IntPtr.Zero;
+            var t = Task<NtStatus>.Factory.StartNew(() => SamConnect(server, out serverHandle,
                 SamAccessMasks.SamServerLookupDomain |
-                SamAccessMasks.SamServerEnumerateDomains, false);
+                SamAccessMasks.SamServerEnumerateDomains, false));
+
+            var sucess = t.Wait(Timeout);
+
+            if (!sucess)
+            {
+                throw new TimeoutException();
+            }
+
+            var status = t.Result;
 
             switch (status)
             {
                 case NtStatus.StatusRpcServerUnavailable:
                     SamCloseHandle(serverHandle);
-                    throw new SystemDownException();
+                    yield break;
                 case NtStatus.StatusSuccess:
                     break;
                 default:
-                    throw new ApiFailedException();
+                    yield break;
             }
 
             //Use SamLookupDomainInServer with the hostname to find the machine sid if possible
@@ -138,7 +104,7 @@ namespace Sharphound2.Enumeration
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(serverHandle);
-                throw new ApiFailedException();
+                yield break;
             }
 
             //Open the alias for Local Administrators (always RID 544)
@@ -147,7 +113,7 @@ namespace Sharphound2.Enumeration
             {
                 SamCloseHandle(domainHandle);
                 SamCloseHandle(serverHandle);
-                throw new ApiFailedException();
+                yield break;
             }
 
             //Get the members in the alias. This returns a list of SIDs
@@ -158,7 +124,7 @@ namespace Sharphound2.Enumeration
                 SamCloseHandle(aliasHandle);
                 SamCloseHandle(domainHandle);
                 SamCloseHandle(serverHandle);
-                throw new ApiFailedException();
+                yield break;
             }
 
             SamCloseHandle(aliasHandle);
@@ -168,7 +134,7 @@ namespace Sharphound2.Enumeration
             if (count == 0)
             {
                 SamFreeMemory(members);
-                return toReturn;
+                yield break;
             }
 
             //Copy the data of our sids to a new array so it doesn't get eaten
@@ -191,7 +157,7 @@ namespace Sharphound2.Enumeration
             {
                 LsaClose(policyHandle);
                 SamFreeMemory(members);
-                throw new ApiFailedException();
+                yield break;
             }
 
             //Call LsaLookupSids using the sids we got from SamGetMembersInAlias
@@ -204,7 +170,7 @@ namespace Sharphound2.Enumeration
                 LsaFreeMemory(domainList);
                 LsaFreeMemory(nameList);
                 SamFreeMemory(members);
-                throw new ApiFailedException();
+                yield break;
             }
 
             //Convert the returned names into structures
@@ -312,14 +278,13 @@ namespace Sharphound2.Enumeration
                         continue;
                 }
 
-                toReturn.Add(new LocalAdmin
+                yield return new LocalAdmin
                 {
                     ObjectType = type,
                     ObjectName = resolvedName,
                     Server = entry.BloodHoundDisplay
-                });
+                };
             }
-            return toReturn;
         }
 
         public static List<LocalAdmin> LocalGroupWinNt(string target, string group)

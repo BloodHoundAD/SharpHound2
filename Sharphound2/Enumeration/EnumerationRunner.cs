@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
-using System.Runtime.Remoting.Messaging;
 using System.Threading;
 using System.Threading.Tasks;
 using Sharphound2.OutputObjects;
@@ -24,8 +22,8 @@ namespace Sharphound2.Enumeration
         private Stopwatch _watch;
         private readonly DateTime _loopEndTime;
 
-        private int noping = 0;
-        private int timeout = 0;
+        private int _noPing = 0;
+        private int _timeouts = 0;
 
         public EnumerationRunner(Options opts)
         {
@@ -409,7 +407,7 @@ namespace Sharphound2.Enumeration
                 writer.Wait();
                 _watch.Stop();
                 Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
-                Console.WriteLine($"{noping} hosts failed ping. {timeout} hosts timedout.");
+                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
                 _watch = null;
             }
 
@@ -468,65 +466,64 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
+                                    Interlocked.Increment(ref _noPing);
                                     break;
                                 }
-                                var admins =
-                                    LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
-                                        _currentDomainSid);
-                                foreach (var a in admins)
+
+                                try
                                 {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = a });
+                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
+
+                                    foreach (var admin in admins)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = admin });
+                                    }
                                 }
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
+                                }
+
                                 if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
                                 {
                                     break;
                                 }
-                                var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-                                foreach (var s in sessions)
+
+                                try
                                 {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
+
+                                    foreach (var session in sessions)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> {Item = session});
+                                    }
                                 }
-                                
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
+                                }
                             }
                             break;
                         case CollectionMethod.LocalGroup:
                             {
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
-                                    Interlocked.Increment(ref noping);
+                                    Interlocked.Increment(ref _noPing);
                                     break;
                                 }
 
-                                //var w = Stopwatch.StartNew();
-                                //var admins = LocalAdminHelpers.GetLocalAdminsNew(resolved);
-                                //if (w.ElapsedMilliseconds > 5000)
-                                //{
-                                //    Console.WriteLine($"{resolved.BloodHoundDisplay} took {w.ElapsedMilliseconds} ms and returned {admins.Count} entries");
-                                //    Interlocked.Increment(ref timeout);
-                                //}
-
-                                //foreach (var a in admins)
-                                //{
-                                //    writeQueue.Add(new Wrapper<OutputBase>{Item = a});
-                                //}
-
-                                var t = Task<List<LocalAdmin>>.Factory.StartNew(() => LocalAdminHelpers
-                                    .GetLocalAdminsNew(resolved));
-
-                                var result = t.Wait(TimeSpan.FromSeconds(20));
-
-                                if (result)
+                                try
                                 {
-                                    var admins = t.Result;
+                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
 
-                                    foreach (var a in admins)
+                                    foreach (var admin in admins)
                                     {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = a });
+                                        writeQueue.Add(new Wrapper<OutputBase> {Item = admin});
                                     }
                                 }
-                                else
+                                catch (TimeoutException)
                                 {
-                                    Interlocked.Increment(ref timeout);
+                                    Interlocked.Increment(ref _timeouts);
                                 }
                             }
                             break;
@@ -540,6 +537,7 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
+                                    Interlocked.Increment(ref _noPing);
                                     break;
                                 }
 
@@ -548,18 +546,26 @@ namespace Sharphound2.Enumeration
                                     break;
                                 }
 
-                                var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-                                foreach (var s in sessions)
+                                try
                                 {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
+
+                                    foreach (var session in sessions)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
+                                    }
+                                }
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
                                 }
                             }
                             break;
                         case CollectionMethod.LoggedOn:
                             {
-                                Console.WriteLine(resolved.BloodHoundDisplay);
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
+                                    Interlocked.Increment(ref _noPing);
                                     break;
                                 }
                                 var sessions =
@@ -592,6 +598,7 @@ namespace Sharphound2.Enumeration
                             {
                                 if (!_utils.PingHost(resolved.BloodHoundDisplay))
                                 {
+                                    Interlocked.Increment(ref _noPing);
                                     break;
                                 }
 
@@ -600,92 +607,132 @@ namespace Sharphound2.Enumeration
                                     break;
                                 }
 
-                                var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-                                foreach (var s in sessions)
+                                try
                                 {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
+                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
+
+                                    foreach (var session in sessions)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
+                                    }
+                                }
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
                                 }
                             }
                             break;
                         case CollectionMethod.Default:
-                        {
-                            var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
-                            foreach (var g in groups)
                             {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = g });
-                            }
+                                var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
+                                foreach (var g in groups)
+                                {
+                                    writeQueue.Add(new Wrapper<OutputBase> { Item = g });
+                                }
 
-                            if (!resolved.ObjectType.Equals("computer"))
-                            {
-                                break;
-                            }
+                                if (!resolved.ObjectType.Equals("computer"))
+                                {
+                                    break;
+                                }
                             
-                            if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                            {
-                                break;
-                            }
+                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
+                                {
+                                    Interlocked.Increment(ref _noPing);
+                                    break;
+                                }
 
-                            var admins =
-                                LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
-                                    _currentDomainSid);
-                            foreach (var a in admins)
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = a });
-                            }
+                                try
+                                {
+                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
 
-                            if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
-                            {
-                                break;
+                                    foreach (var admin in admins)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = admin });
+                                    }
+                                }
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
+                                }
+
+                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
+                                {
+                                    break;
+                                }
+
+                                try
+                                {
+                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
+
+                                    foreach (var session in sessions)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
+                                    }
+                                }
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
+                                }
                             }
-                            var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-                            foreach (var s in sessions)
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = s });
-                            }
-                        }
                         break;
                         case CollectionMethod.All:
-                        {
-                            var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
-                            foreach (var g in groups)
                             {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = g });
-                            }
+                                var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
+                                foreach (var g in groups)
+                                {
+                                    writeQueue.Add(new Wrapper<OutputBase> { Item = g });
+                                }
 
-                            var acls = AclHelpers.ProcessAdObject(entry, _currentDomain);
-                            foreach (var a in acls)
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = a });
-                            }
+                                var acls = AclHelpers.ProcessAdObject(entry, _currentDomain);
+                                foreach (var a in acls)
+                                {
+                                    writeQueue.Add(new Wrapper<OutputBase> { Item = a });
+                                }
 
-                            if (!resolved.ObjectType.Equals("computer"))
-                            {
-                                break;
-                            }
+                                if (!resolved.ObjectType.Equals("computer"))
+                                {
+                                    break;
+                                }
 
-                            if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                            {
-                                break;
-                            }
+                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
+                                {
+                                    Interlocked.Increment(ref _noPing);
+                                    break;
+                                }
 
-                            var admins =
-                                LocalAdminHelpers.GetLocalAdmins(resolved, "Administrators", _currentDomain,
-                                    _currentDomainSid);
-                            foreach (var a in admins)
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = a });
-                            }
+                                try
+                                {
+                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
 
-                            if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
-                            {
-                                break;
+                                    foreach (var admin in admins)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = admin });
+                                    }
+                                }
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
+                                }
+
+                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
+                                {
+                                    break;
+                                }
+
+                                try
+                                {
+                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
+
+                                    foreach (var session in sessions)
+                                    {
+                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
+                                    }
+                                }
+                                catch (TimeoutException)
+                                {
+                                    Interlocked.Increment(ref _timeouts);
+                                }
                             }
-                            var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-                            foreach (var s in sessions)
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase> { Item = s });
-                            }
-                        }
                         break;
                         default:
                             throw new ArgumentOutOfRangeException();
