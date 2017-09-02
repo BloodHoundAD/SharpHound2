@@ -37,9 +37,9 @@ namespace Sharphound2.Enumeration
 
         private static readonly string[] AdminProps = {"samaccountname", "dnshostname", "distinguishedname", "samaccounttype"};
 
-        private static byte[] _sidbytes;
-
         private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+
+        private static byte[] _sidbytes;
 
         public static void Init()
         {
@@ -50,43 +50,28 @@ namespace Sharphound2.Enumeration
             sid.GetBinaryForm(_sidbytes, 0);
         }
 
-        public static IEnumerable<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
+        private static SamEnumerationObject[] NetLocalGroupGetMembers(ResolvedEntry entry, out string machineSid)
         {
-            //Huge thanks to Simon Mourier on StackOverflow for putting me on the right track
-            //https://stackoverflow.com/questions/31464835/how-to-programatically-check-the-password-must-meet-complexity-requirements-gr/31748252
-
             var server = new UNICODE_STRING(entry.BloodHoundDisplay);
-
-            //Connect to the server with the proper access masks. This gives us our server handle
-            //The call can sometimes take forever, so we'll add a hard timeout of 20 seconds
-
-            var serverHandle = IntPtr.Zero;
-            var t = Task<NtStatus>.Factory.StartNew(() => SamConnect(server, out serverHandle,
+            //Connect to the server with the proper access maskes. This gives us our server handle
+            
+            var status = SamConnect(server, out var serverHandle,
                 SamAccessMasks.SamServerLookupDomain |
-                SamAccessMasks.SamServerEnumerateDomains, false));
+                SamAccessMasks.SamServerEnumerateDomains, false);
 
-            var sucess = t.Wait(Timeout);
-
-            if (!sucess)
-            {
-                throw new TimeoutException();
-            }
-
-            var status = t.Result;
 
             switch (status)
             {
                 case NtStatus.StatusRpcServerUnavailable:
                     SamCloseHandle(serverHandle);
-                    yield break;
+                    throw new SystemDownException();
                 case NtStatus.StatusSuccess:
                     break;
                 default:
-                    yield break;
+                    throw new ApiFailedException();
             }
 
             //Use SamLookupDomainInServer with the hostname to find the machine sid if possible
-            string machineSid;
             try
             {
                 SamLookupDomainInSamServer(serverHandle, new UNICODE_STRING(entry.ComputerSamAccountName), out var temp);
@@ -98,13 +83,14 @@ namespace Sharphound2.Enumeration
             {
                 machineSid = "DUMMYSTRINGSHOULDNOTMATCH";
             }
+            
 
             //Open the domain for the S-1-5-32 (BUILTIN) alias
             status = SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, _sidbytes, out var domainHandle);
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(serverHandle);
-                yield break;
+                throw new ApiFailedException();
             }
 
             //Open the alias for Local Administrators (always RID 544)
@@ -113,18 +99,17 @@ namespace Sharphound2.Enumeration
             {
                 SamCloseHandle(domainHandle);
                 SamCloseHandle(serverHandle);
-                yield break;
+                throw new ApiFailedException();
             }
 
             //Get the members in the alias. This returns a list of SIDs
             status = SamGetMembersInAlias(aliasHandle, out var members, out var count);
-
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(aliasHandle);
                 SamCloseHandle(domainHandle);
                 SamCloseHandle(serverHandle);
-                yield break;
+                throw new ApiFailedException();
             }
 
             SamCloseHandle(aliasHandle);
@@ -134,7 +119,7 @@ namespace Sharphound2.Enumeration
             if (count == 0)
             {
                 SamFreeMemory(members);
-                yield break;
+                return new SamEnumerationObject[0];
             }
 
             //Copy the data of our sids to a new array so it doesn't get eaten
@@ -152,12 +137,12 @@ namespace Sharphound2.Enumeration
             //Open the LSA policy on the target machine
             status = LsaOpenPolicy(server, default(OBJECT_ATTRIBUTES),
                 LsaOpenMask.ViewLocalInfo | LsaOpenMask.LookupNames, out var policyHandle);
-
+            
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 LsaClose(policyHandle);
                 SamFreeMemory(members);
-                yield break;
+                throw new ApiFailedException();
             }
 
             //Call LsaLookupSids using the sids we got from SamGetMembersInAlias
@@ -170,7 +155,7 @@ namespace Sharphound2.Enumeration
                 LsaFreeMemory(domainList);
                 LsaFreeMemory(nameList);
                 SamFreeMemory(members);
-                yield break;
+                throw new ApiFailedException();
             }
 
             //Convert the returned names into structures
@@ -201,7 +186,7 @@ namespace Sharphound2.Enumeration
             for (var i = 0; i < translatedNames.Length; i++)
             {
                 var x = translatedNames[i];
-                
+
                 if (x.DomainIndex > trustInfos.Length || x.DomainIndex < 0 || trustInfos.Length == 0)
                     continue;
 
@@ -220,6 +205,40 @@ namespace Sharphound2.Enumeration
             LsaFreeMemory(domainList);
             LsaFreeMemory(nameList);
             LsaClose(policyHandle);
+
+            return resolvedObjects;
+        }
+
+        public static IEnumerable<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
+        {
+            string machineSid = null;
+            var t = Task<SamEnumerationObject[]>.Factory.StartNew(() =>
+            {
+                try
+                {
+                    return NetLocalGroupGetMembers(entry, out machineSid);
+                }
+                catch (ApiFailedException)
+                {
+                    return new SamEnumerationObject[0];
+                }
+                catch (SystemDownException)
+                {
+                    return new SamEnumerationObject[0];
+                }
+            });
+
+            var success = t.Wait(Timeout);
+
+            if (!success)
+            {
+                throw new TimeoutException();
+            }
+
+            var resolvedObjects = t.Result;
+
+            if (resolvedObjects.Length == 0)
+                yield break;
 
             //Process our list of stuff now
             foreach (var data in resolvedObjects)
