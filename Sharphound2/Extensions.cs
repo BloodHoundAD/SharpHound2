@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Security.Principal;
-using System.Text.RegularExpressions;
 using Sharphound2.Enumeration;
 
 namespace Sharphound2

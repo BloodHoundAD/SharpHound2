@@ -82,6 +82,9 @@ namespace Sharphound2
 
             [Option(DefaultValue = null)]
             public string Test { get; set; }
+
+            [Option(DefaultValue = null)]
+            public string DomainController { get; set; }
             
             [ParserState]
             public IParserState LastParserState { get; set; }
@@ -291,20 +294,24 @@ General Options
                 return;
             }
 
-            if (options.SecureLdap)
+            //Lets test our connection to LDAP before we do anything else
+            try
             {
-                try
+                using (var conn = Utils.Instance.GetLdapConnection(options.Domain))
                 {
-                    using (var conn = Utils.Instance.GetLdapConnection(options.Domain))
+                    if (conn == null)
                     {
-                        conn.Bind();
+                        Console.WriteLine("LDAP Connection Test failed. Exiting");
+                        return;
                     }
+                    conn.Bind();
                 }
-                catch (LdapException)
-                {
-                    Console.WriteLine("Ldap Connection failure, try again with the IgnoreLdapCert option");
-                    return;
-                }
+            }
+            catch (LdapException)
+            {
+                Console.WriteLine("Ldap Connection Failure.");
+                Console.WriteLine("Try again with the IgnoreLdapCert option if using SecureLDAP or check your DomainController option");
+                return;
             }
 
             if (options.Stealth)

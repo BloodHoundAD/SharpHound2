@@ -371,7 +371,7 @@ namespace Sharphound2
         }
 
 
-        public LdapConnection GetLdapConnection(string domainName = null, string domainController = null)
+        public LdapConnection GetLdapConnection(string domainName = null)
         {
             Domain targetDomain;
             try
@@ -383,11 +383,8 @@ namespace Sharphound2
                 Verbose($"Unable to contact domain {domainName}");
                 return null;
             }
-            
-            if (domainController == null)
-            {
-                domainController = targetDomain.PdcRoleOwner.Name;
-            }
+
+            var domainController = _options.DomainController ?? targetDomain.PdcRoleOwner.Name;
 
             var identifier = _options.SecureLdap
                 ? new LdapDirectoryIdentifier(domainController, 636)

@@ -230,6 +230,7 @@ namespace Sharphound2.Enumeration
                 if (DateTime.Now > _options.LoopEnd)
                 {
                     Console.WriteLine("Exiting session loop as LoopEndTime as passed");
+                    return;
                 }
             }
 
@@ -240,6 +241,7 @@ namespace Sharphound2.Enumeration
                 if (DateTime.Now > _options.LoopEnd)
                 {
                     Console.WriteLine("Exiting session loop as LoopEndTime as passed");
+                    return;
                 }
             }
             Console.WriteLine("Starting next enumeration loop");
@@ -415,6 +417,7 @@ namespace Sharphound2.Enumeration
                 if (DateTime.Now > _options.LoopEnd)
                 {
                     Console.WriteLine("Exiting session loop as LoopEndTime as passed");
+                    return;
                 }
             }
 
@@ -425,6 +428,7 @@ namespace Sharphound2.Enumeration
                 if (DateTime.Now > _options.LoopEnd)
                 {
                     Console.WriteLine("Exiting session loop as LoopEndTime as passed");
+                    return;
                 }
             }
             Console.WriteLine("Starting next enumeration loop");
