@@ -131,19 +131,19 @@ namespace Sharphound2
             return true;
         }
 
-        //private static bool DoPing(string hostName)
-        //{
-        //    var ping = new Ping();
-        //    try
-        //    {
-        //        var reply = ping.Send(hostName, _options.PingTimeout);
-        //        return reply != null && reply.Status.Equals(IPStatus.Success);
-        //    }
-        //    catch
-        //    {
-        //        return false;
-        //    }
-        //}
+        private static bool DoPingIcmp(string hostName)
+        {
+            var ping = new Ping();
+            try
+            {
+                var reply = ping.Send(hostName, _options.PingTimeout);
+                return reply != null && reply.Status.Equals(IPStatus.Success);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public string SidToDomainName(string sid, string domainController = null)
         {

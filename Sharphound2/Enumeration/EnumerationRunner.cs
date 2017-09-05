@@ -22,8 +22,8 @@ namespace Sharphound2.Enumeration
         private Stopwatch _watch;
         private readonly DateTime _loopEndTime;
 
-        private int _noPing = 0;
-        private int _timeouts = 0;
+        private int _noPing;
+        private int _timeouts;
 
         public EnumerationRunner(Options opts)
         {
@@ -34,13 +34,9 @@ namespace Sharphound2.Enumeration
             {
                 PrintStatus();
             };
-
+            
             _statusTimer.AutoReset = false;
             _statusTimer.Interval = _options.StatusInterval;
-
-            if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop) || _options.MaxLoopTime == 0) return;
-            var t = DateTime.Now;
-            _loopEndTime = t.AddMinutes(_options.MaxLoopTime);
         }
 
         private void PrintStatus()
@@ -229,21 +225,21 @@ namespace Sharphound2.Enumeration
                 Console.WriteLine($"Finished stealth enumeration for {domainName}");
             }
             if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
-            if (_options.MaxLoopTime != 0)
+            if (_options.LoopEndTime != null)
             {
-                if (DateTime.Now > _loopEndTime)
+                if (DateTime.Now > _options.LoopEnd)
                 {
-                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
                 }
             }
 
             Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
             new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
-            if (_options.MaxLoopTime != 0)
+            if (_options.LoopEndTime != null)
             {
-                if (DateTime.Now > _loopEndTime)
+                if (DateTime.Now > _options.LoopEnd)
                 {
-                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
                 }
             }
             Console.WriteLine("Starting next enumeration loop");
@@ -347,6 +343,8 @@ namespace Sharphound2.Enumeration
 
             foreach (var domainName in _utils.GetDomainList())
             {
+                _noPing = 0;
+                _timeouts = 0;
                 Console.WriteLine($"Starting enumeration for {domainName}");
 
                 _watch = Stopwatch.StartNew();
@@ -412,21 +410,21 @@ namespace Sharphound2.Enumeration
             }
 
             if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
-            if (_options.MaxLoopTime != 0)
+            if (_options.LoopEndTime != null)
             {
-                if (DateTime.Now > _loopEndTime)
+                if (DateTime.Now > _options.LoopEnd)
                 {
-                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
                 }
             }
 
             Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
             new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
-            if (_options.MaxLoopTime != 0)
+            if (_options.LoopEndTime != null)
             {
-                if (DateTime.Now > _loopEndTime)
+                if (DateTime.Now > _options.LoopEnd)
                 {
-                    Console.WriteLine("Exiting session loop as MaxLoopTime as passed");
+                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
                 }
             }
             Console.WriteLine("Starting next enumeration loop");

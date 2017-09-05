@@ -87,9 +87,9 @@ namespace Sharphound2
 
             if (Computers.Contains(accountType))
             {
-                var shortName = accountName.TrimEnd('$');
+                var shortName = accountName?.TrimEnd('$');
                 var dnshostname = result.GetProp("dnshostname");
-
+                
                 if (dnshostname == null)
                 {
                     bool hostFound;

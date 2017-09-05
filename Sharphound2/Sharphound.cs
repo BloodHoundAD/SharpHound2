@@ -4,8 +4,10 @@ using System;
 using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
+using System.Text.RegularExpressions;
 using CommandLine.Text;
 using static Sharphound2.CollectionMethod;
 
@@ -60,8 +62,8 @@ namespace Sharphound2
             [Option("LoopTime", DefaultValue = 5, HelpText = "Time in minutes between each session loop")]
             public int LoopTime { get; set; }
 
-            [Option("MaxLoopTime", DefaultValue = 0, HelpText = "Total time to continue looping in minutes")]
-            public int MaxLoopTime { get; set; }
+            [Option(DefaultValue = null)]
+            public string LoopEndTime { get; set; }
 
             [Option('v',HelpText = "Enable verbose output",DefaultValue = false)]
             public bool Verbose { get; set; }
@@ -141,8 +143,8 @@ Performance Tuning:
         Amount of time to wait in between session enumeration loops
         Use in conjunction with -c SessionLoop
 
-    --MaxLoopTime
-        Overall time to spend looping in minutes. Will stop looping after this time passes
+    --LoopEndTime
+        Time to stop looping. Format is 0d0h0m0s or any variation of this
         Use in conjunction with -c SessionLoop
         Default will loop infinitely
 
@@ -193,6 +195,8 @@ General Options
 
             public string CurrentUser { get; set; }
 
+            public DateTime LoopEnd { get; set; }
+
         }
 
         public static void Main(string[] args)
@@ -204,10 +208,66 @@ General Options
             
             if (!Parser.Default.ParseArguments(args, options))
             {
-                Console.WriteLine(options.GetUsage());
                 return;
             }
 
+            //AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
+            //{
+            //    Console.WriteLine(eventArgs.ExceptionObject);
+            //};
+
+
+            if (options.LoopEndTime != null && options.CollectMethod.Equals(SessionLoop))
+            {
+                var regex = new Regex("[0-9]+[smdh]");
+                var matches = regex.Matches(options.LoopEndTime);
+                var numregex = new Regex("[0-9]+");
+                var timeregex = new Regex("[smdh]");
+                if (matches.Count == 0)
+                {
+                    Console.WriteLine("LoopEndTime does not match required format");
+                    return;
+                }
+
+                var now = DateTime.Now;
+                var drift = 0;
+                foreach (var match in matches)
+                {
+                    var num = int.Parse(numregex.Match(match.ToString()).Value);
+                    var spec = timeregex.Match(match.ToString());
+
+                    switch (spec.Value)
+                    {
+                        case "s":
+                            now = now.AddSeconds(num);
+                            drift += num;
+                            break;
+                        case "m":
+                            now = now.AddMinutes(num);
+                            drift += num * 60;
+                            break;
+                        case "h":
+                            now = now.AddHours(num);
+                            drift += num * 60 * 60;
+                            break;
+                        case "d":
+                            now = now.AddDays(num);
+                            drift += num * 60 * 60 * 24;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+                options.LoopEnd = now;
+
+                if (drift == 0)
+                {
+                    Console.WriteLine("LoopEndTime is zero! Specify a real value");
+                    return;
+                }
+            }
+            
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
             Console.WriteLine("Initializing BloodHound");
             Cache.CreateInstance(options);
@@ -259,6 +319,11 @@ General Options
             }
 
             var runner = new EnumerationRunner(options);
+
+            if (options.CollectMethod.Equals(SessionLoop))
+            {
+                Console.WriteLine($"Session Loop mode specified. Looping will end on {options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()}");
+            }
 
             if (options.Stealth)
             {

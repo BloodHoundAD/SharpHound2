@@ -74,10 +74,9 @@ function Invoke-BloodHound{
         should be used in conjunction with the SessionLoop enumeration method. 
         (Default 5 minutes)
 
-    .PARAMETER MaxLoopTime
+    .PARAMETER LoopEndTime
 
-        Max amount of time to spend looping in minutes. Session looping will stop when this 
-        time is exceeded. By default, looping will continue indefinitely
+        Time to stop session loop. Format is 0d0h0m0s or any variation of that
 
     .PARAMETER CSVFolder
 
@@ -212,9 +211,9 @@ function Invoke-BloodHound{
         [int]
         $LoopTime,
 
-        [ValidateRange(1,50000000)]
-        [int]
-        $MaxLoopTime,
+        [ValidatePattern('[0-9]+[smdh]')]
+        [string]
+        $LoopEndTime,
 
         [Switch]
         $CompressData,

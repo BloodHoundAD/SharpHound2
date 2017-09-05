@@ -590,7 +590,10 @@ namespace Sharphound2.Enumeration
                     if (samAccountType == null || samAccountType != "805306369")
                         continue;
 
-                    var server = compEntry.ResolveAdEntry().BloodHoundDisplay;
+                    var server = compEntry.ResolveAdEntry()?.BloodHoundDisplay;
+
+                    if (server == null)
+                        continue;
 
                     foreach (var user in resolvedList)
                     {
