@@ -38,6 +38,12 @@ namespace Sharphound2
             [Option('p', HelpText = "Prefix for CSV file names", DefaultValue = "")]
             public string CSVPrefix { get; set; }
 
+            [Option(DefaultValue = null)]
+            public string Uri { get; set; }
+
+            [Option(DefaultValue = null)]
+            public string UserPass { get; set; }
+
             [Option(HelpText ="Interval to display progress in milliseconds", DefaultValue =30000)]
             public int StatusInterval { get; set; }
 
@@ -63,7 +69,7 @@ namespace Sharphound2
             public int LoopTime { get; set; }
 
             [Option(DefaultValue = null)]
-            public string LoopEndTime { get; set; }
+            public string MaxLoopTime { get; set; }
 
             [Option('v',HelpText = "Enable verbose output",DefaultValue = false)]
             public bool Verbose { get; set; }
@@ -146,8 +152,8 @@ Performance Tuning:
         Amount of time to wait in between session enumeration loops
         Use in conjunction with -c SessionLoop
 
-    --LoopEndTime
-        Time to stop looping. Format is 0d0h0m0s or any variation of this
+    --MaxLoopTime
+        Time to stop looping. Format is 0d0h0m0s or any variation of this.
         Use in conjunction with -c SessionLoop
         Default will loop infinitely
 
@@ -200,6 +206,12 @@ General Options
 
             public DateTime LoopEnd { get; set; }
 
+            public string GetEncodedUserPass()
+            {
+                var plainTextBytes = Encoding.UTF8.GetBytes(UserPass);
+                return Convert.ToBase64String(plainTextBytes);
+            }
+
         }
 
         public static void Main(string[] args)
@@ -220,10 +232,10 @@ General Options
             //};
 
 
-            if (options.LoopEndTime != null && options.CollectMethod.Equals(SessionLoop))
+            if (options.MaxLoopTime != null && options.CollectMethod.Equals(SessionLoop))
             {
                 var regex = new Regex("[0-9]+[smdh]");
-                var matches = regex.Matches(options.LoopEndTime);
+                var matches = regex.Matches(options.MaxLoopTime);
                 var numregex = new Regex("[0-9]+");
                 var timeregex = new Regex("[smdh]");
                 if (matches.Count == 0)
@@ -272,7 +284,8 @@ General Options
             }
             
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
-            Console.WriteLine("Initializing BloodHound");
+            var nowtime = DateTime.Now;
+            Console.WriteLine($"Initializing BloodHound at {nowtime.ToShortTimeString()} on {nowtime.ToShortDateString()}");
             Cache.CreateInstance(options);
             Utils.CreateInstance(options);
 
@@ -329,7 +342,14 @@ General Options
 
             if (options.CollectMethod.Equals(SessionLoop))
             {
-                Console.WriteLine($"Session Loop mode specified. Looping will end on {options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()}");
+                if (options.MaxLoopTime == null)
+                {
+                    Console.WriteLine("Session Loop mode specified without MaxLoopTime, will loop indefinitely");
+                }
+                else
+                {
+                    Console.WriteLine($"Session Loop mode specified. Looping will end on {options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()}");
+                }
             }
 
             if (options.Stealth)

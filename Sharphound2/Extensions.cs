@@ -25,6 +25,11 @@ namespace Sharphound2
             _primaryDomain = Utils.Instance.GetDomain().Name;
         }
 
+        public static string ToTitleCase(this string str)
+        {
+            return str.Substring(0, 1).ToUpper() + str.Substring(1).ToLower();
+        }
+
         public static string GetObjectType(this SearchResultEntry result)
         {
             var accountType = result.GetProp("samaccounttype");

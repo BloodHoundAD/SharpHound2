@@ -3,8 +3,10 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 using Sharphound2.OutputObjects;
 using static Sharphound2.Sharphound;
 
@@ -225,7 +227,7 @@ namespace Sharphound2.Enumeration
                 Console.WriteLine($"Finished stealth enumeration for {domainName}");
             }
             if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
-            if (_options.LoopEndTime != null)
+            if (_options.MaxLoopTime != null)
             {
                 if (DateTime.Now > _options.LoopEnd)
                 {
@@ -236,7 +238,7 @@ namespace Sharphound2.Enumeration
 
             Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
             new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
-            if (_options.LoopEndTime != null)
+            if (_options.MaxLoopTime != null)
             {
                 if (DateTime.Now > _options.LoopEnd)
                 {
@@ -412,7 +414,7 @@ namespace Sharphound2.Enumeration
             }
 
             if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
-            if (_options.LoopEndTime != null)
+            if (_options.MaxLoopTime != null)
             {
                 if (DateTime.Now > _options.LoopEnd)
                 {
@@ -423,7 +425,7 @@ namespace Sharphound2.Enumeration
 
             Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
             new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
-            if (_options.LoopEndTime != null)
+            if (_options.MaxLoopTime != null)
             {
                 if (DateTime.Now > _options.LoopEnd)
                 {
@@ -745,7 +747,7 @@ namespace Sharphound2.Enumeration
             }, TaskCreationOptions.LongRunning);
         }
 
-        private static Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<OutputBase>> output)
+        private Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<OutputBase>> output)
         {
             return factory.StartNew(() =>
             {
@@ -754,105 +756,125 @@ namespace Sharphound2.Enumeration
                 var aclCount = 0;
                 var groupCount = 0;
 
-                StreamWriter admins = null;
-                StreamWriter sessions = null;
-                StreamWriter acls = null;
-                StreamWriter groups = null;
-                StreamWriter trusts = null;
-
-                foreach (var obj in output.GetConsumingEnumerable())
+                if (_options.Uri == null)
                 {
-                    var item = obj.Item;
-                    if (item is GroupMember)
+                    StreamWriter admins = null;
+                    StreamWriter sessions = null;
+                    StreamWriter acls = null;
+                    StreamWriter groups = null;
+                    StreamWriter trusts = null;
+
+                    foreach (var obj in output.GetConsumingEnumerable())
                     {
-                        if (groups == null)
+                        var item = obj.Item;
+                        if (item is GroupMember)
                         {
-                            var f = Utils.GetCsvFileName("group_membership.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            groups = new StreamWriter(f, exists);
-                            if (!exists)
-                                groups.WriteLine("GroupName,AccountName,AccountType");
+                            if (groups == null)
+                            {
+                                var f = Utils.GetCsvFileName("group_membership.csv");
+                                Utils.AddUsedFile(f);
+                                var exists = File.Exists(f);
+                                groups = new StreamWriter(f, exists);
+                                if (!exists)
+                                    groups.WriteLine("GroupName,AccountName,AccountType");
+                            }
+                            groups.WriteLine(item.ToCsv());
+                            groupCount++;
+                            if (groupCount % 100 == 0)
+                            {
+                                groups.Flush();
+                            }
                         }
-                        groups.WriteLine(item.ToCsv());
-                        groupCount++;
-                        if (groupCount % 100 == 0)
+                        else if (item is Session)
                         {
-                            groups.Flush();
+                            if (sessions == null)
+                            {
+                                var f = Utils.GetCsvFileName("sessions.csv");
+                                Utils.AddUsedFile(f);
+                                var exists = File.Exists(f);
+                                sessions = new StreamWriter(f, exists);
+                                if (!exists)
+                                    sessions.WriteLine("UserName,ComputerName,Weight");
+                            }
+                            sessions.WriteLine(item.ToCsv());
+                            sessionCount++;
+                            if (sessionCount % 100 == 0)
+                            {
+                                sessions.Flush();
+                            }
                         }
-                    }else if (item is Session)
-                    {
-                        if (sessions == null)
+                        else if (item is LocalAdmin)
                         {
-                            var f = Utils.GetCsvFileName("sessions.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            sessions = new StreamWriter(f, exists);
-                            if (!exists)
-                                sessions.WriteLine("UserName,ComputerName,Weight");
+                            if (admins == null)
+                            {
+                                var f = Utils.GetCsvFileName("local_admins.csv");
+                                Utils.AddUsedFile(f);
+                                var exists = File.Exists(f);
+                                admins = new StreamWriter(f, exists);
+                                if (!exists)
+                                    admins.WriteLine("ComputerName,AccountName,AccountType");
+                            }
+                            admins.WriteLine(item.ToCsv());
+                            adminCount++;
+                            if (adminCount % 100 == 0)
+                            {
+                                admins.Flush();
+                            }
                         }
-                        sessions.WriteLine(item.ToCsv());
-                        sessionCount++;
-                        if (sessionCount % 100 == 0)
+                        else if (item is ACL)
                         {
-                            sessions.Flush();
+                            if (acls == null)
+                            {
+                                var f = Utils.GetCsvFileName("acls.csv");
+                                Utils.AddUsedFile(f);
+                                var exists = File.Exists(f);
+                                acls = new StreamWriter(f, exists);
+                                if (!exists)
+                                    acls.WriteLine(
+                                        "ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited");
+                            }
+                            acls.WriteLine(item.ToCsv());
+                            aclCount++;
+                            if (aclCount % 100 == 0)
+                            {
+                                acls.Flush();
+                            }
                         }
-                    }else if (item is LocalAdmin)
-                    {
-                        if (admins == null)
+                        else if (item is DomainTrust)
                         {
-                            var f = Utils.GetCsvFileName("local_admins.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            admins = new StreamWriter(f, exists);
-                            if (!exists)
-                                admins.WriteLine("ComputerName,AccountName,AccountType");
+                            if (trusts == null)
+                            {
+                                var f = Utils.GetCsvFileName("trusts.csv");
+                                Utils.AddUsedFile(f);
+                                var exists = File.Exists(f);
+                                trusts = new StreamWriter(f, exists);
+                                if (!exists)
+                                    trusts.WriteLine("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive");
+                            }
+                            trusts.WriteLine(item.ToCsv());
+                            trusts.Flush();
                         }
-                        admins.WriteLine(item.ToCsv());
-                        adminCount++;
-                        if (adminCount % 100 == 0)
-                        {
-                            admins.Flush();
-                        }
-                    }else if (item is ACL)
-                    {
-                        if (acls == null)
-                        {
-                            var f = Utils.GetCsvFileName("acls.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            acls = new StreamWriter(f, exists);
-                            if (!exists)
-                                acls.WriteLine("ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited");
-                        }
-                        acls.WriteLine(item.ToCsv());
-                        aclCount++;
-                        if (aclCount % 100 == 0)
-                        {
-                            acls.Flush();
-                        }
+                        obj.Item = null;
                     }
-                    else if (item is DomainTrust)
-                    {
-                        if (trusts == null)
-                        {
-                            var f = Utils.GetCsvFileName("trusts.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            trusts = new StreamWriter(f, exists);
-                            if (!exists)
-                                trusts.WriteLine("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive");
-                        }
-                        trusts.WriteLine(item.ToCsv());
-                        trusts.Flush();
-                    }
-                    obj.Item = null;
+                    groups?.Dispose();
+                    sessions?.Dispose();
+                    acls?.Dispose();
+                    admins?.Dispose();
+                    trusts?.Dispose();
                 }
-                groups?.Dispose();
-                sessions?.Dispose();
-                acls?.Dispose();
-                admins?.Dispose();
-                trusts?.Dispose();
+                else
+                {
+                    using (var client = new WebClient())
+                    {
+                        client.Headers.Add("content-type", "application/json");
+                        client.Headers.Add("Accept", "application/json; charset=UTF-8");
+                        client.Headers.Add("Authorization", _options.GetEncodedUserPass());
+
+                        var serializer = new JavaScriptSerializer();
+                    }
+                }
+
+                
             }, TaskCreationOptions.LongRunning);
         }
     }
