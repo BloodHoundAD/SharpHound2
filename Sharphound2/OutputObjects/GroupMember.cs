@@ -15,9 +15,14 @@
         {
             return new
             {
-                account = AccountName.ToUpper(),
-                group = GroupName.ToUpper()
+                a = AccountName.ToUpper(),
+                b = GroupName.ToUpper()
             };
+        }
+
+        public override string TypeHash()
+        {
+            return $"{ObjectType}|MemberOf|group";
         }
     }
 }

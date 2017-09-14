@@ -26,6 +26,11 @@ namespace Sharphound2.OutputObjects
             throw new NotImplementedException();
         }
 
+        public override string TypeHash()
+        {
+            return "Trust";
+        }
+
         internal List<object> ToMultipleParam()
         {
             var r = new List<object>();

@@ -15,10 +15,15 @@
         {
             return new
             {
-                account = UserName.ToUpper(),
-                computer = ComputerName.ToUpper(),
+                a = UserName.ToUpper(),
+                b = ComputerName.ToUpper(),
                 weight = Weight
             };
+        }
+
+        public override string TypeHash()
+        {
+            return "user|HasSession|computer";
         }
     }
 }

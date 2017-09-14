@@ -76,8 +76,10 @@
     <Compile Include="Enumeration\MappedPrincipal.cs" />
     <Compile Include="Enumeration\ResolvedEntry.cs" />
     <Compile Include="Enumeration\SessionHelpers.cs" />
+    <Compile Include="Enumeration\ObjectPropertyHelpers.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="OutputObjects\ACL.cs" />
+    <Compile Include="OutputObjects\ComputerProp.cs" />
     <Compile Include="OutputObjects\DCSync.cs" />
     <Compile Include="OutputObjects\DomainTrust.cs" />
     <Compile Include="OutputObjects\GroupMember.cs" />
@@ -85,6 +87,7 @@
     <Compile Include="OutputObjects\OutputBase.cs" />
     <Compile Include="OutputObjects\RestOutput.cs" />
     <Compile Include="OutputObjects\Session.cs" />
+    <Compile Include="OutputObjects\UserProp.cs" />
     <Compile Include="Test.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="Sharphound.cs" />

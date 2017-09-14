@@ -1,71 +1,81 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Web.Script.Serialization;
 
 namespace Sharphound2.OutputObjects
 {
     internal class RestOutput
     {
-        public List<object> Props;
         private readonly Query _query;
+        private Dictionary<string, List<object>> _collection;
 
-        internal RestOutput(Query type)
+        internal RestOutput()
         {
-            Props = new List<object>();
-            _query = type;
+            _collection = new Dictionary<string, List<object>>();
         }
 
-        internal object GetStatement()
+        internal void GetStatements()
         {
-            return new
+            var tempStatements = new List<object>();
+            foreach (var key in _collection.Keys)
             {
-                statement = _query.Value,
-                parameters = new
+                var split = key.Split('|');
+                var atype = split[0];
+                var reltype = split[1];
+                var btype = split[2];
+
+                string statement;
+                if (reltype.Equals("HasSession"))
                 {
-                    props = Props.ToArray()
+                    statement =
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype} {{Weight:prop.weight}}]->(b)";
+                }else if (reltype.Equals("Trust"))
+                {
+                    statement =
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive}}]->(b)";
                 }
-            };
+                else
+                {
+                    statement =
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype}]->(b)";
+                }
+                
+                tempStatements.Add(new
+                {
+                    statement,
+                    parameters = new
+                    {
+                        props = _collection[key].ToArray()
+                    }
+                });
+            }
+
+            var statements = new object[tempStatements.Count];
+
+            for (var i = 0; i < tempStatements.Count; i++)
+            {
+                statements[i] = tempStatements[i];
+            }
+            var serializer = new JavaScriptSerializer();
+            Console.WriteLine(serializer.Serialize(statements));
+        }
+
+        internal void AddNewData(string hash, object data)
+        {
+            if (_collection.ContainsKey(hash))
+            {
+                _collection[hash].Add(data);
+            }
+            else
+            {
+                _collection.Add(hash, new List<object> {data});
+            }
         }
 
         internal void Reset()
         {
-            Props = new List<object>();
-        }
-
-        public override int GetHashCode()
-        {
-            return base.GetHashCode();
-        }
-    }
-
-    internal class RestCollection
-    {
-        
-    }
-
-    internal class RestOutputAcl
-    {
-        public List<object> Props;
-
-        internal RestOutputAcl()
-        {
-            Props = new List<object>();
-        }
-
-        internal string CreateStatement(string q)
-        {
-            var s = q.Split('|');
-            return $"UNWIND {{props}} AS prop MERGE (a:{s[0].ToTitleCase()} {{name:prop.account}}) WITH a,prop MERGE (b:{s[2].ToTitleCase()} {{name: prop.principal}}) WITH a,b,prop MERGE (a)-[r:{s[1]} {{isACL:true}}]->(b)";
-        }
-
-        internal object GetStatement(string queryType)
-        {
-            return new
-            {
-                statement = CreateStatement(queryType),
-                parameters = new
-                {
-                    props = Props.ToArray()
-                }
-            };
+            _collection = new Dictionary<string, List<object>>();
         }
     }
 

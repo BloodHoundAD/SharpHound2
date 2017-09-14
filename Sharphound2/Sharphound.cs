@@ -13,7 +13,7 @@ using static Sharphound2.CollectionMethod;
 
 namespace Sharphound2
 {
-    class Sharphound
+    internal class Sharphound
     {
         public class Options
         {
@@ -32,10 +32,10 @@ namespace Sharphound2
             [Option('t',HelpText ="Number of Threads to use", DefaultValue =10)]
             public int Threads { get; set; }
 
-            [Option('f', HelpText = "Folder to drop CSV files", DefaultValue = ".")]
+            [Option(HelpText = "Folder to drop CSV files", DefaultValue = ".")]
             public string CSVFolder { get; set; }
 
-            [Option('p', HelpText = "Prefix for CSV file names", DefaultValue = "")]
+            [Option(HelpText = "Prefix for CSV file names", DefaultValue = "")]
             public string CSVPrefix { get; set; }
 
             [Option(DefaultValue = null)]
@@ -138,10 +138,10 @@ Connection Options:
         Ignores the SSL certificate for LDAP. Use for self-signed certs
 
 Performance Tuning:
-    -t , --Threads (Default: 20)
+    -t , --Threads (Default: 10)
         The number of threads to use for Enumeration
     
-    --PingTimeout (Default: 750)
+    --PingTimeout (Default: 200)
         Timeout to use when pinging computers in milliseconds
 
     --SkipPing

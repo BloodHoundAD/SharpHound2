@@ -20,12 +20,12 @@
         {
             return new
             {
-                account = ObjectName.ToUpper(),
-                principal = PrincipalName.ToUpper(),
+                a = ObjectName.ToUpper(),
+                b = PrincipalName.ToUpper(),
             };
         }
 
-        internal string GetKey()
+        public override string TypeHash()
         {
             string reltype;
             switch (AceType)

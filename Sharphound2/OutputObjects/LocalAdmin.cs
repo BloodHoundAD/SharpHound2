@@ -12,9 +12,14 @@ namespace Sharphound2.OutputObjects
         {
             return new
             {
-                account = ObjectName.ToUpper(),
-                computer = Server.ToUpper()
+                a = ObjectName.ToUpper(),
+                b = Server.ToUpper()
             };
+        }
+
+        public override string TypeHash()
+        {
+            return $"{ObjectType}|AdminTo|computer";
         }
 
         public override string ToCsv()

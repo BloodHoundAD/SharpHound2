@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.IO;
@@ -10,10 +9,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Security.Permissions;
 using System.Security.Principal;
-using System.Threading;
-using System.Threading.Tasks;
 using ICSharpCode.SharpZipLib.Zip;
 using Sharphound2.Enumeration;
 using SearchOption = System.DirectoryServices.Protocols.SearchOption;

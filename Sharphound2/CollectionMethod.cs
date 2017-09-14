@@ -17,6 +17,7 @@ namespace Sharphound2
         ACL,
         SessionLoop,
         All,
-        Default
+        Default,
+        ObjectProperties
     }
 }

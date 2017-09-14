@@ -9,5 +9,6 @@ namespace Sharphound2.OutputObjects
     {
         public abstract string ToCsv();
         public abstract object ToParam();
+        public abstract string TypeHash();
     }
 }

@@ -54,7 +54,9 @@ namespace Sharphound2.Enumeration
         public void StartStealthEnumeration()
         {
             var output = new BlockingCollection<Wrapper<OutputBase>>();
-            var writer = StartOutputWriter(Task.Factory, output);
+            var writer = _options.Uri == null
+                ? StartOutputWriter(Task.Factory, output)
+                : StartRestWriter(Task.Factory, output);
 
             foreach (var domainName in _utils.GetDomainList())
             {
@@ -62,6 +64,29 @@ namespace Sharphound2.Enumeration
                 var domainSid = _utils.GetDomainSid(domainName);
                 switch (_options.CollectMethod)
                 {
+                    case CollectionMethod.ObjectProperties:
+                        Console.WriteLine("Doing stealth enumeration for object properties");
+                        foreach (var entry in _utils.DoSearch("(|(samaccounttype=805306368)(samaccounttype=805306369))", SearchScope.Subtree, new[]
+                        {
+                            "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon",
+                            "sidhistory",
+                            "objectsid", "useraccountcontrol", "operatingsystem","operatingsystemservicepack","dnshostname", "serviceprincipalname"
+                        }, domainName))
+                        {
+                            var resolved = entry.ResolveAdEntry();
+                            OutputBase props;
+                            if (resolved.ObjectType.Equals("computer"))
+                            {
+                                props = ObjectPropertyHelpers.GetComputerProps(entry, resolved);
+                            }
+                            else
+                            {
+                                props = ObjectPropertyHelpers.GetUserProps(entry, resolved);
+                            }
+                            if (props != null)
+                                output.Add(new Wrapper<OutputBase> {Item = props});
+                        }
+                        break;
                     case CollectionMethod.Session:
                         Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
@@ -257,6 +282,15 @@ namespace Sharphound2.Enumeration
             string[] props = { };
             switch (_options.CollectMethod)
             {
+                case CollectionMethod.ObjectProperties:
+                    ldapFilter = "(|(samaccounttype=805306368)(samaccounttype=805306369))";
+                    props = new[]
+                    {
+                        "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "objectsid",
+                        "sidhistory", "useraccountcontrol", "dnshostname", "operatingsystem",
+                        "operatingsystemservicepack", "serviceprincipalname"
+                    };
+                    break;
                 case CollectionMethod.Group:
                     ldapFilter = "(|(memberof=*)(primarygroupid=*))";
                     props = new[]
@@ -360,7 +394,9 @@ namespace Sharphound2.Enumeration
 
                 var taskhandles = new Task[_options.Threads];
 
-                var writer = StartOutputWriter(Task.Factory, outputQueue);
+                var writer = _options.Uri == null
+                    ? StartOutputWriter(Task.Factory, outputQueue)
+                    : StartRestWriter(Task.Factory, outputQueue);
 
                 if (_options.CollectMethod.Equals(CollectionMethod.Trusts) ||
                     _options.CollectMethod.Equals(CollectionMethod.Default) || 
@@ -457,6 +493,22 @@ namespace Sharphound2.Enumeration
 
                     switch (_options.CollectMethod)
                     {
+                        case CollectionMethod.ObjectProperties:
+                            {
+                                OutputBase props;
+                                if (resolved.ObjectType.Equals("computer"))
+                                {
+                                    props = ObjectPropertyHelpers.GetComputerProps(entry, resolved);
+                                }
+                                else
+                                {
+                                    props = ObjectPropertyHelpers.GetUserProps(entry, resolved);
+                                }
+
+                                if (props != null)
+                                    writeQueue.Add(new Wrapper<OutputBase> { Item = props });
+                            }
+                            break;
                         case CollectionMethod.Group:
                             {
                                 var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
@@ -755,126 +807,183 @@ namespace Sharphound2.Enumeration
                 var sessionCount = 0;
                 var aclCount = 0;
                 var groupCount = 0;
+                var userPropsCount = 0;
+                var compPropsCount = 0;
 
-                if (_options.Uri == null)
+                StreamWriter admins = null;
+                StreamWriter sessions = null;
+                StreamWriter acls = null;
+                StreamWriter groups = null;
+                StreamWriter trusts = null;
+                StreamWriter userprops = null;
+                StreamWriter compprops = null;
+
+                foreach (var obj in output.GetConsumingEnumerable())
                 {
-                    StreamWriter admins = null;
-                    StreamWriter sessions = null;
-                    StreamWriter acls = null;
-                    StreamWriter groups = null;
-                    StreamWriter trusts = null;
-
-                    foreach (var obj in output.GetConsumingEnumerable())
+                    var item = obj.Item;
+                    if (item is GroupMember)
                     {
-                        var item = obj.Item;
-                        if (item is GroupMember)
+                        if (groups == null)
                         {
-                            if (groups == null)
-                            {
-                                var f = Utils.GetCsvFileName("group_membership.csv");
-                                Utils.AddUsedFile(f);
-                                var exists = File.Exists(f);
-                                groups = new StreamWriter(f, exists);
-                                if (!exists)
-                                    groups.WriteLine("GroupName,AccountName,AccountType");
-                            }
-                            groups.WriteLine(item.ToCsv());
-                            groupCount++;
-                            if (groupCount % 100 == 0)
-                            {
-                                groups.Flush();
-                            }
+                            var f = Utils.GetCsvFileName("group_membership.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            groups = new StreamWriter(f, exists);
+                            if (!exists)
+                                groups.WriteLine("GroupName,AccountName,AccountType");
                         }
-                        else if (item is Session)
+                        groups.WriteLine(item.ToCsv());
+                        groupCount++;
+                        if (groupCount % 100 == 0)
                         {
-                            if (sessions == null)
-                            {
-                                var f = Utils.GetCsvFileName("sessions.csv");
-                                Utils.AddUsedFile(f);
-                                var exists = File.Exists(f);
-                                sessions = new StreamWriter(f, exists);
-                                if (!exists)
-                                    sessions.WriteLine("UserName,ComputerName,Weight");
-                            }
-                            sessions.WriteLine(item.ToCsv());
-                            sessionCount++;
-                            if (sessionCount % 100 == 0)
-                            {
-                                sessions.Flush();
-                            }
+                            groups.Flush();
                         }
-                        else if (item is LocalAdmin)
-                        {
-                            if (admins == null)
-                            {
-                                var f = Utils.GetCsvFileName("local_admins.csv");
-                                Utils.AddUsedFile(f);
-                                var exists = File.Exists(f);
-                                admins = new StreamWriter(f, exists);
-                                if (!exists)
-                                    admins.WriteLine("ComputerName,AccountName,AccountType");
-                            }
-                            admins.WriteLine(item.ToCsv());
-                            adminCount++;
-                            if (adminCount % 100 == 0)
-                            {
-                                admins.Flush();
-                            }
-                        }
-                        else if (item is ACL)
-                        {
-                            if (acls == null)
-                            {
-                                var f = Utils.GetCsvFileName("acls.csv");
-                                Utils.AddUsedFile(f);
-                                var exists = File.Exists(f);
-                                acls = new StreamWriter(f, exists);
-                                if (!exists)
-                                    acls.WriteLine(
-                                        "ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited");
-                            }
-                            acls.WriteLine(item.ToCsv());
-                            aclCount++;
-                            if (aclCount % 100 == 0)
-                            {
-                                acls.Flush();
-                            }
-                        }
-                        else if (item is DomainTrust)
-                        {
-                            if (trusts == null)
-                            {
-                                var f = Utils.GetCsvFileName("trusts.csv");
-                                Utils.AddUsedFile(f);
-                                var exists = File.Exists(f);
-                                trusts = new StreamWriter(f, exists);
-                                if (!exists)
-                                    trusts.WriteLine("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive");
-                            }
-                            trusts.WriteLine(item.ToCsv());
-                            trusts.Flush();
-                        }
-                        obj.Item = null;
                     }
-                    groups?.Dispose();
-                    sessions?.Dispose();
-                    acls?.Dispose();
-                    admins?.Dispose();
-                    trusts?.Dispose();
+                    else if (item is UserProp)
+                    {
+                        if (userprops == null)
+                        {
+                            var f = Utils.GetCsvFileName("user_props.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            userprops = new StreamWriter(f, exists);
+                            if (!exists)
+                                userprops.WriteLine("AccountName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory");
+                        }
+                        userprops.WriteLine(item.ToCsv());
+                        userPropsCount++;
+                        if (userPropsCount % 100 == 0)
+                        {
+                            userprops.Flush();
+                        }
+                    }
+                    else if (item is ComputerProp)
+                    {
+                        if (compprops == null)
+                        {
+                            var f = Utils.GetCsvFileName("computer_props.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            compprops = new StreamWriter(f, exists);
+                            if (!exists)
+                                compprops.WriteLine("AccountName,Enabled,PwdLastSet,LastLogon,OperatingSystem,Sid");
+                        }
+                        compprops.WriteLine(item.ToCsv());
+                        compPropsCount++;
+                        if (compPropsCount % 100 == 0)
+                        {
+                            compprops.Flush();
+                        }
+                    }
+                    else if (item is Session)
+                    {
+                        if (sessions == null)
+                        {
+                            var f = Utils.GetCsvFileName("sessions.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            sessions = new StreamWriter(f, exists);
+                            if (!exists)
+                                sessions.WriteLine("UserName,ComputerName,Weight");
+                        }
+                        sessions.WriteLine(item.ToCsv());
+                        sessionCount++;
+                        if (sessionCount % 100 == 0)
+                        {
+                            sessions.Flush();
+                        }
+                    }
+                    else if (item is LocalAdmin)
+                    {
+                        if (admins == null)
+                        {
+                            var f = Utils.GetCsvFileName("local_admins.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            admins = new StreamWriter(f, exists);
+                            if (!exists)
+                                admins.WriteLine("ComputerName,AccountName,AccountType");
+                        }
+                        admins.WriteLine(item.ToCsv());
+                        adminCount++;
+                        if (adminCount % 100 == 0)
+                        {
+                            admins.Flush();
+                        }
+                    }
+                    else if (item is ACL)
+                    {
+                        if (acls == null)
+                        {
+                            var f = Utils.GetCsvFileName("acls.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            acls = new StreamWriter(f, exists);
+                            if (!exists)
+                                acls.WriteLine(
+                                    "ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited");
+                        }
+                        acls.WriteLine(item.ToCsv());
+                        aclCount++;
+                        if (aclCount % 100 == 0)
+                        {
+                            acls.Flush();
+                        }
+                    }
+                    else if (item is DomainTrust)
+                    {
+                        if (trusts == null)
+                        {
+                            var f = Utils.GetCsvFileName("trusts.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            trusts = new StreamWriter(f, exists);
+                            if (!exists)
+                                trusts.WriteLine("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive");
+                        }
+                        trusts.WriteLine(item.ToCsv());
+                        trusts.Flush();
+                    }
+                    obj.Item = null;
                 }
-                else
+                groups?.Dispose();
+                sessions?.Dispose();
+                acls?.Dispose();
+                admins?.Dispose();
+                trusts?.Dispose();
+                userprops?.Dispose();
+                compprops?.Dispose();
+            }, TaskCreationOptions.LongRunning);
+        }
+
+        private Task StartRestWriter(TaskFactory factory, BlockingCollection<Wrapper<OutputBase>> output)
+        {
+            return factory.StartNew(() =>
+            {
+                var objectCount = 0;
+                var coll = new RestOutput();
+
+                foreach (var obj in output.GetConsumingEnumerable())
                 {
-                    using (var client = new WebClient())
-                    {
-                        client.Headers.Add("content-type", "application/json");
-                        client.Headers.Add("Accept", "application/json; charset=UTF-8");
-                        client.Headers.Add("Authorization", _options.GetEncodedUserPass());
+                    var item = obj.Item;
 
-                        var serializer = new JavaScriptSerializer();
-                    }
+                    coll.AddNewData(item.TypeHash(), item.ToParam());
+                    obj.Item = null;
                 }
 
-                
+                coll.GetStatements();
+
+                //using (var client = new WebClient())
+                //{
+                //    client.Headers.Add("content-type", "application/json");
+                //    client.Headers.Add("Accept", "application/json; charset=UTF-8");
+                //    client.Headers.Add("Authorization", _options.GetEncodedUserPass());
+
+                //    var serializer = new JavaScriptSerializer();
+                //}
+
+
+
             }, TaskCreationOptions.LongRunning);
         }
     }
