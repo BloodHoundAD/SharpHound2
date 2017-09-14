@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -62,16 +64,12 @@ namespace Sharphound2.Enumeration
             {
                 Console.WriteLine($"Starting stealth enumeration for {domainName}\n");
                 var domainSid = _utils.GetDomainSid(domainName);
+                var data = LdapFilter.GetLdapFilter(_options.CollectMethod, _options.ExcludeDC, true);
                 switch (_options.CollectMethod)
                 {
-                    case CollectionMethod.ObjectProperties:
+                    case CollectionMethod.ObjectProps:
                         Console.WriteLine("Doing stealth enumeration for object properties");
-                        foreach (var entry in _utils.DoSearch("(|(samaccounttype=805306368)(samaccounttype=805306369))", SearchScope.Subtree, new[]
-                        {
-                            "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon",
-                            "sidhistory",
-                            "objectsid", "useraccountcontrol", "operatingsystem","operatingsystemservicepack","dnshostname", "serviceprincipalname"
-                        }, domainName))
+                        foreach (var entry in _utils.DoSearch(data.Filter, SearchScope.Subtree, data.Properties, domainName))
                         {
                             var resolved = entry.ResolveAdEntry();
                             OutputBase props;
@@ -111,8 +109,8 @@ namespace Sharphound2.Enumeration
 
                         Console.WriteLine("Doing stealth enumeration for admins");
                         foreach (var entry in _utils.DoSearch(
-                            "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
-                            new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
+                            data.Filter, SearchScope.Subtree,
+                            data.Properties, domainName))
                         {
                             foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
                             {
@@ -187,13 +185,9 @@ namespace Sharphound2.Enumeration
                         break;
                     case CollectionMethod.Group:
                         Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var entry in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
+                        foreach (var entry in _utils.DoSearch(data.Filter,
                             SearchScope.Subtree,
-                            new[]
-                            {
-                                "samaccountname", "distinguishedname", "dnshostname", "samaccounttype",
-                                "primarygroupid", "memberof", "serviceprincipalname"
-                            }, domainName))
+                            data.Properties, domainName))
                         {
                             var resolvedEntry = entry.ResolveAdEntry();
                             foreach (var group in GroupHelpers.ProcessAdObject(entry, resolvedEntry, domainSid))
@@ -208,8 +202,8 @@ namespace Sharphound2.Enumeration
                     case CollectionMethod.GPOLocalGroup:
                         Console.WriteLine("Doing stealth enumeration for admins");
                         foreach (var entry in _utils.DoSearch(
-                            "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
-                            new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
+                            data.Filter, SearchScope.Subtree,
+                            data.Properties, domainName))
                         {
                             foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
                             {
@@ -227,22 +221,15 @@ namespace Sharphound2.Enumeration
                     case CollectionMethod.ACL:
                         Console.WriteLine("Doing stealth enumeration for ACLs");
                         foreach (var entry in _utils.DoSearch(
-                            "(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain))",
+                            data.Filter,
                             SearchScope.Subtree,
-                            new[]
-                            {
-                                "samaccountname", "distinguishedname", "dnshostname", "samaccounttype",
-                                "ntsecuritydescriptor"
-                            }, domainName))
+                            data.Properties, domainName))
                         {
                             foreach (var acl in AclHelpers.ProcessAdObject(entry, domainName))
                             {
                                 output.Add(new Wrapper<OutputBase>{Item = acl});
                             }
                         }
-                        break;
-                    case CollectionMethod.All:
-                        Console.WriteLine("All enumeration only usable without stealth");
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
@@ -278,106 +265,11 @@ namespace Sharphound2.Enumeration
         public void StartEnumeration()
         {
             //Let's determine what LDAP filter we need first
-            string ldapFilter = null;
-            string[] props = { };
-            switch (_options.CollectMethod)
-            {
-                case CollectionMethod.ObjectProperties:
-                    ldapFilter = "(|(samaccounttype=805306368)(samaccounttype=805306369))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "objectsid",
-                        "sidhistory", "useraccountcontrol", "dnshostname", "operatingsystem",
-                        "operatingsystemservicepack", "serviceprincipalname"
-                    };
-                    break;
-                case CollectionMethod.Group:
-                    ldapFilter = "(|(memberof=*)(primarygroupid=*))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
-                        "memberof"
-                    };
-                    break;
-                case CollectionMethod.ComputerOnly:
-                    ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype"
-                    };
-                    break;
-                case CollectionMethod.LocalGroup:
-                    ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype"
-                    };
-                    break;
-                case CollectionMethod.GPOLocalGroup:
-                    ldapFilter = "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))";
-                    props = new[]
-                    {
-                        "displayname", "name", "gpcfilesyspath"
-                    };
-                    break;
-                case CollectionMethod.Session:
-                    ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))";
-                    if (_options.ExcludeDC)
-                    {
-                        ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(userAccountControl:1.2.840.113556.1.4.803:=8192)))";
-                    }
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype"
-                    };
-                    break;
-                case CollectionMethod.LoggedOn:
-                    ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype"
-                    };
-                    break;
-                case CollectionMethod.Trusts:
-                    ldapFilter = "(objectclass=domain)";
-                    props = new[]
-                    {
-                        "distinguishedname"
-                    };
-                    break;
-                case CollectionMethod.ACL:
-                    ldapFilter =
-                         "(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "ntsecuritydescriptor"
-                    };
-                    break;
-                case CollectionMethod.SessionLoop:
-                    ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype"
-                    };
-                    break;
-                case CollectionMethod.Default:
-                    ldapFilter = "(|(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
-                        "memberof"
-                    };
-                    break;
-                case CollectionMethod.All:
-                    ldapFilter =
-                        "(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain)(memberof=*)(primarygroupid=*))";
-                    props = new[]
-                    {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
-                        "memberof", "ntsecuritydescriptor"
-                    };
-                    break;
-            }
+            var data = LdapFilter.GetLdapFilter(_options.CollectMethod, _options.ExcludeDC, _options.Stealth);
+            var ldapFilter = data.Filter;
+            var props = data.Properties;
+            var c = _options.CollectMethod;
+
 
             foreach (var domainName in _utils.GetDomainList())
             {
@@ -398,9 +290,8 @@ namespace Sharphound2.Enumeration
                     ? StartOutputWriter(Task.Factory, outputQueue)
                     : StartRestWriter(Task.Factory, outputQueue);
 
-                if (_options.CollectMethod.Equals(CollectionMethod.Trusts) ||
-                    _options.CollectMethod.Equals(CollectionMethod.Default) || 
-                    _options.CollectMethod.Equals(CollectionMethod.All))
+                if (c.Equals(CollectionMethod.Trusts) ||
+                    c.Equals(CollectionMethod.Default))
                 {
                     foreach (var domain in DomainTrustEnumeration.DoTrustEnumeration(domainName))
                     {
@@ -419,8 +310,20 @@ namespace Sharphound2.Enumeration
                 }
 
                 _statusTimer.Start();
-                
-                foreach (var item in _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName))
+
+                IEnumerable<Wrapper<SearchResultEntry>> items;
+
+                if ((c.Equals(CollectionMethod.ComputerOnly) || c.Equals(CollectionMethod.Session) ||
+                     c.Equals(CollectionMethod.LocalGroup)) && _options.Ou != null)
+                {
+                    items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName, _options.Ou);
+                }
+                else
+                {
+                    items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName);
+                }
+
+                foreach (var item in items)
                 {
                     inputQueue.Add(item);
                 }
@@ -493,7 +396,7 @@ namespace Sharphound2.Enumeration
 
                     switch (_options.CollectMethod)
                     {
-                        case CollectionMethod.ObjectProperties:
+                        case CollectionMethod.ObjectProps:
                             {
                                 OutputBase props;
                                 if (resolved.ObjectType.Equals("computer"))
@@ -690,62 +593,8 @@ namespace Sharphound2.Enumeration
                                 {
                                     break;
                                 }
-                            
-                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                                {
-                                    Interlocked.Increment(ref _noPing);
-                                    break;
-                                }
 
-                                try
-                                {
-                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
-
-                                    foreach (var admin in admins)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = admin });
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-
-                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
-                                {
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-
-                                    foreach (var session in sessions)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-                            }
-                        break;
-                        case CollectionMethod.All:
-                            {
-                                var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
-                                foreach (var g in groups)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = g });
-                                }
-
-                                var acls = AclHelpers.ProcessAdObject(entry, _currentDomain);
-                                foreach (var a in acls)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = a });
-                                }
-
-                                if (!resolved.ObjectType.Equals("computer"))
+                                if (_options.Ou != null && !entry.DistinguishedName.Contains(_options.Ou))
                                 {
                                     break;
                                 }
@@ -848,7 +697,7 @@ namespace Sharphound2.Enumeration
                             var exists = File.Exists(f);
                             userprops = new StreamWriter(f, exists);
                             if (!exists)
-                                userprops.WriteLine("AccountName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory");
+                                userprops.WriteLine("AccountName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames");
                         }
                         userprops.WriteLine(item.ToCsv());
                         userPropsCount++;
@@ -961,29 +810,46 @@ namespace Sharphound2.Enumeration
             return factory.StartNew(() =>
             {
                 var objectCount = 0;
-                var coll = new RestOutput();
 
-                foreach (var obj in output.GetConsumingEnumerable())
+                using (var client = new WebClient())
                 {
-                    var item = obj.Item;
+                    client.Headers.Add("content-type", "application/json");
+                    client.Headers.Add("Accept", "application/json; charset=UTF-8");
+                    client.Headers.Add("Authorization", _options.GetEncodedUserPass());
 
-                    coll.AddNewData(item.TypeHash(), item.ToParam());
-                    obj.Item = null;
+                    var coll = new RestOutput();
+                    var serializer = new JavaScriptSerializer();
+
+                    foreach (var obj in output.GetConsumingEnumerable())
+                    {
+                        var item = obj.Item;
+
+                        if (item is DomainTrust)
+                        {
+                            var temp = item as DomainTrust;
+                            foreach (var x in temp.ToMultipleParam())
+                            {
+                                coll.AddNewData(temp.TypeHash(), x);
+                            }
+                        }
+                        else
+                        {
+                            coll.AddNewData(item.TypeHash(), item.ToParam());
+                        }
+                        
+                        obj.Item = null;
+                        objectCount++;
+
+                        if (objectCount % 500 != 0) continue;
+                        var data = serializer.Serialize(coll.GetStatements());
+                        client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(data));
+                        coll.Reset();
+                    }
+                    var remainingData = serializer.Serialize(coll.GetStatements());
+                    var responseArray = client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
+                    Console.WriteLine(Encoding.ASCII.GetString(responseArray));
+
                 }
-
-                coll.GetStatements();
-
-                //using (var client = new WebClient())
-                //{
-                //    client.Headers.Add("content-type", "application/json");
-                //    client.Headers.Add("Accept", "application/json; charset=UTF-8");
-                //    client.Headers.Add("Authorization", _options.GetEncodedUserPass());
-
-                //    var serializer = new JavaScriptSerializer();
-                //}
-
-
-
             }, TaskCreationOptions.LongRunning);
         }
     }

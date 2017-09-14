@@ -72,6 +72,7 @@
     <Compile Include="Enumeration\DomainTrustEnumeration.cs" />
     <Compile Include="Enumeration\EnumerationRunner.cs" />
     <Compile Include="Enumeration\GroupHelpers.cs" />
+    <Compile Include="Enumeration\LdapFilter.cs" />
     <Compile Include="Enumeration\LocalAdminHelpers.cs" />
     <Compile Include="Enumeration\MappedPrincipal.cs" />
     <Compile Include="Enumeration\ResolvedEntry.cs" />

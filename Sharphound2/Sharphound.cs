@@ -1,10 +1,8 @@
 ﻿using CommandLine;
 using Sharphound2.Enumeration;
 using System;
-using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -28,6 +26,9 @@ namespace Sharphound2
 
             [Option('s',HelpText ="Search the entire forest", DefaultValue = false, MutuallyExclusiveSet = "DomainOption")]
             public bool SearchForest { get; set; }
+
+            [Option(DefaultValue = null)]
+            public string Ou { get; set; }
 
             [Option('t',HelpText ="Number of Threads to use", DefaultValue =10)]
             public int Threads { get; set; }
@@ -127,6 +128,9 @@ Enumeration Options:
     --Stealth
         Use stealth collection options
 
+    --Ou (Default: null)
+        Ou to limit computer enumeration too. Requires a DistinguishedName (OU=Domain Controllers,DC=contoso,DC=local)
+
     --ExcludeDC
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
    
@@ -212,6 +216,16 @@ General Options
                 return Convert.ToBase64String(plainTextBytes);
             }
 
+            public string GetURI()
+            {
+                return $"http://{Uri}/db/data/transaction/commit";
+            }
+
+            public string GetCheckURI()
+            {
+                return $"http://{Uri}/db/data/";
+            }
+
         }
 
         public static void Main(string[] args)
@@ -225,12 +239,6 @@ General Options
             {
                 return;
             }
-
-            //AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
-            //{
-            //    Console.WriteLine(eventArgs.ExceptionObject);
-            //};
-
 
             if (options.MaxLoopTime != null && options.CollectMethod.Equals(SessionLoop))
             {
@@ -268,8 +276,6 @@ General Options
                         case "d":
                             now = now.AddDays(num);
                             drift += num * 60 * 60 * 24;
-                            break;
-                        default:
                             break;
                     }
                 }

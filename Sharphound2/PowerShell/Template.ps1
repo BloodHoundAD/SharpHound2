@@ -45,6 +45,11 @@ function Invoke-BloodHound{
         Use stealth collection options, will sacrifice data quality in favor of much reduced
         network impact
 
+    .PARAMETER Ou
+
+        Limit computer enumeration to this OU. Takes a DistinguishedName.
+        Ex. OU=Domain Controllers,DC=testlab,DC=local
+
     .PARAMETER ExcludeDC
 
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
@@ -145,7 +150,8 @@ function Invoke-BloodHound{
     
         Executes session collection in a loop. Will wait 1 minute after each run to continue collection
         and will continue running for 10 minutes after which the script will exit
-#>
+    #>
+
     param(
         [String]
         [ValidateSet('Group', 'ComputerOnly', 'LocalGroup', 'GPOLocalGroup', 'Session', 'LoggedOn', 'Trusts', 'Cache','ACL', 'SessionLoop', 'Default', 'All')]
@@ -174,6 +180,9 @@ function Invoke-BloodHound{
 
         [Switch]
         $Stealth,
+
+        [String]
+        $Ou,
 
         [ValidateRange(50,1500)]
         [int]

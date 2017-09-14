@@ -28,51 +28,48 @@ namespace Sharphound2.OutputObjects
 
         public override string TypeHash()
         {
-            return "Trust";
+            return "domain|Trust|domain";
         }
 
-        internal List<object> ToMultipleParam()
+        internal IEnumerable<object> ToMultipleParam()
         {
-            var r = new List<object>();
             switch (TrustDirection)
             {
                 case "Inbound":
-                    r.Add(new
+                    yield return new
                     {
-                        domain1 = TargetDomain,
-                        domain2 = SourceDomain,
+                        a = TargetDomain,
+                        b = SourceDomain,
                         trusttype = TrustType,
                         transitive = IsTransitive
-                    });
+                    };
                     break;
                 case "Outbound":
-                    r.Add(new
+                    yield return new
                     {
-                        domain1 = SourceDomain,
-                        domain2 = TargetDomain,
+                        a = SourceDomain,
+                        b = TargetDomain,
                         trusttype = TrustType,
                         transitive = IsTransitive
-                    });
+                    };
                     break;
                 default:
-                    r.Add(new
+                    yield return new
                     {
-                        domain1 = SourceDomain,
-                        domain2 = TargetDomain,
+                        a = SourceDomain,
+                        b = TargetDomain,
                         trusttype = TrustType,
                         transitive = IsTransitive
-                    });
-                    r.Add(new
+                    };
+                    yield return new
                     {
-                        domain1 = TargetDomain,
-                        domain2 = SourceDomain,
+                        a = TargetDomain,
+                        b = SourceDomain,
                         trusttype = TrustType,
                         transitive = IsTransitive
-                    });
+                    };
                     break;
             }
-
-            return r;
         }
     }
 }

@@ -255,6 +255,7 @@ namespace Sharphound2
             {
                 if (conn == null)
                 {
+                    Verbose("Unable to contact LDAP");
                     yield break;
                 }
                 var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
@@ -268,7 +269,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL) || _options.CollectMethod.Equals(CollectionMethod.All))
+                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
@@ -327,7 +328,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL) || _options.CollectMethod.Equals(CollectionMethod.All))
+                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };

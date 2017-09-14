@@ -15,7 +15,7 @@ namespace Sharphound2.OutputObjects
             _collection = new Dictionary<string, List<object>>();
         }
 
-        internal void GetStatements()
+        internal object GetStatements()
         {
             var tempStatements = new List<object>();
             foreach (var key in _collection.Keys)
@@ -29,11 +29,11 @@ namespace Sharphound2.OutputObjects
                 if (reltype.Equals("HasSession"))
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype} {{Weight:prop.weight}}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{Weight:prop.weight}}]->(b)";
                 }else if (reltype.Equals("Trust"))
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive}}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive}}]->(b)";
                 }
                 else
                 {
@@ -57,8 +57,11 @@ namespace Sharphound2.OutputObjects
             {
                 statements[i] = tempStatements[i];
             }
-            var serializer = new JavaScriptSerializer();
-            Console.WriteLine(serializer.Serialize(statements));
+            return new
+            {
+                statements = statements
+            };
+            //return statements;
         }
 
         internal void AddNewData(string hash, object data)

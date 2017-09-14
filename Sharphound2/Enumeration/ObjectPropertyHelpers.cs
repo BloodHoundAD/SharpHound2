@@ -67,6 +67,9 @@ namespace Sharphound2.Enumeration
             var history = entry.GetPropBytes("sidhistory");
             var lastlogon = entry.GetProp("lastlogon");
             var pwdlastset = entry.GetProp("pwdlastset");
+            var spn = entry.GetPropArray("serviceprincipalname");
+            var hasSpn = spn.Length != 0;
+            var spnString = string.Join("|", spn);
             var convertedlogon = ConvertToUnixEpoch(lastlogon);
             var convertedlastset = ConvertToUnixEpoch(pwdlastset);
             var sid = entry.GetSid();
@@ -79,7 +82,9 @@ namespace Sharphound2.Enumeration
                 LastLogon = convertedlogon,
                 ObjectSid = sid,
                 PwdLastSet = convertedlastset,
-                SidHistory = sidhistory
+                SidHistory = sidhistory,
+                HasSpn = hasSpn,
+                ServicePrincipalNames = spnString
             };
         }
 
