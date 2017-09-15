@@ -314,7 +314,7 @@ namespace Sharphound2.Enumeration
                 IEnumerable<Wrapper<SearchResultEntry>> items;
 
                 if ((c.Equals(CollectionMethod.ComputerOnly) || c.Equals(CollectionMethod.Session) ||
-                     c.Equals(CollectionMethod.LocalGroup)) && _options.Ou != null)
+                     c.Equals(CollectionMethod.LocalGroup) || c.Equals(CollectionMethod.LoggedOn)) && _options.Ou != null)
                 {
                     items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName, _options.Ou);
                 }
