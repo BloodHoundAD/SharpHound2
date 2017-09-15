@@ -46,6 +46,14 @@ namespace Sharphound2
             }
         }
 
+        public static void Debug(string write)
+        {
+            if (_options.Debug)
+            {
+                Console.WriteLine(write);
+            }
+        }
+
         public Utils(Sharphound.Options cli)
         {
             _options = cli;

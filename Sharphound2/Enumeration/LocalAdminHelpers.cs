@@ -52,14 +52,17 @@ namespace Sharphound2.Enumeration
 
         private static SamEnumerationObject[] NetLocalGroupGetMembers(ResolvedEntry entry, out string machineSid)
         {
+            Utils.Debug("Starting NetLocalGroupGetMembers");
             var server = new UNICODE_STRING(entry.BloodHoundDisplay);
             //Connect to the server with the proper access maskes. This gives us our server handle
-            
-            var status = SamConnect(server, out var serverHandle,
+            var obj = default(OBJECT_ATTRIBUTES);
+
+            Utils.Debug($"Starting SamConnect");
+            var status = SamConnect(ref server, out var serverHandle,
                 SamAccessMasks.SamServerLookupDomain |
-                SamAccessMasks.SamServerEnumerateDomains, false);
+                SamAccessMasks.SamServerEnumerateDomains, ref obj);
 
-
+            Utils.Debug($"SamConnect returned {status}");
             switch (status)
             {
                 case NtStatus.StatusRpcServerUnavailable:
@@ -70,6 +73,8 @@ namespace Sharphound2.Enumeration
                 default:
                     throw new ApiFailedException();
             }
+
+            Utils.Debug($"Starting SamLookupDomainInSamServer");
 
             //Use SamLookupDomainInServer with the hostname to find the machine sid if possible
             try
@@ -83,18 +88,23 @@ namespace Sharphound2.Enumeration
             {
                 machineSid = "DUMMYSTRINGSHOULDNOTMATCH";
             }
-            
 
+            Utils.Debug($"Resolved Machine Sid {machineSid}");
+
+            Utils.Debug($"Starting SamOpenDomain");
             //Open the domain for the S-1-5-32 (BUILTIN) alias
             status = SamOpenDomain(serverHandle, DomainAccessMask.Lookup | DomainAccessMask.ListAccounts, _sidbytes, out var domainHandle);
+            Utils.Debug($"SamOpenDomain returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(serverHandle);
                 throw new ApiFailedException();
             }
 
+            Utils.Debug($"Starting SamOpenAlias");
             //Open the alias for Local Administrators (always RID 544)
             status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out var aliasHandle);
+            Utils.Debug($"SamOpenAlias returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(domainHandle);
@@ -102,8 +112,10 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
+            Utils.Debug($"Starting SamGetMembersInAlias");
             //Get the members in the alias. This returns a list of SIDs
             status = SamGetMembersInAlias(aliasHandle, out var members, out var count);
+            Utils.Debug($"SamGetMembersInAlias returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 SamCloseHandle(aliasHandle);
@@ -112,6 +124,7 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
+            Utils.Debug($"Cleaning up handles");
             SamCloseHandle(aliasHandle);
             SamCloseHandle(domainHandle);
             SamCloseHandle(serverHandle);
@@ -122,6 +135,7 @@ namespace Sharphound2.Enumeration
                 return new SamEnumerationObject[0];
             }
 
+            Utils.Debug($"Copying data");
             //Copy the data of our sids to a new array so it doesn't get eaten
             var grabbedSids = new IntPtr[count];
             Marshal.Copy(members, grabbedSids, 0, count);
@@ -134,10 +148,12 @@ namespace Sharphound2.Enumeration
                 sids[i] = new SecurityIdentifier(grabbedSids[i]).Value;
             }
 
+            Utils.Debug($"Starting LsaOpenPolicy");
             //Open the LSA policy on the target machine
-            status = LsaOpenPolicy(server, default(OBJECT_ATTRIBUTES),
+            var obja = default(OBJECT_ATTRIBUTES);
+            status = LsaOpenPolicy(ref server, ref obja,
                 LsaOpenMask.ViewLocalInfo | LsaOpenMask.LookupNames, out var policyHandle);
-            
+            Utils.Debug($"LSAOpenPolicy returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess))
             {
                 LsaClose(policyHandle);
@@ -145,10 +161,11 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
+            Utils.Debug($"Starting LSALookupSids");
             //Call LsaLookupSids using the sids we got from SamGetMembersInAlias
             status = LsaLookupSids(policyHandle, count, members, out var domainList,
                 out var nameList);
-
+            Utils.Debug($"LSALookupSids returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess) && !status.Equals(NtStatus.StatusSomeMapped))
             {
                 LsaClose(policyHandle);
@@ -158,15 +175,18 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
+            Utils.Debug($"Finished API calls");
             //Convert the returned names into structures
             var iter = nameList;
             var translatedNames = new LsaTranslatedNames[count];
+            Utils.Debug($"Resolving names");
             for (var i = 0; i < count; i++)
             {
                 translatedNames[i] = (LsaTranslatedNames)Marshal.PtrToStructure(iter, typeof(LsaTranslatedNames));
                 iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LsaTranslatedNames)));
             }
 
+            Utils.Debug($"Resolving domains");
             //Convert the returned domain list to a structure
             var lsaDomainList =
                 (LsaReferencedDomainList)(Marshal.PtrToStructure(domainList, typeof(LsaReferencedDomainList)));
@@ -180,6 +200,7 @@ namespace Sharphound2.Enumeration
                 iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LsaTrustInformation)));
             }
 
+            Utils.Debug($"Matching up data");
             var resolvedObjects = new SamEnumerationObject[translatedNames.Length];
 
             //Match up sids, domain names, and account names
@@ -200,18 +221,21 @@ namespace Sharphound2.Enumeration
                     };
             }
 
+            Utils.Debug($"Cleaning up");
             //Cleanup
             SamFreeMemory(members);
             LsaFreeMemory(domainList);
             LsaFreeMemory(nameList);
             LsaClose(policyHandle);
-
+            Utils.Debug($"Done NetLocalGroupGetMembers");
             return resolvedObjects;
         }
 
         public static IEnumerable<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
         {
+            Utils.Debug("Starting GetSamAdmins");
             string machineSid = null;
+            Utils.Debug("Starting Task");
             var t = Task<SamEnumerationObject[]>.Factory.StartNew(() =>
             {
                 try
@@ -230,28 +254,48 @@ namespace Sharphound2.Enumeration
 
             var success = t.Wait(Timeout);
 
+            Utils.Debug("Task Finished");
+
             if (!success)
             {
+                Utils.Debug("SamAdmin Timeout");
                 throw new TimeoutException();
             }
 
+            Utils.Debug("SamAdmin success");
             var resolvedObjects = t.Result;
 
             if (resolvedObjects.Length == 0)
+            {
+                Utils.Debug("SamAdmins returned 0 objects");
                 yield break;
+            }
 
+            Utils.Debug("Processing data");
             //Process our list of stuff now
             foreach (var data in resolvedObjects)
             {
                 var sid = data?.AccountSid;
+                Utils.Debug($"Processing sid: {sid}");
                 if (sid == null)
+                {
+                    Utils.Debug("Null sid");
                     continue;
+                }
 
                 if (data.AccountName.Equals(string.Empty))
+                {
+                    Utils.Debug("Empty AccountName");
                     continue;
+                }
+                    
 
                 if (sid.StartsWith(machineSid))
+                {
+                    Utils.Debug("Local Account");
                     continue;
+                }
+                    
 
                 string type;
                 switch (data.SidUsage)
@@ -281,20 +325,27 @@ namespace Sharphound2.Enumeration
 
                 string resolvedName;
 
+                Utils.Debug($"Object Type: {type}");
+
                 if (type.Equals("unknown"))
                 {
+                    Utils.Debug("Resolving Sid to object");
                     var mp = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid),
                         AdminProps);
                     if (mp == null)
                         continue;
+
+                    Utils.Debug($"Got Object: {mp.PrincipalName}");
                     resolvedName = mp.PrincipalName;
                     type = mp.ObjectType;
                 }
                 else
                 {
+                    Utils.Debug("Resolving Sid to Object");
                     resolvedName = _utils.SidToDisplay(sid, _utils.SidToDomainName(sid), AdminProps, type);
                     if (resolvedName == null)
                         continue;
+                    Utils.Debug($"Got Object: {resolvedName}");
                 }
 
                 yield return new LocalAdmin
@@ -628,8 +679,8 @@ namespace Sharphound2.Enumeration
 
         [DllImport("advapi32.dll")]
         private static extern NtStatus LsaOpenPolicy(
-            UNICODE_STRING server,
-            OBJECT_ATTRIBUTES objectAttributes,
+            ref UNICODE_STRING server,
+            ref OBJECT_ATTRIBUTES objectAttributes,
             LsaOpenMask desiredAccess,
             out IntPtr policyHandle
         );
@@ -727,10 +778,10 @@ namespace Sharphound2.Enumeration
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
         private static extern NtStatus SamConnect(
-            UNICODE_STRING serverName,
+            ref UNICODE_STRING serverName,
             out IntPtr serverHandle,
             SamAccessMasks desiredAccess,
-            bool objectAttributes
+            ref OBJECT_ATTRIBUTES objectAttributes
             );
 
         //[DllImport("samlib.dll", CharSet = CharSet.Unicode)]

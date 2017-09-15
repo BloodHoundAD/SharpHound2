@@ -23,20 +23,35 @@ namespace Sharphound2
             //0 is a successful DNS lookup
             if (result == 0)
             {
-                var record = (TypeADnsRecord)Marshal.PtrToStructure(results, typeof(TypeADnsRecord));
-                //Get the name from the record
-                name = Marshal.PtrToStringUni(record.name);
-                //Free the memory we grabbed
-                DnsRecordListFree(results, DnsFreeType.DnsFreeFlat);
-                return true;
+                try
+                {
+                    var record = (TypeADnsRecord) Marshal.PtrToStructure(results, typeof(TypeADnsRecord));
+                    //Get the name from the record
+                    name = Marshal.PtrToStringUni(record.name);
+                    //Free the memory we grabbed
+                    DnsRecordListFree(results, DnsFreeType.DnsFreeFlat);
+                    return true;
+                }
+                catch
+                {
+                    // ignored
+                }
             }
             result = DnsQuery(host, DnsType.TypeAaaa, 2176uL, ref zero, out results, zero2);
             if (result == 0)
             {
-                var record = (TypeADnsRecord)Marshal.PtrToStructure(results, typeof(TypeADnsRecord));
-                name = Marshal.PtrToStringUni(record.name);
-                DnsRecordListFree(results, DnsFreeType.DnsFreeFlat);
-                return true;
+                try
+                {
+                    var record = (TypeADnsRecord) Marshal.PtrToStructure(results, typeof(TypeADnsRecord));
+                    name = Marshal.PtrToStringUni(record.name);
+                    DnsRecordListFree(results, DnsFreeType.DnsFreeFlat);
+                    return true;
+                }
+                catch
+                {
+                    //ignored
+                }
+                
             }
             //Make sure the memory is freed. Neither ipv4 or ipv6 succeeded so return false
             //This host probably doesn't have a matching DNS entry, or at least not one we can find

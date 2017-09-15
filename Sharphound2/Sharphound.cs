@@ -30,6 +30,9 @@ namespace Sharphound2
             [Option(DefaultValue = null)]
             public string Ou { get; set; }
 
+            [Option(DefaultValue=null)]
+            public string ComputerFile { get; set; }
+
             [Option('t',HelpText ="Number of Threads to use", DefaultValue =10)]
             public int Threads { get; set; }
 
@@ -93,6 +96,9 @@ namespace Sharphound2
             [Option(DefaultValue = null)]
             public string DomainController { get; set; }
             
+            [Option(DefaultValue = false)]
+            public bool Debug { get; set; }
+
             [ParserState]
             public IParserState LastParserState { get; set; }
 
@@ -238,6 +244,12 @@ General Options
             if (!Parser.Default.ParseArguments(args, options))
             {
                 return;
+            }
+
+            if (options.Debug)
+            {
+                Console.WriteLine("Debug Mode activated!");
+                options.Threads = 1;
             }
 
             if (options.MaxLoopTime != null && options.CollectMethod.Equals(SessionLoop))
