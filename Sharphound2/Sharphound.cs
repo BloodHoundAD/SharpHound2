@@ -300,7 +300,13 @@ General Options
                     return;
                 }
             }
-            
+
+            if (options.Test != null)
+            {
+                Test.DoStuff(options.Test);
+                return;
+            }
+
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
             var nowtime = DateTime.Now;
             Console.WriteLine($"Initializing BloodHound at {nowtime.ToShortTimeString()} on {nowtime.ToShortDateString()}");
@@ -319,11 +325,7 @@ General Options
             AclHelpers.Init();
             DomainTrustEnumeration.Init();
 
-            if (options.Test != null)
-            {
-                Test.DoStuff(options.Test);
-                return;
-            }
+            
 
             //Lets test our connection to LDAP before we do anything else
             try

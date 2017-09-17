@@ -84,6 +84,14 @@ namespace Sharphound2
             return dnsHostName;
         }
 
+        public static string GetComputerNetbiosName(string server)
+        {
+            var result = NetWkstaGetInfo(server, 100, out var buf);
+            if (result != 0) return null;
+            var marshalled = (WorkstationInfo100) Marshal.PtrToStructure(buf, typeof(WorkstationInfo100));
+            return marshalled.computer_name;
+        }
+
         public bool PingHost(string hostName)
         {
             if (_options.SkipPing)
@@ -796,6 +804,21 @@ namespace Sharphound2
         }
 
         #region PINVOKE
+        [DllImport("netapi32.dll", SetLastError = true)]
+        private static extern int NetWkstaGetInfo([MarshalAs(UnmanagedType.LPWStr)]string servername, uint level, out IntPtr bufPtr);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct WorkstationInfo100
+        {
+            public int platform_id;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string computer_name;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string lan_group;
+            public int ver_major;
+            public int ver_minor;
+        }
+
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct DOMAIN_CONTROLLER_INFO
         {

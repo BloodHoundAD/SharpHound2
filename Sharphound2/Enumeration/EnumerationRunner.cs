@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -24,7 +25,6 @@ namespace Sharphound2.Enumeration
         private string _currentDomainSid;
         private string _currentDomain;
         private Stopwatch _watch;
-        private readonly DateTime _loopEndTime;
 
         private int _noPing;
         private int _timeouts;
@@ -57,8 +57,8 @@ namespace Sharphound2.Enumeration
         {
             var output = new BlockingCollection<Wrapper<OutputBase>>();
             var writer = _options.Uri == null
-                ? StartOutputWriter(Task.Factory, output)
-                : StartRestWriter(Task.Factory, output);
+                ? StartOutputWriter(output)
+                : StartRestWriter(output);
 
             foreach (var domainName in _utils.GetDomainList())
             {
@@ -287,8 +287,8 @@ namespace Sharphound2.Enumeration
                 var taskhandles = new Task[_options.Threads];
 
                 var writer = _options.Uri == null
-                    ? StartOutputWriter(Task.Factory, outputQueue)
-                    : StartRestWriter(Task.Factory, outputQueue);
+                    ? StartOutputWriter(outputQueue)
+                    : StartRestWriter(outputQueue);
 
                 if (c.Equals(CollectionMethod.Trusts) ||
                     c.Equals(CollectionMethod.Default))
@@ -306,7 +306,7 @@ namespace Sharphound2.Enumeration
 
                 for (var i = 0; i < _options.Threads; i++)
                 {
-                    taskhandles[i] = StartRunner(Task.Factory, inputQueue, outputQueue);
+                    taskhandles[i] = StartRunner(inputQueue, outputQueue);
                 }
 
                 _statusTimer.Start();
@@ -376,9 +376,9 @@ namespace Sharphound2.Enumeration
             StartEnumeration();
         }
 
-        public Task StartRunner(TaskFactory factory, BlockingCollection<Wrapper<SearchResultEntry>> processQueue, BlockingCollection<Wrapper<OutputBase>> writeQueue)
+        private Task StartRunner(BlockingCollection<Wrapper<SearchResultEntry>> processQueue, BlockingCollection<Wrapper<OutputBase>> writeQueue)
         {
-            return factory.StartNew(() =>
+            return Task.Factory.StartNew(() =>
             {
                 foreach (var wrapper in processQueue.GetConsumingEnumerable())
                 {
@@ -648,9 +648,66 @@ namespace Sharphound2.Enumeration
             }, TaskCreationOptions.LongRunning);
         }
 
-        private Task StartOutputWriter(TaskFactory factory, BlockingCollection<Wrapper<OutputBase>> output)
+        private Task StartCompListRunner(BlockingCollection<Wrapper<string>> input,
+            BlockingCollection<Wrapper<OutputBase>> output)
         {
-            return factory.StartNew(() =>
+            return Task.Factory.StartNew(() =>
+            {
+                foreach (var wrapper in input.GetConsumingEnumerable())
+                {
+                    var item = wrapper.Item;
+
+                    if (!DnsManager.HostExistsDns(item, out var resolved) || resolved == null)
+                    {
+                        wrapper.Item = null;
+                        continue;
+                    }
+
+                    if (!_utils.PingHost(resolved))
+                        continue;
+
+                    var netbios = Utils.GetComputerNetbiosName(resolved);
+
+                    var fullItem = new ResolvedEntry
+                    {
+                        BloodHoundDisplay = resolved,
+                        ComputerSamAccountName = netbios
+                    };
+
+                    var c = _options.CollectMethod;
+
+                    if (c.Equals(CollectionMethod.Session) ||
+                        c.Equals(CollectionMethod.SessionLoop) ||
+                        c.Equals(CollectionMethod.ComputerOnly))
+                    {
+                        var sessions = SessionHelpers.GetNetSessions(fullItem, _currentDomain);
+                        foreach (var session in sessions)
+                            output.Add(new Wrapper<OutputBase>{Item = session});
+                    }
+
+                    if (c.Equals(CollectionMethod.LocalGroup))
+                    {
+                        var admins = LocalAdminHelpers.GetSamAdmins(fullItem);
+                        foreach (var admin in admins)
+                            output.Add(new Wrapper<OutputBase> {Item = admin});
+                    }
+
+                    if (c.Equals(CollectionMethod.LoggedOn))
+                    {
+                        var sessions = SessionHelpers.GetNetLoggedOn(fullItem, _currentDomain);
+                        sessions = sessions.Concat(SessionHelpers.GetRegistryLoggedOn(fullItem));
+
+                        foreach (var session in sessions)
+                            output.Add(new Wrapper<OutputBase> {Item = session});
+                    }
+                }
+                
+            });
+        }
+
+        private Task StartOutputWriter(BlockingCollection<Wrapper<OutputBase>> output)
+        {
+            return Task.Factory.StartNew(() =>
             {
                 var adminCount = 0;
                 var sessionCount = 0;
@@ -805,9 +862,9 @@ namespace Sharphound2.Enumeration
             }, TaskCreationOptions.LongRunning);
         }
 
-        private Task StartRestWriter(TaskFactory factory, BlockingCollection<Wrapper<OutputBase>> output)
+        private Task StartRestWriter(BlockingCollection<Wrapper<OutputBase>> output)
         {
-            return factory.StartNew(() =>
+            return Task.Factory.StartNew(() =>
             {
                 var objectCount = 0;
 
