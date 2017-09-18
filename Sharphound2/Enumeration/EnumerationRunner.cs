@@ -282,74 +282,117 @@ namespace Sharphound2.Enumeration
                 _currentDomainSid = _utils.GetDomainSid(domainName);
                 _currentCount = 0;
                 var outputQueue = new BlockingCollection<Wrapper<OutputBase>>();
-                var inputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
 
-                var taskhandles = new Task[_options.Threads];
-
-                var writer = _options.Uri == null
-                    ? StartOutputWriter(outputQueue)
-                    : StartRestWriter(outputQueue);
-
-                if (c.Equals(CollectionMethod.Trusts) ||
-                    c.Equals(CollectionMethod.Default))
+                if (_options.ComputerFile == null)
                 {
-                    foreach (var domain in DomainTrustEnumeration.DoTrustEnumeration(domainName))
+                    var inputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
+
+                    var taskhandles = new Task[_options.Threads];
+
+                    var writer = _options.Uri == null
+                        ? StartOutputWriter(outputQueue)
+                        : StartRestWriter(outputQueue);
+
+                    if (c.Equals(CollectionMethod.Trusts) ||
+                        c.Equals(CollectionMethod.Default))
                     {
-                        outputQueue.Add(new Wrapper<OutputBase> { Item = domain });
+                        foreach (var domain in DomainTrustEnumeration.DoTrustEnumeration(domainName))
+                        {
+                            outputQueue.Add(new Wrapper<OutputBase> {Item = domain});
+                        }
+                        if (_options.CollectMethod.Equals(CollectionMethod.Trusts))
+                        {
+                            outputQueue.CompleteAdding();
+                            continue;
+                        }
                     }
-                    if (_options.CollectMethod.Equals(CollectionMethod.Trusts))
+
+                    for (var i = 0; i < _options.Threads; i++)
                     {
-                        outputQueue.CompleteAdding();
-                        continue;
+                        taskhandles[i] = StartRunner(inputQueue, outputQueue);
                     }
-                }
 
-                for (var i = 0; i < _options.Threads; i++)
-                {
-                    taskhandles[i] = StartRunner(inputQueue, outputQueue);
-                }
+                    _statusTimer.Start();
 
-                _statusTimer.Start();
+                    IEnumerable<Wrapper<SearchResultEntry>> items;
 
-                IEnumerable<Wrapper<SearchResultEntry>> items;
+                    if ((c.Equals(CollectionMethod.ComputerOnly) || c.Equals(CollectionMethod.Session) ||
+                         c.Equals(CollectionMethod.LocalGroup) || c.Equals(CollectionMethod.LoggedOn)) &&
+                        _options.Ou != null)
+                    {
+                        items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName, _options.Ou);
+                    }
+                    else
+                    {
+                        items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName);
+                    }
 
-                if ((c.Equals(CollectionMethod.ComputerOnly) || c.Equals(CollectionMethod.Session) ||
-                     c.Equals(CollectionMethod.LocalGroup) || c.Equals(CollectionMethod.LoggedOn)) && _options.Ou != null)
-                {
-                    items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName, _options.Ou);
+                    foreach (var item in items)
+                    {
+                        inputQueue.Add(item);
+                    }
+
+                    inputQueue.CompleteAdding();
+                    Utils.Verbose("Waiting for enumeration threads to finish");
+                    Task.WaitAll(taskhandles);
+
+                    _statusTimer.Stop();
+
+                    if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                    {
+                        foreach (var a in AclHelpers.GetSyncers())
+                        {
+                            outputQueue.Add(new Wrapper<OutputBase> {Item = a});
+                        }
+                        AclHelpers.ClearSyncers();
+                    }
+                    PrintStatus();
+                    outputQueue.CompleteAdding();
+                    Utils.Verbose("Waiting for writer thread to finish");
+                    writer.Wait();
+                    _watch.Stop();
+                    Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
+                    Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                    _watch = null;
                 }
                 else
                 {
-                    items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName);
-                }
+                    var inputQueue = new BlockingCollection<Wrapper<string>>(1000);
 
-                foreach (var item in items)
-                {
-                    inputQueue.Add(item);
-                }
+                    var taskhandles = new Task[_options.Threads];
 
-                inputQueue.CompleteAdding();
-                Utils.Verbose("Waiting for enumeration threads to finish");
-                Task.WaitAll(taskhandles);
+                    var writer = _options.Uri == null ? StartOutputWriter(outputQueue) : StartRestWriter(outputQueue);
 
-                _statusTimer.Stop();
-
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
-                {
-                    foreach (var a in AclHelpers.GetSyncers())
+                    for (var i = 0; i < _options.Threads; i++)
                     {
-                        outputQueue.Add(new Wrapper<OutputBase> {Item = a});
+                        taskhandles[i] = StartCompListRunner(inputQueue, outputQueue);
                     }
-                    AclHelpers.ClearSyncers();
+
+                    _statusTimer.Start();
+
+                    using (var reader = new StreamReader(_options.ComputerFile))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            inputQueue.Add(new Wrapper<string> {Item = line});
+                        }
+                        inputQueue.CompleteAdding();
+                    }
+                    Utils.Verbose("Waiting for enumeration threads to finish");
+                    Task.WaitAll(taskhandles);
+
+                    _statusTimer.Stop();
+                    PrintStatus();
+                    outputQueue.CompleteAdding();
+                    Utils.Verbose("Waiting for writer thread to finish");
+                    writer.Wait();
+                    _watch.Stop();
+                    Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
+                    Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                    _watch = null;
                 }
-                PrintStatus();
-                outputQueue.CompleteAdding();
-                Utils.Verbose("Waiting for writer thread to finish");
-                writer.Wait();
-                _watch.Stop();
-                Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
-                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
-                _watch = null;
+                
             }
 
             if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
@@ -657,14 +700,14 @@ namespace Sharphound2.Enumeration
                 {
                     var item = wrapper.Item;
 
-                    if (!DnsManager.HostExistsDns(item, out var resolved) || resolved == null)
-                    {
-                        wrapper.Item = null;
-                        continue;
-                    }
+                    var resolved = _utils.ResolveHost(item);
 
                     if (!_utils.PingHost(resolved))
+                    {
+                        Interlocked.Increment(ref _currentCount);
+                        Interlocked.Increment(ref _noPing);
                         continue;
+                    }
 
                     var netbios = Utils.GetComputerNetbiosName(resolved);
 
@@ -680,16 +723,31 @@ namespace Sharphound2.Enumeration
                         c.Equals(CollectionMethod.SessionLoop) ||
                         c.Equals(CollectionMethod.ComputerOnly))
                     {
-                        var sessions = SessionHelpers.GetNetSessions(fullItem, _currentDomain);
-                        foreach (var session in sessions)
-                            output.Add(new Wrapper<OutputBase>{Item = session});
+                        try
+                        {
+                            var sessions = SessionHelpers.GetNetSessions(fullItem, _currentDomain);
+                            foreach (var session in sessions)
+                                output.Add(new Wrapper<OutputBase> {Item = session});
+                        }
+                        catch (TimeoutException)
+                        {
+                            Interlocked.Increment(ref _timeouts);
+                        }
+                        
                     }
 
-                    if (c.Equals(CollectionMethod.LocalGroup))
+                    if (c.Equals(CollectionMethod.LocalGroup) || c.Equals(CollectionMethod.ComputerOnly))
                     {
-                        var admins = LocalAdminHelpers.GetSamAdmins(fullItem);
-                        foreach (var admin in admins)
-                            output.Add(new Wrapper<OutputBase> {Item = admin});
+                        try
+                        {
+                            var admins = LocalAdminHelpers.GetSamAdmins(fullItem);
+                            foreach (var admin in admins)
+                                output.Add(new Wrapper<OutputBase> {Item = admin});
+                        }
+                        catch (TimeoutException)
+                        {
+                            Interlocked.Increment(ref _timeouts);
+                        }
                     }
 
                     if (c.Equals(CollectionMethod.LoggedOn))
@@ -700,6 +758,8 @@ namespace Sharphound2.Enumeration
                         foreach (var session in sessions)
                             output.Add(new Wrapper<OutputBase> {Item = session});
                     }
+                    Interlocked.Increment(ref _currentCount);
+                    wrapper.Item = null;
                 }
                 
             });
@@ -881,9 +941,8 @@ namespace Sharphound2.Enumeration
                     {
                         var item = obj.Item;
 
-                        if (item is DomainTrust)
+                        if (item is DomainTrust temp)
                         {
-                            var temp = item as DomainTrust;
                             foreach (var x in temp.ToMultipleParam())
                             {
                                 coll.AddNewData(temp.TypeHash(), x);

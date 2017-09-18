@@ -2,6 +2,7 @@
 using Sharphound2.Enumeration;
 using System;
 using System.DirectoryServices.Protocols;
+using System.IO;
 using System.Linq;
 using System.Security.Principal;
 using System.Text;
@@ -136,6 +137,10 @@ Enumeration Options:
 
     --Ou (Default: null)
         Ou to limit computer enumeration too. Requires a DistinguishedName (OU=Domain Controllers,DC=contoso,DC=local)
+
+    --ComputerFile (Default: null)
+        A file containing a list of computers to enumerate. This option can only be used with the following Collection Methods:
+        Session, SessionLoop, LocalGroup, ComputerOnly, LoggedOn
 
     --ExcludeDC
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
@@ -325,7 +330,22 @@ General Options
             AclHelpers.Init();
             DomainTrustEnumeration.Init();
 
-            
+            if (options.ComputerFile != null)
+            {
+                if (!File.Exists(options.ComputerFile))
+                {
+                    Console.WriteLine("Specified ComputerFile does not exist!");
+                    return;
+                }
+
+                if (!(options.CollectMethod.Equals(Session) || options.CollectMethod.Equals(SessionLoop) ||
+                      options.CollectMethod.Equals(LoggedOn) || options.CollectMethod.Equals(LocalGroup) ||
+                      options.CollectMethod.Equals(ComputerOnly)))
+                {
+                    Console.WriteLine("ComputerFile can only be used with the following collection methods: ComputerOnly, Session, SessionLoop, LocalGroup, LoggedOn");
+                    return;
+                }
+            }
 
             //Lets test our connection to LDAP before we do anything else
             try

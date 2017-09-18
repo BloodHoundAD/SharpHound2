@@ -50,6 +50,11 @@ function Invoke-BloodHound{
         Limit computer enumeration to this OU. Takes a DistinguishedName.
         Ex. OU=Domain Controllers,DC=testlab,DC=local
 
+    .PARAMETER ComputerFile
+
+        A file containing a list of computers to enumerate. This option can only be used with the following Collection Methods:
+        Session, SessionLoop, LocalGroup, ComputerOnly, LoggedOn
+
     .PARAMETER ExcludeDC
 
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
@@ -199,6 +204,12 @@ function Invoke-BloodHound{
         $UserPass,
 
         [String]
+        $Ou,
+
+        [String]
+        $ComputerFile,
+
+        [String]
         [ValidateNotNullOrEmpty()]
         $CacheFile,
 
@@ -338,6 +349,11 @@ function Invoke-BloodHound{
 
     if ($IgnoreLdapCert){
         $vars.Add("--IgnoreLdapCert");
+    }
+
+    if ($Ou){
+        $vars.Add("--Ou");
+        $vars.Add($Ou);
     }
 
     $passed = [string[]]$vars.ToArray()
