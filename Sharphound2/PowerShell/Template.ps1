@@ -204,9 +204,6 @@ function Invoke-BloodHound{
         $UserPass,
 
         [String]
-        $Ou,
-
-        [String]
         $ComputerFile,
 
         [String]
