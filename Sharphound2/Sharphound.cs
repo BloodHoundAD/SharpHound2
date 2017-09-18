@@ -338,6 +338,12 @@ General Options
                     return;
                 }
 
+                if (options.CollectMethod.Equals(Default))
+                {
+                    options.CollectMethod = ComputerOnly;
+                    Console.WriteLine("ComputerFile detected with default enumeration. Switching to ComputerOnly collection method");
+                }
+
                 if (!(options.CollectMethod.Equals(Session) || options.CollectMethod.Equals(SessionLoop) ||
                       options.CollectMethod.Equals(LoggedOn) || options.CollectMethod.Equals(LocalGroup) ||
                       options.CollectMethod.Equals(ComputerOnly)))
