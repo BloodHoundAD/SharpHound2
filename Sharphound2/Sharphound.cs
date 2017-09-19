@@ -34,7 +34,7 @@ namespace Sharphound2
             [Option(DefaultValue=null)]
             public string ComputerFile { get; set; }
 
-            [Option('t',HelpText ="Number of Threads to use", DefaultValue =10)]
+            [Option('t',"Threads",HelpText ="Number of Threads to use", DefaultValue =10)]
             public int Threads { get; set; }
 
             [Option(HelpText = "Folder to drop CSV files", DefaultValue = ".")]
@@ -70,13 +70,13 @@ namespace Sharphound2
             [Option(HelpText = "Don't save the cache file to disk", DefaultValue = false)]
             public bool NoSaveCache { get; set; }
 
-            [Option("LoopTime", DefaultValue = 5, HelpText = "Time in minutes between each session loop")]
+            [Option(DefaultValue = 5, HelpText = "Time in minutes between each session loop")]
             public int LoopTime { get; set; }
 
             [Option(DefaultValue = null)]
             public string MaxLoopTime { get; set; }
 
-            [Option('v',HelpText = "Enable verbose output",DefaultValue = false)]
+            [Option('v',"Verbose",HelpText = "Enable verbose output",DefaultValue = false)]
             public bool Verbose { get; set; }
 
             [Option(HelpText = "Exclude Domain Controllers from search (useful for ATA environments)", DefaultValue = false)]

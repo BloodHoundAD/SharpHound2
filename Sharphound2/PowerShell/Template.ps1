@@ -178,7 +178,7 @@ function Invoke-BloodHound{
 
         [ValidateRange(1,50)]
         [Int]
-        $Threads = 20,
+        $Threads = 10,
 
         [Switch]
         $SkipGCDeconfliction,
@@ -191,7 +191,7 @@ function Invoke-BloodHound{
 
         [ValidateRange(50,1500)]
         [int]
-        $PingTimeout = 750,
+        $PingTimeout = 250,
 
         [Switch]
         $SkipPing,
@@ -259,12 +259,12 @@ function Invoke-BloodHound{
     }
 
     if ($CSVFolder){
-        $vars.Add("-f")
+        $vars.Add("--CSVFolder")
         $vars.Add($CSVFolder)
     }
 
     if ($CSVPrefix){
-        $vars.Add("-p")
+        $vars.Add("--CSVPrefix")
         $vars.Add($CSVPrefix)
     }
 
@@ -351,6 +351,11 @@ function Invoke-BloodHound{
     if ($Ou){
         $vars.Add("--Ou");
         $vars.Add($Ou);
+    }
+
+    if ($ComputerFile){
+        $vars.Add("--ComputerFile");
+        $vars.Add($ComputerFile);
     }
 
     $passed = [string[]]$vars.ToArray()
