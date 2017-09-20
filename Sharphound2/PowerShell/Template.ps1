@@ -302,7 +302,7 @@ function Invoke-BloodHound{
 
     if ($CacheFile){
         $vars.Add("--CacheFile")
-        $vars.Add($DBFileName)
+        $vars.Add($CacheFile)
     }
 
     if ($Invalidate){

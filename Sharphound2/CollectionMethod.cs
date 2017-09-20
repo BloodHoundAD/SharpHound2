@@ -17,6 +17,7 @@ namespace Sharphound2
         ACL,
         SessionLoop,
         Default,
-        ObjectProps
+        ObjectProps,
+        Container
     }
 }

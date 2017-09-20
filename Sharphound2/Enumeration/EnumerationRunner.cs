@@ -303,6 +303,21 @@ namespace Sharphound2.Enumeration
                         if (_options.CollectMethod.Equals(CollectionMethod.Trusts))
                         {
                             outputQueue.CompleteAdding();
+                            writer.Wait();
+                            continue;
+                        }
+                    }
+
+                    if (c.Equals(CollectionMethod.Container))
+                    {
+                        foreach (var container in ContainerHelpers.GetContainersForDomain(domainName))
+                        {
+                            outputQueue.Add(new Wrapper<OutputBase> { Item = container });
+                        }
+                        if (_options.CollectMethod.Equals(CollectionMethod.Container))
+                        {
+                            outputQueue.CompleteAdding();
+                            writer.Wait();
                             continue;
                         }
                     }
@@ -775,6 +790,8 @@ namespace Sharphound2.Enumeration
                 var groupCount = 0;
                 var userPropsCount = 0;
                 var compPropsCount = 0;
+                var containerCount = 0;
+                var gplinkCount = 0;
 
                 StreamWriter admins = null;
                 StreamWriter sessions = null;
@@ -783,6 +800,8 @@ namespace Sharphound2.Enumeration
                 StreamWriter trusts = null;
                 StreamWriter userprops = null;
                 StreamWriter compprops = null;
+                StreamWriter containers = null;
+                StreamWriter gplinks = null;
 
                 foreach (var obj in output.GetConsumingEnumerable())
                 {
@@ -803,6 +822,40 @@ namespace Sharphound2.Enumeration
                         if (groupCount % 100 == 0)
                         {
                             groups.Flush();
+                        }
+                    }else if (item is Container)
+                    {
+                        if (containers == null)
+                        {
+                            var f = Utils.GetCsvFileName("container_structure.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            containers = new StreamWriter(f, exists);
+                            if (!exists)
+                                containers.WriteLine("ContainerType,ContainerName,ContainerGUID,ContainerBlocksInheritance,ObjectType,ObjectName");
+                        }
+                        containers.WriteLine(item.ToCsv());
+                        containerCount++;
+                        if (containerCount % 100 == 0)
+                        {
+                            containers.Flush();
+                        }
+                    }else if (item is GpLink)
+                    {
+                        if (gplinks == null)
+                        {
+                            var f = Utils.GetCsvFileName("container_gplinks.csv");
+                            Utils.AddUsedFile(f);
+                            var exists = File.Exists(f);
+                            gplinks = new StreamWriter(f, exists);
+                            if (!exists)
+                                gplinks.WriteLine("ObjectType,ObjectName,ObjectGUID,GPODisplayName,GPOGuid,IsEnforced");
+                        }
+                        gplinks.WriteLine(item.ToCsv());
+                        gplinkCount++;
+                        if (gplinkCount % 100 == 0)
+                        {
+                            gplinks.Flush();
                         }
                     }
                     else if (item is UserProp)
@@ -919,6 +972,8 @@ namespace Sharphound2.Enumeration
                 trusts?.Dispose();
                 userprops?.Dispose();
                 compprops?.Dispose();
+                containers?.Dispose();
+                gplinks?.Dispose();
             }, TaskCreationOptions.LongRunning);
         }
 

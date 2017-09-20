@@ -13,6 +13,10 @@ namespace Sharphound2.Enumeration
             string[] props;
             switch (method)
             {
+                case CollectionMethod.Container:
+                    ldapFilter = "";
+                    props = new string[] { };
+                    break;
                 case CollectionMethod.Group:
                     ldapFilter = "(|(memberof=*)(primarygroupid=*))";
                     props = new[]

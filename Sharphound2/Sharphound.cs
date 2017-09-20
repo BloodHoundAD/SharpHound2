@@ -236,7 +236,6 @@ General Options
             {
                 return $"http://{Uri}/db/data/";
             }
-
         }
 
         public static void Main(string[] args)
@@ -306,11 +305,7 @@ General Options
                 }
             }
 
-            if (options.Test != null)
-            {
-                Test.DoStuff(options.Test);
-                return;
-            }
+            
 
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
             var nowtime = DateTime.Now;
@@ -329,6 +324,13 @@ General Options
             GroupHelpers.Init();
             AclHelpers.Init();
             DomainTrustEnumeration.Init();
+            ContainerHelpers.Init();
+
+            if (options.Test != null)
+            {
+                Test.DoStuff(options.Test);
+                return;
+            }
 
             if (options.ComputerFile != null)
             {
