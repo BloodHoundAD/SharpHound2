@@ -50,7 +50,7 @@ namespace Sharphound2
         {
             if (_options.Debug)
             {
-                Console.WriteLine(write);
+                Console.WriteLine($"Debug: {write}");
             }
         }
 
@@ -143,19 +143,19 @@ namespace Sharphound2
             return true;
         }
 
-        private static bool DoPingIcmp(string hostName)
-        {
-            var ping = new Ping();
-            try
-            {
-                var reply = ping.Send(hostName, _options.PingTimeout);
-                return reply != null && reply.Status.Equals(IPStatus.Success);
-            }
-            catch
-            {
-                return false;
-            }
-        }
+        //private static bool DoPingIcmp(string hostName)
+        //{
+        //    var ping = new Ping();
+        //    try
+        //    {
+        //        var reply = ping.Send(hostName, _options.PingTimeout);
+        //        return reply != null && reply.Status.Equals(IPStatus.Success);
+        //    }
+        //    catch
+        //    {
+        //        return false;
+        //    }
+        //}
 
         public string SidToDomainName(string sid, string domainController = null)
         {
@@ -397,16 +397,22 @@ namespace Sharphound2
                 return null;
             }
 
-            var domainController = _options.DomainController ?? targetDomain.PdcRoleOwner.Name;
+            var domainController = _options.DomainController ?? targetDomain.Name;
 
             var identifier = _options.SecureLdap
-                ? new LdapDirectoryIdentifier(domainController, 636)
-                : new LdapDirectoryIdentifier(domainController);
+                ? new LdapDirectoryIdentifier(domainController, 636, false, false)
+                : new LdapDirectoryIdentifier(domainController, false, false);
 
             var connection = new LdapConnection(identifier);
             
             //Add LdapSessionOptions
             var lso = connection.SessionOptions;
+            if (!_options.DisableKerbSigning)
+            {
+                lso.Signing = true;
+                lso.Sealing = true;
+            }
+            
             if (_options.SecureLdap)
             {
                 lso.ProtocolVersion = 3;
@@ -426,7 +432,12 @@ namespace Sharphound2
                 domainController = Forest.GetCurrentForest().FindGlobalCatalog().Name;
             }
             var connection = new LdapConnection(new LdapDirectoryIdentifier(domainController, 3268));
-            
+
+            var lso = connection.SessionOptions;
+            if (_options.DisableKerbSigning) return connection;
+            lso.Signing = true;
+            lso.Sealing = true;
+
             return connection;
         }
 

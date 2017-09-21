@@ -357,71 +357,73 @@ namespace Sharphound2.Enumeration
             }
         }
 
-        public static List<LocalAdmin> LocalGroupWinNt(string target, string group)
-        {
-            var members = new DirectoryEntry($"WinNT://{target}/{group},group");
-            var localAdmins = new List<LocalAdmin>();
-            try
-            {
-                foreach (var member in (System.Collections.IEnumerable)members.Invoke("Members"))
-                {
-                    using (var m = new DirectoryEntry(member))
-                    {
-                        //Convert sid bytes to a string
-                        var sidstring = new SecurityIdentifier(m.GetSid(), 0).ToString();
-                        string type;
-                        switch (m.SchemaClassName)
-                        {
-                            case "Group":
-                                type = "group";
-                                break;
-                            case "User":
-                                //If its a user but the name ends in $, it's actually a computer (probably)
-                                type = m.Properties["Name"][0].ToString().EndsWith("$", StringComparison.Ordinal) ? "computer" : "user";
-                                break;
-                            default:
-                                type = "group";
-                                break;
-                        }
+        #region hidden
 
-                        //Start by checking the cache
-                        if (!_cache.GetMapValue(sidstring, type, out var adminName))
-                        {
-                            //Get the domain from the SID
-                            var domainName = _utils.SidToDomainName(sidstring);
+        //public static List<LocalAdmin> LocalGroupWinNt(string target, string group)
+        //{
+        //    var members = new DirectoryEntry($"WinNT://{target}/{group},group");
+        //    var localAdmins = new List<LocalAdmin>();
+        //    try
+        //    {
+        //        foreach (var member in (System.Collections.IEnumerable)members.Invoke("Members"))
+        //        {
+        //            using (var m = new DirectoryEntry(member))
+        //            {
+        //                //Convert sid bytes to a string
+        //                var sidstring = new SecurityIdentifier(m.GetSid(), 0).ToString();
+        //                string type;
+        //                switch (m.SchemaClassName)
+        //                {
+        //                    case "Group":
+        //                        type = "group";
+        //                        break;
+        //                    case "User":
+        //                        //If its a user but the name ends in $, it's actually a computer (probably)
+        //                        type = m.Properties["Name"][0].ToString().EndsWith("$", StringComparison.Ordinal) ? "computer" : "user";
+        //                        break;
+        //                    default:
+        //                        type = "group";
+        //                        break;
+        //                }
 
-                            //Search for the object in AD
-                            var entry = _utils
-                                .DoSearch($"(objectsid={sidstring})", SearchScope.Subtree, AdminProps, domainName)
-                                .DefaultIfEmpty(null).FirstOrDefault();
+        //                //Start by checking the cache
+        //                if (!_cache.GetMapValue(sidstring, type, out var adminName))
+        //                {
+        //                    //Get the domain from the SID
+        //                    var domainName = _utils.SidToDomainName(sidstring);
 
-                            //If it's not null, we have an object, yay! Otherwise, meh
-                            if (entry != null)
-                            {
-                                adminName = entry.ResolveAdEntry().BloodHoundDisplay;
-                                _cache.AddMapValue(sidstring, type, adminName);
-                            }
-                            else
-                            {
-                                adminName = null;
-                            }
-                        }
+        //                    //Search for the object in AD
+        //                    var entry = _utils
+        //                        .DoSearch($"(objectsid={sidstring})", SearchScope.Subtree, AdminProps, domainName)
+        //                        .DefaultIfEmpty(null).FirstOrDefault();
 
-                        if (adminName != null)
-                        {
-                            localAdmins.Add(new LocalAdmin { ObjectName = adminName, ObjectType = type, Server = target });
-                        }
-                    }
-                }
-            }
-            catch (COMException)
-            {
-                //You can get a COMException, so just return a blank array
-                return localAdmins;
-            }
+        //                    //If it's not null, we have an object, yay! Otherwise, meh
+        //                    if (entry != null)
+        //                    {
+        //                        adminName = entry.ResolveAdEntry().BloodHoundDisplay;
+        //                        _cache.AddMapValue(sidstring, type, adminName);
+        //                    }
+        //                    else
+        //                    {
+        //                        adminName = null;
+        //                    }
+        //                }
 
-            return localAdmins;
-        }
+        //                if (adminName != null)
+        //                {
+        //                    localAdmins.Add(new LocalAdmin { ObjectName = adminName, ObjectType = type, Server = target });
+        //                }
+        //            }
+        //        }
+        //    }
+        //    catch (COMException)
+        //    {
+        //        //You can get a COMException, so just return a blank array
+        //        return localAdmins;
+        //    }
+
+        //    return localAdmins;
+        //}
 
         //public static List<LocalAdmin> LocalGroupApi(string target, string group, string domainName, string domainSid)
         //{
@@ -430,7 +432,7 @@ namespace Sharphound2.Enumeration
         //    var machineSid = "DUMMYSTRING";
 
         //    var LMI2 = typeof(LOCALGROUP_MEMBERS_INFO_2);
-            
+
         //    var returnValue = NetLocalGroupGetMembers(target, group, queryLevel, out IntPtr ptrInfo, -1, out int entriesRead, out int _, resumeHandle);
 
         //    //Return value of 1722 indicates the system is down, so no reason to fallback to WinNT
@@ -464,10 +466,10 @@ namespace Sharphound2.Enumeration
         //        });
         //        iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(LMI2));
         //    }
-            
+
         //    NetApiBufferFree(ptrInfo);
         //    //Try and determine the machine sid
-            
+
         //    foreach (var data in list)
         //    {
         //        if (data.sid == null)
@@ -482,7 +484,7 @@ namespace Sharphound2.Enumeration
         //        machineSid = new SecurityIdentifier(data.sid).AccountDomainSid.Value;
         //        break;
         //    }
-            
+
         //    foreach (var data in list)
         //    {
         //        if (data.sid == null)
@@ -530,7 +532,7 @@ namespace Sharphound2.Enumeration
         //        {
         //            type = "computer";
         //        }
-                
+
         //        var resolved = _utils.SidToDisplay(data.sid, _utils.SidToDomainName(data.sid), AdminProps, type);
         //        if (resolved == null)
         //        {
@@ -546,6 +548,7 @@ namespace Sharphound2.Enumeration
         //    }
         //    return toReturn;
         //}
+        #endregion
 
         public static IEnumerable<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
         {

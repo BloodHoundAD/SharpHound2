@@ -89,6 +89,9 @@ namespace Sharphound2
             public bool IgnoreLdapCert { get; set; }
 
             [Option(DefaultValue = false)]
+            public bool DisableKerbSigning { get; set; }
+
+            [Option(DefaultValue = false)]
             public bool CompressData { get; set; }
 
             [Option(DefaultValue = null)]

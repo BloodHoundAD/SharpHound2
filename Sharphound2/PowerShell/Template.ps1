@@ -241,7 +241,10 @@ function Invoke-BloodHound{
         $SecureLdap,
 
         [Switch]
-        $IgnoreLdapCert
+        $IgnoreLdapCert,
+
+        [Switch]
+        $DisableKerbSigning
     )
 
     $vars = New-Object System.Collections.Generic.List[System.Object]
@@ -356,6 +359,10 @@ function Invoke-BloodHound{
     if ($ComputerFile){
         $vars.Add("--ComputerFile");
         $vars.Add($ComputerFile);
+    }
+
+    if ($DisableKerbSigning){
+        $vars.Add("--DisableKerbSigning");
     }
 
     $passed = [string[]]$vars.ToArray()
