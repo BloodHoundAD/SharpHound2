@@ -1018,7 +1018,7 @@ namespace Sharphound2.Enumeration
                     }
                     var remainingData = serializer.Serialize(coll.GetStatements());
                     var responseArray = client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
-                    Console.WriteLine(Encoding.ASCII.GetString(responseArray));
+                    //Console.WriteLine(Encoding.ASCII.GetString(responseArray));
 
                 }
             }, TaskCreationOptions.LongRunning);

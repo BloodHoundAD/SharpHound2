@@ -7,7 +7,7 @@
     <ProjectGuid>{69415BF4-E2F3-47E8-A818-93A6DC54811C}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>Sharphound2</RootNamespace>
-    <AssemblyName>Sharphound</AssemblyName>
+    <AssemblyName>SharpHound</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
@@ -125,7 +125,7 @@
   </Target>
   <Import Project="..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets" Condition="Exists('..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets')" />
   <PropertyGroup>
-    <PostBuildEvent>powershell -ep bypass -c ". '$(SolutionDir)\Sharphound2\PowerShell\Out-CompressedDLL.ps1';Out-CompressedDll -FilePath '$(TargetPath)' | Out-File -Encoding ASCII "BloodHound.ps1"</PostBuildEvent>
+    <PostBuildEvent>powershell -ep bypass -c ". '$(SolutionDir)\Sharphound2\PowerShell\Out-CompressedDLL.ps1';Out-CompressedDll -FilePath '$(TargetPath)' | Out-File -Encoding ASCII "SharpHound.ps1"</PostBuildEvent>
   </PropertyGroup>
   <Import Project="..\packages\Fody.2.1.2\build\portable-net+sl+win+wpa+wp\Fody.targets" Condition="Exists('..\packages\Fody.2.1.2\build\portable-net+sl+win+wpa+wp\Fody.targets')" />
 </Project>
