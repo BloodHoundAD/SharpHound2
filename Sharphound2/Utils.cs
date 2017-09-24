@@ -523,16 +523,19 @@ namespace Sharphound2
         public string GetDomainSid(string domainName = null)
         {
             var key = domainName ?? "UNIQUENULL";
-            if (_cache.GetDomainFromSid(domainName, out string sid))
+            if (_cache.GetDomainFromSid(domainName, out var sid))
             {
                 return sid;
             }
+            var entry = DoSearch("(objectclass=*)", SearchScope.Base, new[] {"objectsid"}, domainName)
+                .DefaultIfEmpty(null).FirstOrDefault();
 
-            var d = GetDomain(domainName);
-            sid = new SecurityIdentifier(d.GetDirectoryEntry().Properties["objectsid"].Value as byte[], 0).ToString();
+            if (entry == null)
+                return null;
 
+            sid = entry.GetSid();
             _cache.AddDomainFromSid(key, sid);
-            _cache.AddDomainFromSid(sid, d.Name);
+            _cache.AddDomainFromSid(sid, domainName);
 
             return sid;
         }

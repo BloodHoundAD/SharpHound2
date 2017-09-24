@@ -365,7 +365,7 @@ General Options
                 {
                     if (conn == null)
                     {
-                        Console.WriteLine("LDAP Connection Test failed. Exiting");
+                        Console.WriteLine("LDAP connection test failed, probably can't contact domain");
                         return;
                     }
                     conn.Bind();
