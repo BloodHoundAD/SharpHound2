@@ -4,6 +4,7 @@ using System;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -376,6 +377,29 @@ General Options
                 Console.WriteLine("Ldap Connection Failure.");
                 Console.WriteLine("Try again with the IgnoreLdapCert option if using SecureLDAP or check your DomainController option");
                 return;
+            }
+
+            if (options.Uri != null)
+            {
+                using (var client = new WebClient())
+                {
+                    client.Headers.Add("content-type", "application/json");
+                    client.Headers.Add("Accept", "application/json; charset=UTF-8");
+
+                    if (options.UserPass != null)
+                        client.Headers.Add("Authorization", options.GetEncodedUserPass());
+
+                    try
+                    {
+                        client.DownloadData(options.GetCheckURI());
+                        Console.WriteLine("Successfully connected to the Neo4j REST endpoint.");
+                    }
+                    catch
+                    {
+                        Console.WriteLine("Unable to connect to the Neo4j REST endpoint. Check your URI and username/password");
+                        return;
+                    }
+                }
             }
 
             if (options.Stealth)
