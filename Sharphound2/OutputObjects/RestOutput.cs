@@ -28,16 +28,16 @@ namespace Sharphound2.OutputObjects
                 if (reltype.Equals("HasSession"))
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{Weight:prop.weight}}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{Weight:prop.weight}}]->(b)";
                 }else if (reltype.Equals("Trust"))
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive}}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive}}]->(b)";
                 }
                 else
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype} {{name:prop.a}}) WITH a,prop MERGE (b:{btype} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype}]->(b)";
                 }
                 
                 tempStatements.Add(new

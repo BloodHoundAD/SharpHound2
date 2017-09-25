@@ -26,7 +26,7 @@ namespace Sharphound2.Enumeration
                     };
                     break;
                 case CollectionMethod.ComputerOnly:
-                    if (stealth)
+                    if (!stealth)
                     {
                         ldapFilter = "(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))";
                         props = new[]
