@@ -146,6 +146,9 @@ Enumeration Options:
         A file containing a list of computers to enumerate. This option can only be used with the following Collection Methods:
         Session, SessionLoop, LocalGroup, ComputerOnly, LoggedOn
 
+    --DomainController (Default: null)
+        Specify which Domain Controller to request data from. Defaults to closest DC using Site Names
+
     --ExcludeDC
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
    

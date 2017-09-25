@@ -45,6 +45,10 @@ function Invoke-BloodHound{
         Use stealth collection options, will sacrifice data quality in favor of much reduced
         network impact
 
+    .PARAMETER DomainController
+
+        Specify which Domain Controller to request data from. Defaults to closest DC using Site Names
+
     .PARAMETER Ou
 
         Limit computer enumeration to this OU. Takes a DistinguishedName.
@@ -244,7 +248,10 @@ function Invoke-BloodHound{
         $IgnoreLdapCert,
 
         [Switch]
-        $DisableKerbSigning
+        $DisableKerbSigning,
+
+        [string]
+        $DomainController
     )
 
     $vars = New-Object System.Collections.Generic.List[System.Object]
@@ -363,6 +370,11 @@ function Invoke-BloodHound{
 
     if ($DisableKerbSigning){
         $vars.Add("--DisableKerbSigning");
+    }
+
+    if ($DomainController){
+        $vars.Add("--DomainController");
+        $vars.Add($DomainController);
     }
 
     $passed = [string[]]$vars.ToArray()
