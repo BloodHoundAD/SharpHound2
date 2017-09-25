@@ -501,7 +501,7 @@ namespace Sharphound2
         {
             var key = domainName ?? "UNIQUENULL";
 
-            if (_domainCache.TryGetValue(key, out Domain domainObj))
+            if (_domainCache.TryGetValue(key, out var domainObj))
             {
                 return domainObj;
             }
@@ -574,7 +574,7 @@ namespace Sharphound2
             try
             {
                 using (File.Create(f)){}
-                File.Delete(filename);
+                File.Delete(f);
                 return true;
             }
             catch
