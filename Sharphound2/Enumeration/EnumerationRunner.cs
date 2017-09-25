@@ -55,16 +55,24 @@ namespace Sharphound2.Enumeration
 
         public void StartStealthEnumeration()
         {
-            var output = new BlockingCollection<Wrapper<OutputBase>>();
-            var writer = _options.Uri == null
-                ? StartOutputWriter(output)
-                : StartRestWriter(output);
-
             foreach (var domainName in _utils.GetDomainList())
             {
-                Console.WriteLine($"Starting stealth enumeration for {domainName}\n");
+                var output = new BlockingCollection<Wrapper<OutputBase>>();
+                var writer = _options.Uri == null
+                    ? StartOutputWriter(output)
+                    : StartRestWriter(output);
+
+                _currentCount = 0;
+                _timeouts = 0;
+                _noPing = 0;
+                _watch = Stopwatch.StartNew();
+
+                Console.WriteLine($"Starting stealth enumeration for {domainName}");
                 var domainSid = _utils.GetDomainSid(domainName);
                 var data = LdapFilter.GetLdapFilter(_options.CollectMethod, _options.ExcludeDC, true);
+
+                _statusTimer.Start();
+
                 switch (_options.CollectMethod)
                 {
                     case CollectionMethod.ObjectProps:
@@ -72,6 +80,12 @@ namespace Sharphound2.Enumeration
                         foreach (var entry in _utils.DoSearch(data.Filter, SearchScope.Subtree, data.Properties, domainName))
                         {
                             var resolved = entry.ResolveAdEntry();
+                            if (resolved == null)
+                            {
+                                _currentCount++;
+                                continue;
+                            }
+
                             OutputBase props;
                             if (resolved.ObjectType.Equals("computer"))
                             {
@@ -83,28 +97,60 @@ namespace Sharphound2.Enumeration
                             }
                             if (props != null)
                                 output.Add(new Wrapper<OutputBase> {Item = props});
+
+                            _currentCount++;
                         }
                         break;
                     case CollectionMethod.Session:
                         Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
-                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                            foreach (var s in sessions)
+                            if (!_utils.PingHost(path.BloodHoundDisplay))
                             {
-                                output.Add(new Wrapper<OutputBase>{Item = s});
+                                _noPing++;
+                                _currentCount++;
+                                continue;
                             }
+                                
+                            try
+                            {
+                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                                foreach (var s in sessions)
+                                {
+                                    output.Add(new Wrapper<OutputBase> {Item = s});
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                _timeouts++;
+                            }
+                            _currentCount++;
                         }
                         break;
                     case CollectionMethod.ComputerOnly:
                         Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
-                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                            foreach (var s in sessions)
+                            if (!_utils.PingHost(path.BloodHoundDisplay))
                             {
-                                output.Add(new Wrapper<OutputBase> { Item = s });
+                                _noPing++;
+                                _currentCount++;
+                                continue;
                             }
+
+                            try
+                            {
+                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                                foreach (var s in sessions)
+                                {
+                                    output.Add(new Wrapper<OutputBase> {Item = s});
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                _timeouts++;
+                            }
+                            _currentCount++;
                         }
 
                         Console.WriteLine("Doing stealth enumeration for admins");
@@ -114,19 +160,36 @@ namespace Sharphound2.Enumeration
                         {
                             foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
                             {
-                                output.Add(new Wrapper<OutputBase> { Item = admin });
+                                output.Add(new Wrapper<OutputBase> {Item = admin});
                             }
+                            
+                            _currentCount++;
                         }
                         break;
                     case CollectionMethod.Default:
                         Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
-                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                            foreach (var s in sessions)
+                            if (!_utils.PingHost(path.BloodHoundDisplay))
                             {
-                                output.Add(new Wrapper<OutputBase> { Item = s });
+                                _noPing++;
+                                _currentCount++;
+                                continue;
                             }
+
+                            try
+                            {
+                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                                foreach (var s in sessions)
+                                {
+                                    output.Add(new Wrapper<OutputBase> {Item = s});
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                _timeouts++;
+                            }
+                            _currentCount++;
                         }
 
                         Console.WriteLine("Doing stealth enumeration for admins");
@@ -137,6 +200,7 @@ namespace Sharphound2.Enumeration
                             foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
                             {
                                 output.Add(new Wrapper<OutputBase>{Item = admin});
+                                _currentCount++;
                             }
                         }
 
@@ -149,8 +213,22 @@ namespace Sharphound2.Enumeration
                                 "primarygroupid", "memberof", "serviceprincipalname"
                             }, domainName))
                         {
-                            var resolvedEntry = entry.ResolveAdEntry();
-                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolvedEntry, domainSid))
+                            var resolved = entry.ResolveAdEntry();
+
+                            if (resolved == null)
+                            {
+                                _currentCount++;
+                                continue;
+                            }
+
+                            if (!_utils.PingHost(resolved.BloodHoundDisplay))
+                            {
+                                _noPing++;
+                                _currentCount++;
+                                continue;
+                            }
+                            
+                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolved, domainSid))
                             {
                                 output.Add(new Wrapper<OutputBase> {Item = group});
                             }
@@ -160,17 +238,39 @@ namespace Sharphound2.Enumeration
                         Console.WriteLine("Doing stealth enumeration for sessions");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
-                            var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                            foreach (var s in sessions)
+                            if (!_utils.PingHost(path.BloodHoundDisplay))
                             {
-                                output.Add(new Wrapper<OutputBase> { Item = s });
+                                _noPing++;
+                                _currentCount++;
+                                continue;
                             }
+
+                            try
+                            {
+                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
+                                foreach (var s in sessions)
+                                {
+                                    output.Add(new Wrapper<OutputBase> {Item = s});
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                _timeouts++;
+                            }
+                            _currentCount++;
                         }
                         break;
                     case CollectionMethod.LoggedOn:
                         Console.WriteLine("Doing LoggedOn enumeration for stealth targets");
                         foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
                         {
+                            if (!_utils.PingHost(path.BloodHoundDisplay))
+                            {
+                                _noPing++;
+                                _currentCount++;
+                                continue;
+                            }
+
                             var sessions = SessionHelpers.GetNetLoggedOn(path, domainName);
                             foreach (var s in sessions)
                             {
@@ -181,6 +281,7 @@ namespace Sharphound2.Enumeration
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = s });
                             }
+                            _currentCount++;
                         }
                         break;
                     case CollectionMethod.Group:
@@ -189,11 +290,20 @@ namespace Sharphound2.Enumeration
                             SearchScope.Subtree,
                             data.Properties, domainName))
                         {
-                            var resolvedEntry = entry.ResolveAdEntry();
-                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolvedEntry, domainSid))
+                            var resolved = entry.ResolveAdEntry();
+
+                            if (resolved == null)
+                            {
+                                _currentCount++;
+                                continue;
+                            }
+                                
+
+                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolved, domainSid))
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = group });
                             }
+                            _currentCount++;
                         }
                         break;
                     case CollectionMethod.LocalGroup:
@@ -209,12 +319,14 @@ namespace Sharphound2.Enumeration
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = admin });
                             }
+                            _currentCount++;
                         }
                         break;
                     case CollectionMethod.Trusts:
                         var trusts = DomainTrustEnumeration.DoTrustEnumeration(domainName);
                         foreach (var trust in trusts)
                         {
+                            _currentCount++;
                             output.Add(new Wrapper<OutputBase> {Item = trust});
                         }
                         break;
@@ -229,14 +341,26 @@ namespace Sharphound2.Enumeration
                             {
                                 output.Add(new Wrapper<OutputBase>{Item = acl});
                             }
+                            _currentCount++;
                         }
+
+                        foreach (var a in AclHelpers.GetSyncers())
+                        {
+                            output.Add(new Wrapper<OutputBase> { Item = a });
+                        }
+                        AclHelpers.ClearSyncers();
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
                 output.CompleteAdding();
+                Utils.Verbose("Waiting for writer thread to finish");
                 writer.Wait();
-                Console.WriteLine($"Finished stealth enumeration for {domainName}");
+                _statusTimer.Stop();
+                PrintStatus();
+
+                Console.WriteLine($"Finished stealth enumeration for {domainName} in {_watch.Elapsed}");
+                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
             }
             if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
             if (_options.MaxLoopTime != null)
