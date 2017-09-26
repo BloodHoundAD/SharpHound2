@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Web.Script.Serialization;
+﻿using System.Collections.Generic;
 
 namespace Sharphound2.OutputObjects
 {

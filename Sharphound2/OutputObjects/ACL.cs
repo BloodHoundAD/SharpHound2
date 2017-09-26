@@ -1,4 +1,8 @@
-﻿namespace Sharphound2.OutputObjects
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+
+namespace Sharphound2.OutputObjects
 {
     internal class ACL : OutputBase
     {
@@ -20,38 +24,42 @@
         {
             return new
             {
-                a = ObjectName.ToUpper(),
-                b = PrincipalName.ToUpper(),
+                a = PrincipalName.ToUpper(),
+                b = ObjectName.ToUpper(),
             };
+        }
+
+        public IEnumerable<string> GetAllTypeHashes()
+        {
+            var right = RightName;
+            var extright = AceType;
+
+            if (extright.Equals("All"))
+                yield return $"{PrincipalType}|AllExtendedRights|{ObjectType}";
+            else if (extright.Equals("User-Force-Change-Password"))
+                yield return $"{PrincipalType}|ForceChangePassword|{ObjectType}";
+            else if (right.Equals("ExtendedRight"))
+                yield return $"{PrincipalType}|{extright}|{ObjectType}";
+
+            if (right.Contains("GenericAll"))
+                yield return $"{PrincipalType}|GenericAll|{ObjectType}";
+
+            if (right.Contains("WriteDacl"))
+                yield return $"{PrincipalType}|WriteDacl|{ObjectType}";
+
+            if (right.Contains("WriteOwner"))
+                yield return $"{PrincipalType}|WriteOwner|{ObjectType}";
+
+            if (right.Contains("GenericWrite"))
+                yield return $"{PrincipalType}|GenericWrite|{ObjectType}";
+
+            if (right.Contains("WriteProperty") && extright.Equals("Member"))
+                yield return $"{PrincipalType}|AddMember|{ObjectType}";
         }
 
         public override string TypeHash()
         {
-            string reltype;
-            switch (AceType)
-            {
-                case "All":
-                    reltype = "AllExtendedRights";
-                    break;
-                case "User-Force-Change-Password":
-                    reltype = "ForceChangePassword";
-                    break;
-                case "ExtendedRight":
-                    reltype = AceType;
-                    break;
-                default:
-                    reltype = RightName;
-                    break;
-            }
-
-            reltype = reltype.Replace("-", "");
-
-            if (reltype.Contains("WriteOwner"))
-            {
-                reltype = "WriteOwner";
-            }
-
-            return $"{ObjectType}|{reltype}|{PrincipalType}";
+            throw new NotImplementedException();
         }
     }
 }

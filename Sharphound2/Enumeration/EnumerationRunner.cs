@@ -1126,6 +1126,12 @@ namespace Sharphound2.Enumeration
                             {
                                 coll.AddNewData(temp.TypeHash(), x);
                             }
+                        }else if (item is ACL acl)
+                        {
+                            foreach (var x in acl.GetAllTypeHashes())
+                            {
+                                coll.AddNewData(x, acl.ToParam());
+                            }
                         }
                         else
                         {
@@ -1141,7 +1147,7 @@ namespace Sharphound2.Enumeration
                         coll.Reset();
                     }
                     var remainingData = serializer.Serialize(coll.GetStatements());
-                    var responseArray = client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
+                    client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
                     //Console.WriteLine(Encoding.ASCII.GetString(responseArray));
 
                 }

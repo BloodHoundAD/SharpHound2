@@ -92,7 +92,7 @@ namespace Sharphound2.Enumeration
             if (!_nullSids.TryGetValue(ownerSid, out byte _))
             {
                 //Check if its a common SID
-                if (!MappedPrincipal.GetCommon(ownerSid, out MappedPrincipal owner))
+                if (!MappedPrincipal.GetCommon(ownerSid, out var owner))
                 {
                     //Resolve the sid manually if we still dont have it
                     var ownerDomain = _utils.SidToDomainName(ownerSid) ?? domainName;
