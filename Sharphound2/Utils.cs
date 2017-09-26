@@ -249,12 +249,11 @@ namespace Sharphound2
             var entry = DoSearch($"(objectsid={sid})", SearchScope.Subtree, props, domainName).DefaultIfEmpty(null)
                 .FirstOrDefault();
 
-            if (entry == null)
-            {
-                return null;
-            }
+            var resolvedEntry = entry?.ResolveAdEntry();
 
-            var resolvedEntry = entry.ResolveAdEntry();
+            if (resolvedEntry == null)
+                return null;
+
             var name = resolvedEntry.BloodHoundDisplay;
             var type = resolvedEntry.ObjectType;
             if (name != null)
