@@ -79,7 +79,8 @@ namespace Sharphound2.Enumeration
             //Use SamLookupDomainInServer with the hostname to find the machine sid if possible
             try
             {
-                SamLookupDomainInSamServer(serverHandle, new UNICODE_STRING(entry.ComputerSamAccountName), out var temp);
+                var san = new UNICODE_STRING(entry.ComputerSamAccountName);
+                SamLookupDomainInSamServer(serverHandle, ref san, out var temp);
                 //This will throw an exception if we didn't actually find the alias
                 machineSid = new SecurityIdentifier(temp).Value;
                 SamFreeMemory(temp);
@@ -162,9 +163,12 @@ namespace Sharphound2.Enumeration
             }
 
             Utils.Debug($"Starting LSALookupSids");
+            var nameList = IntPtr.Zero;
+            var domainList = IntPtr.Zero;
+
             //Call LsaLookupSids using the sids we got from SamGetMembersInAlias
-            status = LsaLookupSids(policyHandle, count, members, out var domainList,
-                out var nameList);
+            status = LsaLookupSids(policyHandle, count, members, ref domainList,
+                ref nameList);
             Utils.Debug($"LSALookupSids returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess) && !status.Equals(NtStatus.StatusSomeMapped))
             {
@@ -676,8 +680,8 @@ namespace Sharphound2.Enumeration
             IntPtr policyHandle,
             int count,
             IntPtr enumBuffer,
-            out IntPtr domainList,
-            out IntPtr nameList
+            ref IntPtr domainList,
+            ref IntPtr nameList
         );
 
         [DllImport("advapi32.dll")]
@@ -761,7 +765,7 @@ namespace Sharphound2.Enumeration
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
         private static extern NtStatus SamLookupDomainInSamServer(
             IntPtr serverHandle,
-            UNICODE_STRING name,
+            ref UNICODE_STRING name,
             out IntPtr sid);
 
         [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
@@ -808,7 +812,7 @@ namespace Sharphound2.Enumeration
         private static extern NtStatus SamOpenDomain(
             IntPtr serverHandle,
             DomainAccessMask desiredAccess,
-            byte[] domainSid,
+            [MarshalAs(UnmanagedType.LPArray)]byte[] domainSid,
             out IntPtr domainHandle
         );
 
