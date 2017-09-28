@@ -439,6 +439,9 @@ General Options
                 runner.StartEnumeration();
             }
             Cache.Instance.SaveCache();
+
+            Utils.DeduplicateFiles();
+
             if (options.CompressData)
             {
                 Utils.CompressFiles();

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.IO;
@@ -82,6 +83,46 @@ namespace Sharphound2
             _dnsResolveCache.TryAdd(hostName, dnsHostName);
 
             return dnsHostName;
+        }
+
+        private class OrderedHashSet<T> : KeyedCollection<T, T>
+        {
+            protected override T GetKeyForItem(T item)
+            {
+                return item;
+            }
+        }
+
+        internal static void DeduplicateFiles()
+        {
+            Console.WriteLine("Deduplicating Files");
+            foreach (var f in UsedFiles)
+            {
+                var scanned = new OrderedHashSet<string>();
+                using (var reader = new StreamReader(f))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        try
+                        {
+                            scanned.Add(line);
+                        }
+                        catch
+                        {
+                            //ignored
+                        }
+                    }
+                }
+
+                using (var writer = new StreamWriter(f, false))
+                {
+                    foreach (var line in scanned)
+                    {
+                        writer.WriteLine(line);
+                    }
+                }
+            }
         }
 
         public static string GetComputerNetbiosName(string server)
