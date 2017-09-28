@@ -1,10 +1,16 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace Sharphound2.OutputObjects
 {
     internal class RestOutput
     {
         private Dictionary<string, List<object>> _collection;
+
+        private readonly HashSet<string> _aclTypes = new HashSet<string> {
+            "DCSync", "AllExtendedRights", "ForceChangePassword", "GenericAll", "GenericWrite", "WriteDACL",
+            "WriteOwner", "AddMembers"
+        };
 
         internal RestOutput()
         {
@@ -14,6 +20,7 @@ namespace Sharphound2.OutputObjects
         internal object GetStatements()
         {
             var tempStatements = new List<object>();
+            
             foreach (var key in _collection.Keys)
             {
                 var split = key.Split('|');
@@ -25,16 +32,20 @@ namespace Sharphound2.OutputObjects
                 if (reltype.Equals("HasSession"))
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{Weight:prop.weight}}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{Weight:prop.weight, isACL: false}}]->(b)";
                 }else if (reltype.Equals("Trust"))
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive}}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive, isACL: false}}]->(b)";
+                }else if (_aclTypes.Contains(reltype))
+                {
+                    statement =
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype} {{isACL: true}}]->(b)";
                 }
                 else
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype}]->(b)";
+                        $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b MERGE (a)-[:{reltype} {{isACL: false}}]->(b)";
                 }
                 
                 tempStatements.Add(new
