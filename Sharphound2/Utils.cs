@@ -98,6 +98,7 @@ namespace Sharphound2
             Console.WriteLine("Deduplicating Files");
             foreach (var f in UsedFiles)
             {
+                var removed = 0;
                 var scanned = new OrderedHashSet<string>();
                 using (var reader = new StreamReader(f))
                 {
@@ -110,7 +111,7 @@ namespace Sharphound2
                         }
                         catch
                         {
-                            //ignored
+                            removed++;
                         }
                     }
                 }
@@ -122,6 +123,7 @@ namespace Sharphound2
                         writer.WriteLine(line);
                     }
                 }
+                Console.WriteLine($"Removed {removed} lines from {f}");
             }
         }
 
