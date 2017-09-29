@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
@@ -7,6 +8,8 @@ namespace Sharphound2
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     internal static class DnsManager
     {
+        private static readonly ConcurrentDictionary<string, string> _dnsCache = new ConcurrentDictionary<string, string>();
+
         /// <summary>
         /// Resolves a host using DNS and suppresses LLMNR and NBNS
         /// </summary>
@@ -15,6 +18,10 @@ namespace Sharphound2
         /// <returns>Boolean representing if the host exists in DNS</returns>
        internal static bool HostExistsDns(string host, out string name)
         {
+            if (_dnsCache.TryGetValue(host, out name))
+            {
+                return name != null;
+            }
             //We actually dont care about a couple vars, but we need to pass them in for the API call
             var zero = IntPtr.Zero;
             var zero2 = IntPtr.Zero;
@@ -30,6 +37,7 @@ namespace Sharphound2
                     name = Marshal.PtrToStringUni(record.name);
                     //Free the memory we grabbed
                     DnsRecordListFree(results, DnsFreeType.DnsFreeFlat);
+                    _dnsCache.TryAdd(host, name);
                     return true;
                 }
                 catch
@@ -45,6 +53,7 @@ namespace Sharphound2
                     var record = (TypeADnsRecord) Marshal.PtrToStructure(results, typeof(TypeADnsRecord));
                     name = Marshal.PtrToStringUni(record.name);
                     DnsRecordListFree(results, DnsFreeType.DnsFreeFlat);
+                    _dnsCache.TryAdd(host, name);
                     return true;
                 }
                 catch
@@ -57,6 +66,7 @@ namespace Sharphound2
             //This host probably doesn't have a matching DNS entry, or at least not one we can find
             DnsRecordListFree(results, DnsFreeType.DnsFreeFlat);
             name = null;
+            _dnsCache.TryAdd(host, null);
             return false;
         }
 
