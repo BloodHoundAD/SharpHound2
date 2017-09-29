@@ -13,20 +13,30 @@ namespace Sharphound2.OutputObjects
         internal long LastLogon { get; set; }
         internal string ObjectSid { get; set; }
         internal string OperatingSystem { get; set; }
+        internal bool UnconstrainedDelegation { get; set; }
 
         public override string ToCsv()
         {
-            return $"{ComputerName},{Enabled},{PwdLastSet},{LastLogon},{OperatingSystem},{ObjectSid}";
+            return $"{ComputerName},{Enabled},{UnconstrainedDelegation},{PwdLastSet},{LastLogon},{OperatingSystem},{ObjectSid}";
         }
 
         public override object ToParam()
         {
-            throw new NotImplementedException();
+            return new
+            {
+                ComputerName,
+                Enabled,
+                UnconstrainedDelegation,
+                PwdLastSet,
+                LastLogon,
+                OperatingSystem,
+                ObjectSid
+            };
         }
 
         public override string TypeHash()
         {
-            throw new NotImplementedException();
+            return "a|CompProp|b";
         }
     }
 }

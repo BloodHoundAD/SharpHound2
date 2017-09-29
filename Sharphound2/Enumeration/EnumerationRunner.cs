@@ -991,7 +991,7 @@ namespace Sharphound2.Enumeration
                             var exists = File.Exists(f);
                             userprops = new StreamWriter(f, exists);
                             if (!exists)
-                                userprops.WriteLine("AccountName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames");
+                                userprops.WriteLine("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames");
                         }
                         userprops.WriteLine(item.ToCsv());
                         userPropsCount++;
@@ -1009,7 +1009,7 @@ namespace Sharphound2.Enumeration
                             var exists = File.Exists(f);
                             compprops = new StreamWriter(f, exists);
                             if (!exists)
-                                compprops.WriteLine("AccountName,Enabled,PwdLastSet,LastLogon,OperatingSystem,Sid");
+                                compprops.WriteLine("AccountName,Enabled,UnconstrainedDelegation,PwdLastSet,LastLogon,OperatingSystem,Sid");
                         }
                         compprops.WriteLine(item.ToCsv());
                         compPropsCount++;
@@ -1148,6 +1148,7 @@ namespace Sharphound2.Enumeration
                     }
                     var remainingData = serializer.Serialize(coll.GetStatements());
                     client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
+                    //var responseArray = client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
                     //Console.WriteLine(Encoding.ASCII.GetString(responseArray));
 
                 }

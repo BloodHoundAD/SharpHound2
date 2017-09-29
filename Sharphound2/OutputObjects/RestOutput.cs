@@ -33,7 +33,16 @@ namespace Sharphound2.OutputObjects
                 {
                     statement =
                         $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{Weight:prop.weight, isACL: false}}]->(b)";
-                }else if (reltype.Equals("Trust"))
+                }else if (reltype.Equals("CompProp"))
+                {
+                    statement =
+                        $"UNWIND {{props}} AS prop MERGE (a:Computer {{name:upper(prop.ComputerName)}}) SET a.Enabled=toBoolean(prop.Enabled),a.UnconstrainedDelegation=toBoolean(prop.UnconstrainedDelegation),a.PwdLastSet=toInt(prop.PwdLastSet),a.LastLogon=toInt(prop.LastLogon),a.OperatingSystem=prop.OperatingSystem,a.Sid=prop.ObjectSid";
+                }else if (reltype.Equals("UserProp"))
+                {
+                    statement =
+                        $"UNWIND {{props}} AS prop MERGE (a:User {{name:upper(prop.AccountName)}}) SET a.DisplayName=prop.DisplayName,a.Enabled=toBoolean(prop.Enabled),a.PwdLastSet=toInt(prop.PwdLastSet),a.LastLogon=toInt(prop.LastLogon),a.ObjectSid=prop.ObjectSid,a.SidHistory=prop.SidHistory,a.HasSPN=toBoolean(prop.HasSpn),a.ServicePrincipalNames=split(prop.ServicePrincipalNames,'|')";
+                }
+                else if (reltype.Equals("Trust"))
                 {
                     statement =
                         $"UNWIND {{props}} AS prop MERGE (a:{atype.ToTitleCase()} {{name:prop.a}}) WITH a,prop MERGE (b:{btype.ToTitleCase()} {{name:prop.b}}) WITH a,b,prop MERGE (a)-[:{reltype} {{TrustType: prop.trusttype, Transitive: prop.transitive, isACL: false}}]->(b)";

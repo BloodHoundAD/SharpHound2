@@ -20,13 +20,16 @@ namespace Sharphound2.Enumeration
         {
             var uac = entry.GetProp("useraccountcontrol");
             bool enabled;
+            bool unconstrained;
             if (int.TryParse(uac, out var flag))
             {
                 var flags = (UacFlags) flag;
                 enabled = (flags & UacFlags.AccountDisable) == 0;
+                unconstrained = (flags & UacFlags.TrustedForDelegation) == UacFlags.TrustedForDelegation;
             }
             else
             {
+                unconstrained = false;
                 enabled = true;
             }
             var lastLogon = ConvertToUnixEpoch(entry.GetProp("lastlogon"));
@@ -47,7 +50,8 @@ namespace Sharphound2.Enumeration
                 LastLogon = lastLogon,
                 ObjectSid = sid,
                 OperatingSystem = os,
-                PwdLastSet = lastSet
+                PwdLastSet = lastSet,
+                UnconstrainedDelegation = unconstrained
             };
         }
 
@@ -68,6 +72,7 @@ namespace Sharphound2.Enumeration
             var lastlogon = entry.GetProp("lastlogon");
             var pwdlastset = entry.GetProp("pwdlastset");
             var spn = entry.GetPropArray("serviceprincipalname");
+            var displayName = entry.GetProp("displayname");
             var hasSpn = spn.Length != 0;
             var spnString = string.Join("|", spn);
             var convertedlogon = ConvertToUnixEpoch(lastlogon);
@@ -84,7 +89,8 @@ namespace Sharphound2.Enumeration
                 PwdLastSet = convertedlastset,
                 SidHistory = sidhistory,
                 HasSpn = hasSpn,
-                ServicePrincipalNames = spnString
+                ServicePrincipalNames = spnString,
+                DisplayName = displayName
             };
         }
 
