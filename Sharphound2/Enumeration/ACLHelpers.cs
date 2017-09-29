@@ -98,13 +98,17 @@ namespace Sharphound2.Enumeration
                     var ownerDomain = _utils.SidToDomainName(ownerSid) ?? domainName;
                     owner = _utils.UnknownSidTypeToDisplay(ownerSid, ownerDomain, Props);
                 }
+                else
+                {
+                    owner.PrincipalName = $"{owner.PrincipalName}@{domainName}";
+                }
 
                 //Filter out the Local System principal which pretty much every entry has
                 if (owner != null && !owner.PrincipalName.Contains("Local System"))
                 {
                     yield return new ACL
                     {
-                        PrincipalName = $"{owner.PrincipalName}@{domainName}",
+                        PrincipalName = $"{owner.PrincipalName}",
                         PrincipalType = owner.ObjectType,
                         Inherited = false,
                         RightName = "Owner",
@@ -132,7 +136,7 @@ namespace Sharphound2.Enumeration
                     continue;
 
                 //Check if its a common sid
-                if (!MappedPrincipal.GetCommon(objectSid, out MappedPrincipal mappedPrincipal))
+                if (!MappedPrincipal.GetCommon(objectSid, out var mappedPrincipal))
                 {
                     //If not common, lets resolve it normally
                     var objectDomain =
@@ -144,6 +148,10 @@ namespace Sharphound2.Enumeration
                         _nullSids.TryAdd(objectSid, new byte());
                         continue;
                     }
+                }
+                else
+                {
+                    mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
                 }
 
                 if (mappedPrincipal.PrincipalName.Contains("Local System"))
