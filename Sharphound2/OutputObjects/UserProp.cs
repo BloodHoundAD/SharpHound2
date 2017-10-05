@@ -16,14 +16,16 @@ namespace Sharphound2.OutputObjects
         internal bool HasSpn { get; set; }
         internal string ServicePrincipalNames { get; set; }
         internal string DisplayName { get; set; }
+        internal string Email { get; set; }
 
         public override string ToCsv()
         {
-            return $"{AccountName},{DisplayName},{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},{ServicePrincipalNames}";
+            return $"{AccountName},\"{DisplayName}\",{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},\"{ServicePrincipalNames}\",{Email}";
         }
 
         public override object ToParam()
         {
+            var spn = ServicePrincipalNames.Split('|');
             return new
             {
                 AccountName,
@@ -34,7 +36,8 @@ namespace Sharphound2.OutputObjects
                 ObjectSid,
                 SidHistory,
                 HasSpn,
-                ServicePrincipalNames
+                Email,
+                ServicePrincipalNames = spn
             };
         }
 

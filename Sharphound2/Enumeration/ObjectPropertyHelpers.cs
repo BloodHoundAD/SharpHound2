@@ -79,6 +79,7 @@ namespace Sharphound2.Enumeration
             var convertedlastset = ConvertToUnixEpoch(pwdlastset);
             var sid = entry.GetSid();
             var sidhistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
+            var mail = entry.GetProp("mail");
 
             return new UserProp
             {
@@ -90,7 +91,8 @@ namespace Sharphound2.Enumeration
                 SidHistory = sidhistory,
                 HasSpn = hasSpn,
                 ServicePrincipalNames = spnString,
-                DisplayName = displayName
+                DisplayName = displayName,
+                Email = mail
             };
         }
 

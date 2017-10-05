@@ -40,7 +40,7 @@ namespace Sharphound2.OutputObjects
                 }else if (reltype.Equals("UserProp"))
                 {
                     statement =
-                        $"UNWIND {{props}} AS prop MERGE (a:User {{name:upper(prop.AccountName)}}) SET a.DisplayName=prop.DisplayName,a.Enabled=toBoolean(prop.Enabled),a.PwdLastSet=toInt(prop.PwdLastSet),a.LastLogon=toInt(prop.LastLogon),a.ObjectSid=prop.ObjectSid,a.SidHistory=prop.SidHistory,a.HasSPN=toBoolean(prop.HasSpn),a.ServicePrincipalNames=split(prop.ServicePrincipalNames,'|')";
+                        $"UNWIND {{props}} AS prop MERGE (a:User {{name:upper(prop.AccountName)}}) SET a.DisplayName=prop.DisplayName,a.Enabled=toBoolean(prop.Enabled),a.PwdLastSet=toInt(prop.PwdLastSet),a.LastLogon=toInt(prop.LastLogon),a.ObjectSid=prop.ObjectSid,a.SidHistory=prop.SidHistory,a.HasSPN=toBoolean(prop.HasSpn),a.ServicePrincipalNames=prop.ServicePrincipalNames,a.Email=prop.Email";
                 }
                 else if (reltype.Equals("Trust"))
                 {

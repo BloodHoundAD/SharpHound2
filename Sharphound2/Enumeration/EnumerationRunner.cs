@@ -991,7 +991,7 @@ namespace Sharphound2.Enumeration
                             var exists = File.Exists(f);
                             userprops = new StreamWriter(f, exists);
                             if (!exists)
-                                userprops.WriteLine("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames");
+                                userprops.WriteLine("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames,Email");
                         }
                         userprops.WriteLine(item.ToCsv());
                         userPropsCount++;

@@ -112,7 +112,7 @@ namespace Sharphound2.Enumeration
                     {
                         "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "objectsid",
                         "sidhistory", "useraccountcontrol", "dnshostname", "operatingsystem",
-                        "operatingsystemservicepack", "serviceprincipalname", "displayname"
+                        "operatingsystemservicepack", "serviceprincipalname", "displayname", "mail"
                     };
                     break;
                 default:
