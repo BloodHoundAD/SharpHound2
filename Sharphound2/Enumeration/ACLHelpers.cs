@@ -208,10 +208,10 @@ namespace Sharphound2.Enumeration
 
                 //If we have either of the DCSync rights, store it in a temporary object and continue.
                 //We need both rights for either right to mean anything to us
-                if (aceType != null && (aceType.Equals("DS-Replication-Get-Changes-All") ||
+                if (aceType != null && entryType.Equals("domain") && (aceType.Equals("DS-Replication-Get-Changes-All") ||
                                         aceType.Equals("DS-Replication-Get-Changes")))
                 {
-                    if (!_syncers.TryGetValue(mappedPrincipal.PrincipalName, out DcSync sync))
+                    if (!_syncers.TryGetValue(mappedPrincipal.PrincipalName, out var sync))
                     {
                         sync = new DcSync
                         {
