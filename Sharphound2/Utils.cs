@@ -77,7 +77,21 @@ namespace Sharphound2
             }
             catch
             {
-                dnsHostName = hostName;
+                var result = NetWkstaGetInfo(hostName, 100, out var data);
+                if (result == 0)
+                {
+                    var marshalled = (WkstaInfo100) Marshal.PtrToStructure(data, typeof(WkstaInfo100));
+                    var domain = GetDomain(marshalled.lan_group).Name;
+                    var nbname = marshalled.computer_name;
+                    if (!DnsManager.HostExistsDns($"{nbname}@{domain}", out dnsHostName))
+                    {
+                        dnsHostName = hostName;
+                    }
+                }
+                else
+                {
+                    dnsHostName = hostName;
+                }
             }
 
             _dnsResolveCache.TryAdd(hostName, dnsHostName);
@@ -933,6 +947,19 @@ namespace Sharphound2
             DS_IS_DNS_NAME = 0x00020000,
             DS_RETURN_DNS_NAME = 0x40000000,
             DS_RETURN_FLAT_NAME = 0x80000000
+        }
+
+        [DllImport("netapi32.dll", SetLastError = true)]
+        private static extern int NetWkstaGetInfo([MarshalAs(UnmanagedType.LPWStr)]string serverName, int level, out IntPtr data);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct WkstaInfo100
+        {
+            public int platform_id;
+            public string computer_name;
+            public string lan_group;
+            public int ver_major;
+            public int ver_minor;
         }
         #endregion
     }

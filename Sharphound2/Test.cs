@@ -11,18 +11,25 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            //foreach (var x in Utils.Instance.DoSearch("(objectclass=container)", SearchScope.Subtree,
-            //    new[] {"name", "objectsid", "samaccounttype"}, "testlab.local",
-            //    "CN=User,CN={1CEEC639-B9CE-4668-85F9-AB0A07872C88},CN=Policies,CN=System,DC=testlab, DC = local"))
-            //{
-            //    Console.WriteLine(x.DistinguishedName);
-            //}
-            ////ContainerHelpers.GetContainersForDomain("testlab.local");
-            var x = Utils.Instance
-                .DoSearch("(objectclass=*)", SearchScope.Base, new[] {"objectsid"}, "dev.testlab.local")
-                .Take(1).DefaultIfEmpty(null).FirstOrDefault();
+            Console.WriteLine(host);
+            var result = NetWkstaGetInfo(host, 100, out var data);
+            Console.WriteLine(result);
+            var info = (WkstaInfo100) Marshal.PtrToStructure(data, typeof(WkstaInfo100));
+            Console.WriteLine(info.computer_name);
+            Console.WriteLine(info.lan_group);
+        }
 
-            Console.WriteLine(x.GetSid());
+        [DllImport("netapi32.dll", SetLastError = true)]
+        private static extern int NetWkstaGetInfo([MarshalAs(UnmanagedType.LPWStr)]string serverName, int level, out IntPtr data);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct WkstaInfo100
+        {
+            public int platform_id;
+            public string computer_name;
+            public string lan_group;
+            public int ver_major;
+            public int ver_minor;
         }
     }
 }

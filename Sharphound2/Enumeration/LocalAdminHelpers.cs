@@ -274,28 +274,28 @@ namespace Sharphound2.Enumeration
                 yield break;
             }
 
-            //Utils.Debug("Processing data");
+            Utils.Debug("Processing data");
             //Process our list of stuff now
             foreach (var data in resolvedObjects)
             {
                 var sid = data?.AccountSid;
-                //Utils.Debug($"Processing sid: {sid}");
+                Utils.Debug($"Processing sid: {sid}");
                 if (sid == null)
                 {
-                    //Utils.Debug("Null sid");
+                    Utils.Debug("Null sid");
                     continue;
                 }
 
                 if (data.AccountName.Equals(string.Empty))
                 {
-                    //Utils.Debug("Empty AccountName");
+                    Utils.Debug("Empty AccountName");
                     continue;
                 }
                     
 
                 if (sid.StartsWith(machineSid))
                 {
-                    //Utils.Debug("Local Account");
+                    Utils.Debug("Local Account");
                     continue;
                 }
                     
@@ -328,27 +328,27 @@ namespace Sharphound2.Enumeration
 
                 string resolvedName;
 
-                //Utils.Debug($"Object Type: {type}");
+                Utils.Debug($"Object Type: {type}");
 
                 if (type.Equals("unknown"))
                 {
-                    //Utils.Debug("Resolving Sid to object");
+                    Utils.Debug("Resolving Sid to object");
                     var mp = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid),
                         AdminProps);
                     if (mp == null)
                         continue;
 
-                    //Utils.Debug($"Got Object: {mp.PrincipalName}");
+                    Utils.Debug($"Got Object: {mp.PrincipalName}");
                     resolvedName = mp.PrincipalName;
                     type = mp.ObjectType;
                 }
                 else
                 {
-                    //Utils.Debug("Resolving Sid to Object");
+                    Utils.Debug("Resolving Sid to Object");
                     resolvedName = _utils.SidToDisplay(sid, _utils.SidToDomainName(sid), AdminProps, type);
                     if (resolvedName == null)
                         continue;
-                    //Utils.Debug($"Got Object: {resolvedName}");
+                    Utils.Debug($"Got Object: {resolvedName}");
                 }
 
                 yield return new LocalAdmin
