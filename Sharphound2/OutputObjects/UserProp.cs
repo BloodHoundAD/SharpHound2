@@ -20,7 +20,7 @@ namespace Sharphound2.OutputObjects
 
         public override string ToCsv()
         {
-            return $"{AccountName},\"{DisplayName}\",{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},\"{ServicePrincipalNames}\",{Email}";
+            return $"{AccountName},\"{DisplayName}\",{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},\"{ServicePrincipalNames}\",\"{Email}\"";
         }
 
         public override object ToParam()
