@@ -83,7 +83,7 @@ namespace Sharphound2
                     var marshalled = (WkstaInfo100) Marshal.PtrToStructure(data, typeof(WkstaInfo100));
                     var domain = GetDomain(marshalled.lan_group).Name;
                     var nbname = marshalled.computer_name;
-                    if (!DnsManager.HostExistsDns($"{nbname}@{domain}", out dnsHostName))
+                    if (!DnsManager.HostExistsDns($"{nbname}.{domain}", out dnsHostName))
                     {
                         dnsHostName = hostName;
                     }
