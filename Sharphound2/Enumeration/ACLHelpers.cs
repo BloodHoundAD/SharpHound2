@@ -234,6 +234,42 @@ namespace Sharphound2.Enumeration
                     continue;
                 }
 
+                if (aceType != null && entryType.Equals("domain") && aceType.Equals("All"))
+                {
+                    if (!_syncers.TryGetValue(mappedPrincipal.PrincipalName, out var sync))
+                    {
+                        sync = new DcSync
+                        {
+                            Domain = entryDisplayName,
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType
+                        };
+                    }
+
+                    sync.GetChangesAll = true;
+                    sync.GetChanges = true;
+
+                    _syncers.AddOrUpdate(mappedPrincipal.PrincipalName, sync, (key, oldVar) => sync);
+                }
+
+                if (aceType != null && entryType.Equals("domain") && adRightString.Contains("GenericAll"))
+                {
+                    if (!_syncers.TryGetValue(mappedPrincipal.PrincipalName, out var sync))
+                    {
+                        sync = new DcSync
+                        {
+                            Domain = entryDisplayName,
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType
+                        };
+                    }
+
+                    sync.GetChangesAll = true;
+                    sync.GetChanges = true;
+
+                    _syncers.AddOrUpdate(mappedPrincipal.PrincipalName, sync, (key, oldVar) => sync);
+                }
+
                 //Return ACL objects based on rights + guid combos
 
                 if (adRightString.Contains("GenericAll"))
