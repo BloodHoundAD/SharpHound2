@@ -116,7 +116,6 @@ Usage: SharpHound.exe <options>
 Enumeration Options:
     -c , --CollectionMethod (Default: Default)
         Default - Enumerate Trusts, Sessions, Local Admin, and Group Membership
-        Cache - Only build the LDAP Cache
         Group - Enumerate Group Membership
         LocalGroup - Enumerate Local Admin
         Session - Enumerate Sessions
@@ -158,6 +157,9 @@ Connection Options:
 
     --IgnoreLdapCert
         Ignores the SSL certificate for LDAP. Use for self-signed certs
+
+    --DisableKerbSigning
+        Disables Kerberos signing on LDAP requests
 
 Performance Tuning:
     -t , --Threads (Default: 10)

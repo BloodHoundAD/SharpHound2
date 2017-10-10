@@ -28,7 +28,7 @@ function Invoke-BloodHound{
             ComputerOnly - Collects Local Admin and Session data
             GPOLocalGroup - Collects Local Admin information using GPO (Group Policy Objects)
             LoggedOn - Collects session information using privileged methods (needs admin!)
-            Cache - Only builds the database cache
+            ObjectProps - Collects node property information for users and computers
             Default - Collects Group Membership, Local Admin, Sessions, and Domain Trusts
 
     .PARAMETER Domain
@@ -139,6 +139,10 @@ function Invoke-BloodHound{
     .PARAMETER IgnoreLdapCert
 
         Ignores the certificate for LDAP
+
+    .PARAMETER DisableKerbSigning
+
+        Disables Kerberos Signing on requests.
         
     .EXAMPLE
 
@@ -163,7 +167,7 @@ function Invoke-BloodHound{
 
     param(
         [String]
-        [ValidateSet('Group', 'ComputerOnly', 'LocalGroup', 'GPOLocalGroup', 'Session', 'LoggedOn', 'Trusts', 'Cache','ACL', 'SessionLoop', 'Default', 'All')]
+        [ValidateSet('Group', 'ComputerOnly', 'LocalGroup', 'GPOLocalGroup', 'Session', 'LoggedOn', 'Trusts','ACL', 'SessionLoop', 'Default', 'All', 'ObjectProps')]
         $CollectionMethod = 'Default',
 
         [Switch]
