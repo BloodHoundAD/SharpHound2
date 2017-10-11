@@ -124,6 +124,7 @@ Enumeration Options:
         ComputerOnly - Enumerate Sessions and Local Admin
         Trusts - Enumerate Domain Trusts
         ACL - Enumerate ACLs
+        ObjectProps - Enumerate Object Properties for Users/Computers
 
     -s , --SearchForest
         Search the entire forest instead of just current domain
