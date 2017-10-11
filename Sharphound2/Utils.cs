@@ -216,32 +216,39 @@ namespace Sharphound2
 
         public string SidToDomainName(string sid, string domainController = null)
         {
+            Debug($"Creating SecurityIdentifier from {sid}");
             var id = new SecurityIdentifier(sid);
             if (id.AccountDomainSid == null)
             {
+                Debug($"SecurityIdentifier was null");
                 return null;
             }
-            sid = id.AccountDomainSid.Value;
-
-            if (_cache.GetDomainFromSid(sid, out var domainName))
+            var dSid = id.AccountDomainSid.Value;
+            Debug($"Got Domain Sid {dSid}");
+            if (_cache.GetDomainFromSid(dSid, out var domainName))
             {
                 return domainName;
             }
+
+            Debug($"Searching for sid in AD by objectsid");
 
             var entry = DoSearch($"(objectsid={sid})", SearchScope.Subtree, new[] {"distinguishedname"}, useGc: true)
                 .DefaultIfEmpty(null).FirstOrDefault();
 
             if (entry == null)
             {
+                Debug($"Searching for sid in AD by securityidentifier");
                 entry = DoSearch($"(securityidentifier={sid})", SearchScope.Subtree, new[] { "distinguishedname" }, useGc: true)
                     .DefaultIfEmpty(null).FirstOrDefault();
             }
 
             if (entry == null)
             {
+                Debug($"No sid found");
                 return null;
             }
             domainName = ConvertDnToDomain(entry.DistinguishedName);
+            Debug($"Converted sid to {domainName}");
             _cache.AddDomainFromSid(sid, domainName);
             _cache.AddDomainFromSid(domainName, sid);
             return domainName;
@@ -275,24 +282,31 @@ namespace Sharphound2
                 found = _cache.GetMapValue(sid, type, out resolved);
             }
 
+            Debug($"Cache Hit for SidToDisplay: {found}");
+
             if (found)
             {
                 return resolved.ToUpper();
             }
+
+            Debug($"Searching domain {domainName} for {sid}");
 
             var entry = DoSearch($"(objectsid={sid})", SearchScope.Subtree, props, domainName).DefaultIfEmpty(null)
                 .FirstOrDefault();
 
             if (entry == null)
             {
+                Debug($"No entry found");
                 return null;
             }
-            
+
+            Debug($"Resolving entry to name");
             var name = entry.ResolveAdEntry();
             if (name != null)
             {
                 _cache.AddMapValue(sid, type, name.BloodHoundDisplay);
             }
+            Debug($"Resolved to {name}");
             return name?.BloodHoundDisplay;
         }
 
@@ -323,7 +337,7 @@ namespace Sharphound2
         public IEnumerable<Wrapper<SearchResultEntry>> DoWrappedSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
-            using (var conn = useGc ? GetGcConnection() : GetLdapConnection(domainName))
+            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
             {
                 if (conn == null)
                 {
@@ -383,20 +397,25 @@ namespace Sharphound2
         public IEnumerable<SearchResultEntry> DoSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
-            using (var conn = useGc ? GetGcConnection() : GetLdapConnection(domainName))
+            Debug("Creating connection");
+            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
             {
                 if (conn == null)
                 {
+                    Debug("Connection null");
                     yield break;
                 }
+                Debug("Getting search request");
                 var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
 
                 if (request == null)
                 {
+                    Debug($"Unable to contact domain {domainName}");
                     Verbose($"Unable to contact domain {domainName}");
                     yield break;
                 }
 
+                Debug("Creating page control");
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
@@ -408,6 +427,7 @@ namespace Sharphound2
                 }
 
                 PageResultResponseControl pageResponse = null;
+                Debug("Starting loop");
                 while (true)
                 {
                     SearchResponse response;
@@ -421,6 +441,7 @@ namespace Sharphound2
                     }
                     catch
                     {
+                        Debug("Error in loop");
                         yield break;
                     }
                     if (response == null || pageResponse == null) continue;
@@ -431,6 +452,7 @@ namespace Sharphound2
 
                     if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
                     {
+                        Debug("Loop finished");
                         yield break;
                     }
 
@@ -481,13 +503,19 @@ namespace Sharphound2
             return connection;
         }
 
-        public LdapConnection GetGcConnection(string domainController = null)
+        public LdapConnection GetGcConnection(string domainName = null)
         {
-            if (domainController == null)
+            Domain targetDomain;
+            try
             {
-                domainController = Forest.GetCurrentForest().FindGlobalCatalog().Name;
+                targetDomain = GetDomain(domainName);
             }
-            var connection = new LdapConnection(new LdapDirectoryIdentifier(domainController, 3268));
+            catch
+            {
+                Verbose($"Unable to contact domain {domainName}");
+                return null;
+            }
+            var connection = new LdapConnection(new LdapDirectoryIdentifier(targetDomain.Name, 3268));
 
             var lso = connection.SessionOptions;
             if (_options.DisableKerbSigning) return connection;
