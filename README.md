@@ -26,6 +26,7 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
    * **LoggedOn** - Performs privileged session collection (requires admin rights on target systems)
    * **Trusts** - Performs domain trust enumeration for the specified domain
    * **ACL** - Performs collection of ACLs
+   * **ObjectProps** - Enumerate Object Properties for Users/Computers
 
 * **SearchForest** - Search all the domains in the forest instead of just your current one
 * **Domain** - Search a particular domain. Uses your current domain if null (Default: null)
@@ -49,6 +50,7 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 * **CSVPrefix** - Prefix to add to your CSV files (Default: "")
 * **Uri** - Url for the Neo4j REST API. Format is SERVER:PORT (Default: null)
 * **UserPass** - Username and password for the Neo4j REST API. Format is username:password (Default: null)
+* **CompressData** - Compresses any used CSV files into a timestamped zip after running (Default: false)
 
 ### Cache Options
 * **CacheFile** - Filename for the Sharphound cache. (Default: BloodHound.bin)
