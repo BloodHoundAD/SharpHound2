@@ -210,7 +210,7 @@ namespace Sharphound2.Enumeration
             {
                 //Remotely open the registry hive if its not our current one
                 var key = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users,
-                    Environment.MachineName.Equals(target.BloodHoundDisplay.Split('.')[0], StringComparison.CurrentCultureIgnoreCase)
+                    Environment.MachineName.Equals(target.ComputerSamAccountName, StringComparison.CurrentCultureIgnoreCase)
                         ? ""
                         : target.BloodHoundDisplay);
 
@@ -228,9 +228,8 @@ namespace Sharphound2.Enumeration
                     temp.Add(new Session { ComputerName = target.BloodHoundDisplay, UserName = user, Weight = 1 });
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Console.WriteLine(e);
                 yield break;
             }
 
@@ -273,7 +272,7 @@ namespace Sharphound2.Enumeration
                 var domainName = _utils.DomainNetbiosToFqdn(domain) ?? computerDomain;
                 toReturn.Add(new Session
                 {
-                    ComputerName = entry.ComputerSamAccountName,
+                    ComputerName = entry.BloodHoundDisplay,
                     UserName = $"{username}@{domainName}",
                     Weight = 1
                 });
