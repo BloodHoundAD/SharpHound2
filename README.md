@@ -16,7 +16,7 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 
 ## Usage
 ### Enumeration Options
-* **CollectionMethod** - The collection method to use. This parameter will accept a comma seperate list of values. Has the following potential values (Default: Default):
+* **CollectionMethod** - The collection method to use. This parameter will accept a comma seperated list of values. Has the following potential values (Default: Default):
    * **Default** - Performs group membership collection, domain trust collection, local admin collection, and session collection
    * **Group** - Performs group membership collection only
    * **LocalGroup** - Performs local admin collection only
