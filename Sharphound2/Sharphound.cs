@@ -18,8 +18,8 @@ namespace Sharphound2
     {
         public class Options
         {
-            [OptionArray('c', "CollectionMethods", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
-            public string[] CollectionMethods { get; set; }
+            [OptionArray('c', "CollectionMethod", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
+            public string[] CollectionMethod { get; set; }
 
             [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]
             public bool Stealth { get; set; }
@@ -268,15 +268,9 @@ General Options
             {
                 return;
             }
+
             var collectionMethods = new List<CollectionMethod>();
-
-            if (options.RemoveCSV && !options.CompressData)
-            {
-                Console.WriteLine("Ignoring RemoveCSV as CompressData is not set");
-                options.RemoveCSV = false;
-            }
-
-            foreach (var unparsed in options.CollectionMethods)
+            foreach (var unparsed in options.CollectionMethod)
             {
                 try
                 {
@@ -294,6 +288,12 @@ General Options
             {
                 Console.WriteLine("Debug Mode activated!");
                 options.Threads = 1;
+            }
+
+            if (options.RemoveCSV && !options.CompressData)
+            {
+                Console.WriteLine("Ignoring RemoveCSV as CompressData is not set");
+                options.RemoveCSV = false;
             }
 
             if (options.MaxLoopTime != null && options.CurrentCollectionMethod.Equals(SessionLoop))

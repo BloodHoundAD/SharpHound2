@@ -167,7 +167,7 @@ function Invoke-BloodHound{
 
     param(
         [String[]]
-        $CollectionMethods = [string[]] @('Default'),
+        $CollectionMethod = [string[]] @('Default'),
 
         [Switch]
         $SearchForest,

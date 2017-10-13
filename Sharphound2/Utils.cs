@@ -676,7 +676,9 @@ namespace Sharphound2
             var zipfilepath = $"BloodHound_{DateTime.Now:yyyyMMddHHmmssfff}.zip";
             zipfilepath = GetCsvFileName(zipfilepath);
 
-            Console.WriteLine($"Compressing data to {zipfilepath}");
+            Console.WriteLine(_options.RemoveCSV
+                ? $"Compressing data to {zipfilepath} and deleting CSVs"
+                : $"Compressing data to {zipfilepath}");
 
             var buffer = new byte[4096];
             using (var s = new ZipOutputStream(File.Create(zipfilepath)))
