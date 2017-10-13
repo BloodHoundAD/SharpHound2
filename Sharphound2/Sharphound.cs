@@ -130,6 +130,8 @@ Enumeration Options:
         ACL - Enumerate ACLs
         ObjectProps - Enumerate Object Properties for Users/Computers
 
+        This can be a list of comma seperated valued as well to run multiple collection methods!
+
     -s , --SearchForest
         Search the entire forest instead of just current domain
 

@@ -31,6 +31,8 @@ function Invoke-BloodHound{
             ObjectProps - Collects node property information for users and computers
             Default - Collects Group Membership, Local Admin, Sessions, and Domain Trusts
 
+        This can be a list of comma seperated valued as well to run multiple collection methods!
+
     .PARAMETER Domain
 
         Specifies the domain to enumerate. If not specified, will enumerate the current
@@ -163,6 +165,13 @@ function Invoke-BloodHound{
     
         Executes session collection in a loop. Will wait 1 minute after each run to continue collection
         and will continue running for 10 minutes after which the script will exit
+
+    .EXAMPLE
+
+        PS C:\> Invoke-BloodHound -CollectionMethod ACL,ObjectProps,Default -CompressData -RemoveCSV
+    
+        Runs ACL, ObjectProps, and Default collection methods sequentially, compressed the data to a zip file,
+        and then removes the CSV files from disk
     #>
 
     param(
