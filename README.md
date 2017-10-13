@@ -16,7 +16,7 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 
 ## Usage
 ### Enumeration Options
-* **CollectionMethod** - The collection method to use. Has the following potential values (Default: Default):
+* **CollectionMethod** - The collection method to use. This parameter will accept a comma seperate list of values. Has the following potential values (Default: Default):
    * **Default** - Performs group membership collection, domain trust collection, local admin collection, and session collection
    * **Group** - Performs group membership collection only
    * **LocalGroup** - Performs local admin collection only
@@ -49,6 +49,8 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 * **CSVPrefix** - Prefix to add to your CSV files (Default: "")
 * **Uri** - Url for the Neo4j REST API. Format is SERVER:PORT (Default: null)
 * **UserPass** - Username and password for the Neo4j REST API. Format is username:password (Default: null)
+* **CompressData** - Compresses CSV files to a single zip file after completion of enumeration
+* **RemoveCSV** - Deletes CSV files from disk after run. Only usable with the **CompressData** flag
 
 ### Cache Options
 * **CacheFile** - Filename for the Sharphound cache. (Default: BloodHound.bin)
