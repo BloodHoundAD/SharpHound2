@@ -263,7 +263,7 @@ function Invoke-BloodHound{
     $vars = New-Object System.Collections.Generic.List[System.Object]
 
     $vars.Add("-c")
-    foreach ($cmethod in $CollectionMethods){
+    foreach ($cmethod in $CollectionMethod){
         $vars.Add($cmethod);
     }
     
