@@ -166,9 +166,8 @@ function Invoke-BloodHound{
     #>
 
     param(
-        [String]
-        [ValidateSet('Group', 'ComputerOnly', 'LocalGroup', 'GPOLocalGroup', 'Session', 'LoggedOn', 'Trusts','ACL', 'SessionLoop', 'Default', 'All', 'ObjectProps')]
-        $CollectionMethod = 'Default',
+        [String[]]
+        $CollectionMethods = [string[]] @('Default'),
 
         [Switch]
         $SearchForest,
@@ -255,14 +254,19 @@ function Invoke-BloodHound{
         $DisableKerbSigning,
 
         [string]
-        $DomainController
+        $DomainController,
+
+        [Switch]
+        $RemoveCSV
     )
 
     $vars = New-Object System.Collections.Generic.List[System.Object]
 
     $vars.Add("-c")
-    $vars.Add($CollectionMethod);
-
+    foreach ($cmethod in $CollectionMethods){
+        $vars.Add($cmethod);
+    }
+    
     if ($Domain){
         $vars.Add("-d");
         $vars.Add($Domain);
@@ -379,6 +383,10 @@ function Invoke-BloodHound{
     if ($DomainController){
         $vars.Add("--DomainController");
         $vars.Add($DomainController);
+    }
+
+    if ($RemoveCSV){
+        $vars.Add("--RemoveCSV");
     }
 
     $passed = [string[]]$vars.ToArray()

@@ -67,13 +67,13 @@ namespace Sharphound2.Enumeration
                 _noPing = 0;
                 _watch = Stopwatch.StartNew();
 
-                Console.WriteLine($"Starting stealth enumeration for {domainName}");
+                Console.WriteLine($"Starting {_options.CurrentCollectionMethod} stealth enumeration for {domainName}");
                 var domainSid = _utils.GetDomainSid(domainName);
-                var data = LdapFilter.GetLdapFilter(_options.CollectMethod, _options.ExcludeDC, true);
+                var data = LdapFilter.GetLdapFilter(_options.CurrentCollectionMethod, _options.ExcludeDC, true);
 
                 _statusTimer.Start();
 
-                switch (_options.CollectMethod)
+                switch (_options.CurrentCollectionMethod)
                 {
                     case CollectionMethod.ObjectProps:
                         Console.WriteLine("Doing stealth enumeration for object properties");
@@ -362,7 +362,7 @@ namespace Sharphound2.Enumeration
                 Console.WriteLine($"Finished stealth enumeration for {domainName} in {_watch.Elapsed}");
                 Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
             }
-            if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
+            if (!_options.CurrentCollectionMethod.Equals(CollectionMethod.SessionLoop)) return;
             if (_options.MaxLoopTime != null)
             {
                 if (DateTime.Now > _options.LoopEnd)
@@ -389,17 +389,17 @@ namespace Sharphound2.Enumeration
         public void StartEnumeration()
         {
             //Let's determine what LDAP filter we need first
-            var data = LdapFilter.GetLdapFilter(_options.CollectMethod, _options.ExcludeDC, _options.Stealth);
+            var data = LdapFilter.GetLdapFilter(_options.CurrentCollectionMethod, _options.ExcludeDC, _options.Stealth);
             var ldapFilter = data.Filter;
             var props = data.Properties;
-            var c = _options.CollectMethod;
+            var c = _options.CurrentCollectionMethod;
 
 
             foreach (var domainName in _utils.GetDomainList())
             {
                 _noPing = 0;
                 _timeouts = 0;
-                Console.WriteLine($"Starting enumeration for {domainName}");
+                Console.WriteLine($"Starting {c} enumeration for {domainName}");
 
                 _watch = Stopwatch.StartNew();
                 _currentDomain = domainName;
@@ -424,7 +424,7 @@ namespace Sharphound2.Enumeration
                         {
                             outputQueue.Add(new Wrapper<OutputBase> {Item = domain});
                         }
-                        if (_options.CollectMethod.Equals(CollectionMethod.Trusts))
+                        if (_options.CurrentCollectionMethod.Equals(CollectionMethod.Trusts))
                         {
                             outputQueue.CompleteAdding();
                             writer.Wait();
@@ -438,7 +438,7 @@ namespace Sharphound2.Enumeration
                         {
                             outputQueue.Add(new Wrapper<OutputBase> { Item = container });
                         }
-                        if (_options.CollectMethod.Equals(CollectionMethod.Container))
+                        if (_options.CurrentCollectionMethod.Equals(CollectionMethod.Container))
                         {
                             outputQueue.CompleteAdding();
                             writer.Wait();
@@ -477,7 +477,7 @@ namespace Sharphound2.Enumeration
 
                     _statusTimer.Stop();
 
-                    if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                    if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
                     {
                         foreach (var a in AclHelpers.GetSyncers())
                         {
@@ -534,7 +534,7 @@ namespace Sharphound2.Enumeration
                 
             }
 
-            if (!_options.CollectMethod.Equals(CollectionMethod.SessionLoop)) return;
+            if (!_options.CurrentCollectionMethod.Equals(CollectionMethod.SessionLoop)) return;
             if (_options.MaxLoopTime != null)
             {
                 if (DateTime.Now > _options.LoopEnd)
@@ -576,7 +576,7 @@ namespace Sharphound2.Enumeration
                         continue;
                     }
 
-                    switch (_options.CollectMethod)
+                    switch (_options.CurrentCollectionMethod)
                     {
                         case CollectionMethod.ObjectProps:
                             {
@@ -856,7 +856,7 @@ namespace Sharphound2.Enumeration
                         ComputerSamAccountName = netbios
                     };
 
-                    var c = _options.CollectMethod;
+                    var c = _options.CurrentCollectionMethod;
 
                     if (c.Equals(CollectionMethod.Session) ||
                         c.Equals(CollectionMethod.SessionLoop) ||

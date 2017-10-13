@@ -7,7 +7,6 @@ using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
@@ -109,7 +108,6 @@ namespace Sharphound2
 
         internal static void DeduplicateFiles()
         {
-            Console.WriteLine("Deduplicating Files");
             foreach (var f in UsedFiles)
             {
                 var removed = 0;
@@ -137,7 +135,8 @@ namespace Sharphound2
                         writer.WriteLine(line);
                     }
                 }
-                Console.WriteLine($"Removed {removed} lines from {f}");
+                if (removed > 0)
+                    Console.WriteLine($"Removed {removed} duplicate lines from {f}");
             }
         }
 
@@ -161,7 +160,7 @@ namespace Sharphound2
                 return false;
             }
 
-            if (_options.CollectMethod.Equals(CollectionMethod.SessionLoop))
+            if (_options.CurrentCollectionMethod.Equals(CollectionMethod.SessionLoop))
             {
                 return DoPing(hostName);
             }
@@ -355,7 +354,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
@@ -419,7 +418,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CollectMethod.Equals(CollectionMethod.ACL))
+                if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
@@ -696,6 +695,11 @@ namespace Sharphound2
                             source = fs.Read(buffer, 0, buffer.Length);
                             s.Write(buffer, 0, source);
                         } while (source > 0);
+                    }
+
+                    if (_options.RemoveCSV)
+                    {
+                        File.Delete(file);
                     }
                 }
 

@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using Sharphound2.Enumeration;
 using System;
+using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
@@ -17,8 +18,8 @@ namespace Sharphound2
     {
         public class Options
         {
-            [Option('c', "CollectionMethod", DefaultValue = Default, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
-            public CollectionMethod CollectMethod { get; set; }
+            [OptionArray('c', "CollectionMethods", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
+            public string[] CollectionMethods { get; set; }
 
             [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]
             public bool Stealth { get; set; }
@@ -103,6 +104,9 @@ namespace Sharphound2
             
             [Option(DefaultValue = false)]
             public bool Debug { get; set; }
+
+            [Option(DefaultValue = false)]
+            public bool RemoveCSV { get; set; }
 
             [ParserState]
             public IParserState LastParserState { get; set; }
@@ -200,6 +204,9 @@ Output Options
     --CompressData
         Compress CSVs into a zip file after run
 
+    --RemoveCSV
+        Removes CSVs after running. Only usable with the CompressData flag
+
 Cache Options
     --NoSaveCache
         Dont save the cache to disk to speed up future runs
@@ -226,6 +233,8 @@ General Options
 
                 return text;
             }
+
+            internal CollectionMethod CurrentCollectionMethod;
 
             public string CurrentUser { get; set; }
 
@@ -259,6 +268,27 @@ General Options
             {
                 return;
             }
+            var collectionMethods = new List<CollectionMethod>();
+
+            if (options.RemoveCSV && !options.CompressData)
+            {
+                Console.WriteLine("Ignoring RemoveCSV as CompressData is not set");
+                options.RemoveCSV = false;
+            }
+
+            foreach (var unparsed in options.CollectionMethods)
+            {
+                try
+                {
+                    var e = (CollectionMethod)Enum.Parse(typeof(CollectionMethod), unparsed, true);
+                    collectionMethods.Add(e);
+                }
+                catch
+                {
+                    Console.WriteLine($"Failed to parse value {unparsed}. Check your values for CollectionMethods!");
+                    return;
+                }
+            }
 
             if (options.Debug)
             {
@@ -266,7 +296,7 @@ General Options
                 options.Threads = 1;
             }
 
-            if (options.MaxLoopTime != null && options.CollectMethod.Equals(SessionLoop))
+            if (options.MaxLoopTime != null && options.CurrentCollectionMethod.Equals(SessionLoop))
             {
                 var regex = new Regex("[0-9]+[smdh]");
                 var matches = regex.Matches(options.MaxLoopTime);
@@ -314,9 +344,7 @@ General Options
                     return;
                 }
             }
-
             
-
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
             var nowtime = DateTime.Now;
             Console.WriteLine($"Initializing BloodHound at {nowtime.ToShortTimeString()} on {nowtime.ToShortDateString()}");
@@ -340,29 +368,6 @@ General Options
             {
                 Test.DoStuff(options.Test);
                 return;
-            }
-
-            if (options.ComputerFile != null)
-            {
-                if (!File.Exists(options.ComputerFile))
-                {
-                    Console.WriteLine("Specified ComputerFile does not exist!");
-                    return;
-                }
-
-                if (options.CollectMethod.Equals(Default))
-                {
-                    options.CollectMethod = ComputerOnly;
-                    Console.WriteLine("ComputerFile detected with default enumeration. Switching to ComputerOnly collection method");
-                }
-
-                if (!(options.CollectMethod.Equals(Session) || options.CollectMethod.Equals(SessionLoop) ||
-                      options.CollectMethod.Equals(LoggedOn) || options.CollectMethod.Equals(LocalGroup) ||
-                      options.CollectMethod.Equals(ComputerOnly)))
-                {
-                    Console.WriteLine("ComputerFile can only be used with the following collection methods: ComputerOnly, Session, SessionLoop, LocalGroup, LoggedOn");
-                    return;
-                }
             }
 
             //Lets test our connection to LDAP before we do anything else
@@ -408,39 +413,63 @@ General Options
                 }
             }
 
-            if (options.Stealth)
+            foreach (var cmethod in collectionMethods)
             {
-                Console.WriteLine("Note: All stealth options are single threaded");
-            }
-            
-            if (options.CollectMethod.Equals(LocalGroup) && options.Stealth)
-            {
-                Console.WriteLine("Note: You specified Stealth and LocalGroup which is equivalent to GPOLocalGroup");
-                options.CollectMethod = GPOLocalGroup;
-            }
-
-            var runner = new EnumerationRunner(options);
-
-            if (options.CollectMethod.Equals(SessionLoop))
-            {
-                if (options.MaxLoopTime == null)
+                options.CurrentCollectionMethod = cmethod;
+                if (options.ComputerFile != null)
                 {
-                    Console.WriteLine("Session Loop mode specified without MaxLoopTime, will loop indefinitely");
+                    if (!File.Exists(options.ComputerFile))
+                    {
+                        Console.WriteLine("Specified ComputerFile does not exist!");
+                        return;
+                    }
+
+                    if (options.CurrentCollectionMethod.Equals(Default))
+                    {
+                        options.CurrentCollectionMethod = ComputerOnly;
+                        Console.WriteLine("ComputerFile detected with default enumeration. Switching to ComputerOnly collection method");
+                    }
+
+                    if (!(options.CurrentCollectionMethod.Equals(Session) || options.CurrentCollectionMethod.Equals(SessionLoop) ||
+                          options.CurrentCollectionMethod.Equals(LoggedOn) || options.CurrentCollectionMethod.Equals(LocalGroup) ||
+                          options.CurrentCollectionMethod.Equals(ComputerOnly)))
+                    {
+                        Console.WriteLine("ComputerFile can only be used with the following collection methods: ComputerOnly, Session, SessionLoop, LocalGroup, LoggedOn");
+                        continue;
+                    }
+                }
+
+                if (options.Stealth)
+                {
+                    Console.WriteLine("Note: All stealth options are single threaded");
+                }
+
+                if (options.CurrentCollectionMethod.Equals(LocalGroup) && options.Stealth)
+                {
+                    Console.WriteLine("Note: You specified Stealth and LocalGroup which is equivalent to GPOLocalGroup");
+                    options.CurrentCollectionMethod = GPOLocalGroup;
+                }
+
+                var runner = new EnumerationRunner(options);
+
+                if (options.CurrentCollectionMethod.Equals(SessionLoop))
+                {
+                    Console.WriteLine(options.MaxLoopTime == null
+                        ? "Session Loop mode specified without MaxLoopTime, will loop indefinitely"
+                        : $"Session Loop mode specified. Looping will end on {options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()}");
+                }
+
+                if (options.Stealth)
+                {
+                    runner.StartStealthEnumeration();
                 }
                 else
                 {
-                    Console.WriteLine($"Session Loop mode specified. Looping will end on {options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()}");
+                    runner.StartEnumeration();
                 }
+                Console.WriteLine();
             }
-
-            if (options.Stealth)
-            {
-                runner.StartStealthEnumeration();
-            }
-            else
-            {
-                runner.StartEnumeration();
-            }
+            
             Cache.Instance.SaveCache();
 
             Utils.DeduplicateFiles();
