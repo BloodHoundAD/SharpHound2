@@ -354,10 +354,10 @@ namespace Sharphound2.Enumeration
                         throw new ArgumentOutOfRangeException();
                 }
                 output.CompleteAdding();
+                PrintStatus();
                 Utils.Verbose("Waiting for writer thread to finish");
                 writer.Wait();
                 _statusTimer.Stop();
-                PrintStatus();
 
                 Console.WriteLine($"Finished stealth enumeration for {domainName} in {_watch.Elapsed}");
                 Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");

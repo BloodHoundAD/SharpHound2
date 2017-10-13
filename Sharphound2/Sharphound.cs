@@ -270,6 +270,11 @@ General Options
             }
 
             var collectionMethods = new List<CollectionMethod>();
+            if (options.CollectionMethod.Length == 1)
+            {
+                options.CollectionMethod = options.CollectionMethod[0].Split(',');
+            }
+
             foreach (var unparsed in options.CollectionMethod)
             {
                 try
@@ -413,6 +418,11 @@ General Options
                 }
             }
 
+            if (options.Stealth)
+            {
+                Console.WriteLine("Note: All stealth options are single threaded");
+            }
+
             foreach (var cmethod in collectionMethods)
             {
                 options.CurrentCollectionMethod = cmethod;
@@ -437,11 +447,6 @@ General Options
                         Console.WriteLine("ComputerFile can only be used with the following collection methods: ComputerOnly, Session, SessionLoop, LocalGroup, LoggedOn");
                         continue;
                     }
-                }
-
-                if (options.Stealth)
-                {
-                    Console.WriteLine("Note: All stealth options are single threaded");
                 }
 
                 if (options.CurrentCollectionMethod.Equals(LocalGroup) && options.Stealth)
