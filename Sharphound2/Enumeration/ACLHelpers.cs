@@ -3,9 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
-using System.Linq;
 using System.Security.AccessControl;
-using System.Security.Principal;
 using Sharphound2.OutputObjects;
 
 namespace Sharphound2.Enumeration

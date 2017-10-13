@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-namespace Sharphound2
+﻿namespace Sharphound2
 {
     //This class exists because of a memory leak in BlockingCollection. By setting the reference to Item to null after enumerating it,
     //we can force garbage collection of the internal item, while the Wrapper is held by the collection.

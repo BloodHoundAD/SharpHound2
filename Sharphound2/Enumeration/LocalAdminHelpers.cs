@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using Sharphound2.OutputObjects;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
