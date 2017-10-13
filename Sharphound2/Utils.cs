@@ -10,6 +10,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Threading;
 using ICSharpCode.SharpZipLib.Zip;
 using Sharphound2.Enumeration;
 using SearchOption = System.DirectoryServices.Protocols.SearchOption;
@@ -26,6 +27,7 @@ namespace Sharphound2
 
         private readonly TimeSpan _pingTimeout;
         private static Sharphound.Options _options;
+        private static readonly Random Rnd = new Random();
         private readonly List<string> _domainList;
         private readonly Cache _cache;
 
@@ -708,6 +710,25 @@ namespace Sharphound2
                 s.Finish();
                 s.Close();
             }
+        }
+
+        internal static void DoJitter()
+        {
+            var j = _options.Jitter;
+            var t = _options.Throttle;
+
+            if (t == 0)
+                return;
+
+            if (j == 0)
+            {
+                new ManualResetEvent(false).WaitOne(t);
+                return;
+            }
+
+            var percent = (int)Math.Floor((double)(j * (t / 100)));
+            var temp = t + Rnd.Next(-percent, percent);
+            new ManualResetEvent(false).WaitOne(temp);
         }
 
         public string GetWellKnownSid(string sid)

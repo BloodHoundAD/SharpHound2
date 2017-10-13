@@ -124,6 +124,7 @@ namespace Sharphound2.Enumeration
                             {
                                 _timeouts++;
                             }
+                            Utils.DoJitter();
                             _currentCount++;
                         }
                         break;
@@ -150,6 +151,7 @@ namespace Sharphound2.Enumeration
                             {
                                 _timeouts++;
                             }
+                            Utils.DoJitter();
                             _currentCount++;
                         }
 
@@ -189,6 +191,7 @@ namespace Sharphound2.Enumeration
                             {
                                 _timeouts++;
                             }
+                            Utils.DoJitter();
                             _currentCount++;
                         }
 
@@ -257,6 +260,7 @@ namespace Sharphound2.Enumeration
                             {
                                 _timeouts++;
                             }
+                            Utils.DoJitter();
                             _currentCount++;
                         }
                         break;
@@ -276,11 +280,13 @@ namespace Sharphound2.Enumeration
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = s });
                             }
+                            Utils.DoJitter();
                             sessions = SessionHelpers.GetRegistryLoggedOn(path);
                             foreach (var s in sessions)
                             {
                                 output.Add(new Wrapper<OutputBase> { Item = s });
                             }
+                            Utils.DoJitter();
                             _currentCount++;
                         }
                         break;
@@ -625,6 +631,8 @@ namespace Sharphound2.Enumeration
                                     Interlocked.Increment(ref _timeouts);
                                 }
 
+                                Utils.DoJitter();
+
                                 if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
                                 {
                                     break;
@@ -643,6 +651,8 @@ namespace Sharphound2.Enumeration
                                 {
                                     Interlocked.Increment(ref _timeouts);
                                 }
+
+                                Utils.DoJitter();
                             }
                             break;
                         case CollectionMethod.LocalGroup:
@@ -666,6 +676,8 @@ namespace Sharphound2.Enumeration
                                 {
                                     Interlocked.Increment(ref _timeouts);
                                 }
+
+                                Utils.DoJitter();
                             }
                             break;
                         case CollectionMethod.GPOLocalGroup:
@@ -700,6 +712,8 @@ namespace Sharphound2.Enumeration
                                 {
                                     Interlocked.Increment(ref _timeouts);
                                 }
+
+                                Utils.DoJitter();
                             }
                             break;
                         case CollectionMethod.LoggedOn:
@@ -717,11 +731,13 @@ namespace Sharphound2.Enumeration
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
                                 }
+                                Utils.DoJitter();
                                 sessions = SessionHelpers.GetRegistryLoggedOn(resolved);
                                 foreach (var s in sessions)
                                 {
                                     writeQueue.Add(new Wrapper<OutputBase> { Item = s });
                                 }
+                                Utils.DoJitter();
                             }
                             break;
                         case CollectionMethod.Trusts:
@@ -761,6 +777,7 @@ namespace Sharphound2.Enumeration
                                 {
                                     Interlocked.Increment(ref _timeouts);
                                 }
+                                Utils.DoJitter();
                             }
                             break;
                         case CollectionMethod.Default:
@@ -801,6 +818,8 @@ namespace Sharphound2.Enumeration
                                     Interlocked.Increment(ref _timeouts);
                                 }
 
+                                Utils.DoJitter();
+
                                 if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
                                 {
                                     break;
@@ -819,6 +838,8 @@ namespace Sharphound2.Enumeration
                                 {
                                     Interlocked.Increment(ref _timeouts);
                                 }
+
+                                Utils.DoJitter();
                             }
                         break;
                         default:
@@ -872,7 +893,7 @@ namespace Sharphound2.Enumeration
                         {
                             Interlocked.Increment(ref _timeouts);
                         }
-                        
+                        Utils.DoJitter();
                     }
 
                     if (c.Equals(CollectionMethod.LocalGroup) || c.Equals(CollectionMethod.ComputerOnly))
@@ -887,6 +908,7 @@ namespace Sharphound2.Enumeration
                         {
                             Interlocked.Increment(ref _timeouts);
                         }
+                        Utils.DoJitter();
                     }
 
                     if (c.Equals(CollectionMethod.LoggedOn))
@@ -896,6 +918,8 @@ namespace Sharphound2.Enumeration
 
                         foreach (var session in sessions)
                             output.Add(new Wrapper<OutputBase> {Item = session});
+
+                        Utils.DoJitter();
                     }
                     Interlocked.Increment(ref _currentCount);
                     wrapper.Item = null;

@@ -108,6 +108,12 @@ namespace Sharphound2
             [Option(DefaultValue = false)]
             public bool RemoveCSV { get; set; }
 
+            [Option(DefaultValue = 0)]
+            public int Throttle { get; set; }
+
+            [Option(DefaultValue = 0)]
+            public int Jitter { get; set; }
+
             [ParserState]
             public IParserState LastParserState { get; set; }
 
@@ -187,6 +193,12 @@ Performance Tuning:
         Time to stop looping. Format is 0d0h0m0s or any variation of this.
         Use in conjunction with -c SessionLoop
         Default will loop infinitely
+
+    --Throttle (Default: 0)
+        Time in milliseconds to throttle between requests to computers
+
+    --Jitter (Default: 0)
+        Percent jitter to apply to throttle
 
 Output Options
     -f , --CSVFolder (Default: .)
@@ -277,6 +289,18 @@ General Options
                 options.CollectionMethod = options.CollectionMethod[0].Split(',');
             }
 
+            if (options.Jitter > 100 || options.Jitter < 0)
+            {
+                Console.WriteLine("Jitter must be a value between 0 and 100!");
+                return;
+            }
+
+            if (options.Throttle < 0)
+            {
+                Console.WriteLine("Throttle must be 0 or greater!");
+                return;
+            }
+
             foreach (var unparsed in options.CollectionMethod)
             {
                 try
@@ -295,12 +319,6 @@ General Options
             {
                 Console.WriteLine("Debug Mode activated!");
                 options.Threads = 1;
-            }
-
-            if (options.RemoveCSV && !options.CompressData)
-            {
-                Console.WriteLine("Ignoring RemoveCSV as CompressData is not set");
-                options.RemoveCSV = false;
             }
 
             if (options.MaxLoopTime != null && options.CurrentCollectionMethod.Equals(SessionLoop))
@@ -420,9 +438,21 @@ General Options
                 }
             }
 
+            if (options.RemoveCSV && !options.CompressData)
+            {
+                Console.WriteLine("Ignoring RemoveCSV as CompressData is not set");
+                options.RemoveCSV = false;
+            }
+
             if (options.Stealth)
             {
                 Console.WriteLine("Note: All stealth options are single threaded");
+            }
+
+            if (options.Throttle > 0)
+            {
+                Console.WriteLine(
+                    $"Adding a delay of {options.Throttle} milliseconds to computer requests with a jitter of {options.Jitter}%");
             }
 
             foreach (var cmethod in collectionMethods)

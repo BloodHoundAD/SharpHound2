@@ -96,6 +96,14 @@ function Invoke-BloodHound{
         Use in conjunction with -c SessionLoop
         Default will loop infinitely
 
+    .PARAMETER Throttle
+
+        Time in milliseconds to throttle after each request to a computer
+
+    .Parameter Jitter
+
+        Percentage jitter to apply to throttle
+
     .PARAMETER CSVFolder
 
         Folder to export CSVs too (Defaults to current directory)
@@ -266,7 +274,14 @@ function Invoke-BloodHound{
         $DomainController,
 
         [Switch]
-        $RemoveCSV
+        $RemoveCSV,
+
+        [ValidateRange(0,100)]
+        [int]
+        $Jitter,
+
+        [int]
+        $Throttle
     )
 
     $vars = New-Object System.Collections.Generic.List[System.Object]
@@ -396,6 +411,16 @@ function Invoke-BloodHound{
 
     if ($RemoveCSV){
         $vars.Add("--RemoveCSV");
+    }
+
+    if ($Throttle){
+        $vars.Add("--Throttle");
+        $vars.Add($Throttle);
+    }
+
+    if ($Jitter){
+        $vars.Add("--Jitter");
+        $vars.Add($Jitter);
     }
 
     $passed = [string[]]$vars.ToArray()
