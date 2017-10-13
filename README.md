@@ -43,6 +43,8 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 * **SkipPing** - Instructs Sharphound to skip ping requests to see if systems are up
 * **LoopTime** - The number of minutes in between session loops (Default: 5)
 * **MaxLoopTime** - The amount of time to continue session looping. Format is 0d0h0m0s. Null will result in infinite looping (Default: null)
+* **Throttle** - Adds a delay after each request to a computer. Value is in milliseconds (Default: 0)
+* **Jitter** - Adds a percentage jitter to throttle. (Default: 0)
 
 ### Output Options
 * **CSVFolder** - Folder in which to store CSV files (Default: .)
