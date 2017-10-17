@@ -28,7 +28,7 @@ namespace Sharphound2.Enumeration
             {"samaccountname", "samaccounttype", "dnshostname", "serviceprincipalname", "distinguishedname"};
 
         private static readonly string[] GpoProps =
-            {"samaccounttype", "dnshostname", "distinguishedname", "serviceprincipalname"};
+            {"samaccounttype", "dnshostname", "distinguishedname", "serviceprincipalname", "samaccountname"};
 
         private static readonly string[] GpLinkProps = {"distinguishedname"};
 
