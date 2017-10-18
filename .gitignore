@@ -272,3 +272,7 @@ __pycache__/
 
 # Cake - Uncomment if you are using it
 # tools/
+
+# Ignore SharpHound output files
+*.bin
+*.csv
