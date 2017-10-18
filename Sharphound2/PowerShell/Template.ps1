@@ -115,7 +115,7 @@ function Invoke-BloodHound{
     .PARAMETER URI
 
         The URI for the Neo4j REST API. Setting this option will turn off CSV output
-        Format for this options is SERVER:PORT
+        Format for this options is http(s)://SERVER:PORT
 
     .PARAMETER UserPass
 
