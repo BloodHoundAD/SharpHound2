@@ -1,6 +1,7 @@
 # SharpHound - C# Rewrite of the BloodHound Ingestor
 
-This project is still in beta. You have been warned!
+## Get SharpHound
+The latest build of SharpHound will always be in the BloodHound repository [here](https://github.com/BloodHoundAD/BloodHound/tree/master/Ingestors)
 
 ## Compile Instructions
 Sharphound is written using C# 7.0 features. To easily compile this project, use Visual Studio 2017. 
@@ -49,7 +50,7 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 ### Output Options
 * **CSVFolder** - Folder in which to store CSV files (Default: .)
 * **CSVPrefix** - Prefix to add to your CSV files (Default: "")
-* **Uri** - Url for the Neo4j REST API. Format is SERVER:PORT (Default: null)
+* **Uri** - Url for the Neo4j REST API. Format is http(s)://SERVER:PORT (Default: null)
 * **UserPass** - Username and password for the Neo4j REST API. Format is username:password (Default: null)
 * **CompressData** - Compresses CSV files to a single zip file after completion of enumeration
 * **RemoveCSV** - Deletes CSV files from disk after run. Only usable with the **CompressData** flag

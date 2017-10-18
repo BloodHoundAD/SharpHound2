@@ -210,7 +210,7 @@ Output Options
     --URI (Default: """")
         The URI for the Neo4j REST API
         Setting this option will disable CSV output
-        Format is SERVER:PORT
+        Format is http(s)://SERVER:PORT
 
     --UserPass (Default: """")
         username:password for the Neo4j REST API
@@ -262,12 +262,12 @@ General Options
 
             public string GetURI()
             {
-                return $"http://{Uri}/db/data/transaction/commit";
+                return $"{Uri}/db/data/transaction/commit";
             }
 
             public string GetCheckURI()
             {
-                return $"http://{Uri}/db/data/";
+                return $"{Uri}/db/data/";
             }
         }
 
@@ -417,6 +417,12 @@ General Options
 
             if (options.Uri != null)
             {
+                if (!options.Uri.StartsWith("http",StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("URI must start with http:// or https://");
+                    return;
+                }
+
                 using (var client = new WebClient())
                 {
                     client.Headers.Add("content-type", "application/json");
