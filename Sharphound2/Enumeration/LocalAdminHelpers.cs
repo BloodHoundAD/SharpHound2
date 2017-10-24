@@ -142,7 +142,15 @@ namespace Sharphound2.Enumeration
             //Convert the bytes to strings for usage
             for (var i = 0; i < count; i++)
             {
-                sids[i] = new SecurityIdentifier(grabbedSids[i]).Value;
+                try
+                {
+                    sids[i] = new SecurityIdentifier(grabbedSids[i]).Value;
+                }
+                catch
+                {
+                    sids[i] = null;
+                }
+                
             }
 
             Utils.Debug($"Starting LsaOpenPolicy");
