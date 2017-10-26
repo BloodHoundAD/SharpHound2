@@ -220,7 +220,7 @@ function Invoke-BloodHound{
         [Switch]
         $SkipPing,
 
-        [URI]
+        [String]
         $URI,
 
         [String]
