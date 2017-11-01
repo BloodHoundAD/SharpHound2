@@ -31,7 +31,7 @@ namespace Sharphound2
         private readonly List<string> _domainList;
         private readonly Cache _cache;
 
-        private static readonly HashSet<string> UsedFiles = new HashSet<string>();
+        private static readonly List<CsvContainer> UsedFiles = new List<CsvContainer>();
 
         public static void CreateInstance(Sharphound.Options cli)
         {
@@ -112,13 +112,23 @@ namespace Sharphound2
         {
             foreach (var f in UsedFiles)
             {
+                var n = f.FileName;
                 var removed = 0;
                 var scanned = new OrderedHashSet<string>();
-                using (var reader = new StreamReader(f))
+                var first = true;
+                using (var reader = new StreamReader(n))
                 {
                     string line;
                     while ((line = reader.ReadLine()) != null)
                     {
+                        if (first)
+                        {
+                            first = false;
+                            if (!line.Equals(CsvContainer.GetFileTypeHeader(f.FileType)))
+                            {
+                                scanned.Add(CsvContainer.GetFileTypeHeader(f.FileType));
+                            }
+                        }
                         try
                         {
                             scanned.Add(line);
@@ -130,7 +140,7 @@ namespace Sharphound2
                     }
                 }
 
-                using (var writer = new StreamWriter(f, false))
+                using (var writer = new StreamWriter(f.FileName, false))
                 {
                     foreach (var line in scanned)
                     {
@@ -138,7 +148,7 @@ namespace Sharphound2
                     }
                 }
                 if (removed > 0)
-                    Console.WriteLine($"Removed {removed} duplicate lines from {f}");
+                    Console.WriteLine($"Removed {removed} duplicate lines from {f.FileName}");
             }
         }
 
@@ -668,9 +678,9 @@ namespace Sharphound2
             }
         }
 
-        internal static void AddUsedFile(string filename)
+        internal static void AddUsedFile(CsvContainer file)
         {
-            UsedFiles.Add(filename);
+            UsedFiles.Add(file);
         }
 
         internal static void CompressFiles()
@@ -688,10 +698,10 @@ namespace Sharphound2
                 s.SetLevel(9);
                 foreach (var file in UsedFiles)
                 {
-                    var entry = new ZipEntry(Path.GetFileName(file)) {DateTime = DateTime.Now};
+                    var entry = new ZipEntry(Path.GetFileName(file.FileName)) {DateTime = DateTime.Now};
                     s.PutNextEntry(entry);
 
-                    using (var fs = File.OpenRead(file))
+                    using (var fs = File.OpenRead(file.FileName))
                     {
                         int source;
                         do
@@ -703,7 +713,7 @@ namespace Sharphound2
 
                     if (_options.RemoveCSV)
                     {
-                        File.Delete(file);
+                        File.Delete(file.FileName);
                     }
                 }
 

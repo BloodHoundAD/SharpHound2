@@ -928,6 +928,22 @@ namespace Sharphound2.Enumeration
             });
         }
 
+        private StreamWriter CreateFileStream(string baseName, FileTypes fType)
+        {
+            var fileName = Utils.GetCsvFileName(baseName);
+            Utils.AddUsedFile(new CsvContainer
+            {
+                FileName = fileName,
+                FileType = fType
+            });
+            var e = File.Exists(fileName);
+            var writer = new StreamWriter(fileName, e);
+            if (!e)
+                writer.WriteLine(CsvContainer.GetFileTypeHeader(fType));
+
+            return writer;
+        }
+
         private Task StartOutputWriter(BlockingCollection<Wrapper<OutputBase>> output)
         {
             return Task.Factory.StartNew(() =>
@@ -958,12 +974,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (groups == null)
                         {
-                            var f = Utils.GetCsvFileName("group_membership.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            groups = new StreamWriter(f, exists);
-                            if (!exists)
-                                groups.WriteLine("GroupName,AccountName,AccountType");
+                            groups = CreateFileStream("group_membership.csv", FileTypes.GroupMembership);
                         }
                         groups.WriteLine(item.ToCsv());
                         groupCount++;
@@ -975,12 +986,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (containers == null)
                         {
-                            var f = Utils.GetCsvFileName("container_structure.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            containers = new StreamWriter(f, exists);
-                            if (!exists)
-                                containers.WriteLine("ContainerType,ContainerName,ContainerGUID,ContainerBlocksInheritance,ObjectType,ObjectName");
+                            containers = CreateFileStream("container_structure.csv", FileTypes.Containers);
                         }
                         containers.WriteLine(item.ToCsv());
                         containerCount++;
@@ -992,12 +998,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (gplinks == null)
                         {
-                            var f = Utils.GetCsvFileName("container_gplinks.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            gplinks = new StreamWriter(f, exists);
-                            if (!exists)
-                                gplinks.WriteLine("ObjectType,ObjectName,ObjectGUID,GPODisplayName,GPOGuid,IsEnforced");
+                            gplinks = CreateFileStream("container_gplinks.csv", FileTypes.GpLink);
                         }
                         gplinks.WriteLine(item.ToCsv());
                         gplinkCount++;
@@ -1010,12 +1011,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (userprops == null)
                         {
-                            var f = Utils.GetCsvFileName("user_props.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            userprops = new StreamWriter(f, exists);
-                            if (!exists)
-                                userprops.WriteLine("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames,Email");
+                            userprops = CreateFileStream("user_props.csv", FileTypes.UserProperties);
                         }
                         userprops.WriteLine(item.ToCsv());
                         userPropsCount++;
@@ -1028,12 +1024,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (compprops == null)
                         {
-                            var f = Utils.GetCsvFileName("computer_props.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            compprops = new StreamWriter(f, exists);
-                            if (!exists)
-                                compprops.WriteLine("AccountName,Enabled,UnconstrainedDelegation,PwdLastSet,LastLogon,OperatingSystem,Sid");
+                            compprops = CreateFileStream("computer_props.csv", FileTypes.ComputerProperties);
                         }
                         compprops.WriteLine(item.ToCsv());
                         compPropsCount++;
@@ -1046,12 +1037,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (sessions == null)
                         {
-                            var f = Utils.GetCsvFileName("sessions.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            sessions = new StreamWriter(f, exists);
-                            if (!exists)
-                                sessions.WriteLine("UserName,ComputerName,Weight");
+                            sessions = CreateFileStream("sessions.csv", FileTypes.Session);
                         }
                         sessions.WriteLine(item.ToCsv());
                         sessionCount++;
@@ -1064,12 +1050,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (admins == null)
                         {
-                            var f = Utils.GetCsvFileName("local_admins.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            admins = new StreamWriter(f, exists);
-                            if (!exists)
-                                admins.WriteLine("ComputerName,AccountName,AccountType");
+                            admins = CreateFileStream("local_admins.csv", FileTypes.LocalAdmin);
                         }
                         admins.WriteLine(item.ToCsv());
                         adminCount++;
@@ -1082,13 +1063,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (acls == null)
                         {
-                            var f = Utils.GetCsvFileName("acls.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            acls = new StreamWriter(f, exists);
-                            if (!exists)
-                                acls.WriteLine(
-                                    "ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited");
+                            acls = CreateFileStream("acls.csv", FileTypes.Acl);
                         }
                         acls.WriteLine(item.ToCsv());
                         aclCount++;
@@ -1101,12 +1076,7 @@ namespace Sharphound2.Enumeration
                     {
                         if (trusts == null)
                         {
-                            var f = Utils.GetCsvFileName("trusts.csv");
-                            Utils.AddUsedFile(f);
-                            var exists = File.Exists(f);
-                            trusts = new StreamWriter(f, exists);
-                            if (!exists)
-                                trusts.WriteLine("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive");
+                            trusts = CreateFileStream("trusts.csv", FileTypes.Trusts);
                         }
                         trusts.WriteLine(item.ToCsv());
                         trusts.Flush();
