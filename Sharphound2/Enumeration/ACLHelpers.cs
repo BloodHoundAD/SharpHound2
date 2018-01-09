@@ -85,7 +85,11 @@ namespace Sharphound2.Enumeration
 
             var entryDisplayName = resolvedEntry.BloodHoundDisplay;
             var entryType = resolvedEntry.ObjectType;
-            
+
+            //We have no exploitable paths for Computer, so just ignore them
+            if (entryType.Equals("computer"))
+                yield break;
+
             //Determine the owner of the object. Start by checking if we've already determined this is null
             if (!_nullSids.TryGetValue(ownerSid, out byte _))
             {
@@ -152,11 +156,16 @@ namespace Sharphound2.Enumeration
                     mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
                 }
 
+                //bf967a86-0de6-11d0-a285-00aa003049e2 - Computer
+                //bf967aba-0de6-11d0-a285-00aa003049e2 - User
+                //bf967a9c-0de6-11d0-a285-00aa003049e2 - Group
+                //19195a5a-6da0-11d0-afd3-00c04fd930c9 - Domain
+
                 if (mappedPrincipal.PrincipalName.Contains("Local System"))
                     continue;
 
                 //We have a principal and we've successfully resolved the object. Lets process stuff!
-                
+
                 //Convert our right to an ActiveDirectoryRight enum object, and then to a string
                 var adRight = (ActiveDirectoryRights) Enum.ToObject(typeof(ActiveDirectoryRights), qAce.AccessMask);
                 var adRightString = adRight.ToString();
@@ -181,6 +190,24 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteProperty"))
                     toContinue |= (guid.Equals("00000000-0000-0000-0000-000000000000") || guid.Equals("bf9679c0-0de6-11d0-a285-00aa003049e2") || guid.Equals("bf9679a8-0de6-11d0-a285-00aa003049e2") || toContinue);
+
+                var inheritedObjectType = ace != null ? ace.InheritedObjectAceType.ToString() : "00000000-0000-0000-0000-000000000000";
+                
+                switch (mappedPrincipal.ObjectType)
+                {
+                    case "user":
+                        toContinue = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
+                                     inheritedObjectType.Equals("bf967aba-0de6-11d0-a285-00aa003049e2");
+                        break;
+                    case "group":
+                        toContinue = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
+                                     inheritedObjectType.Equals("bf967a9c-0de6-11d0-a285-00aa003049e2");
+                        break;
+                    case "domain":
+                        toContinue = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
+                                     inheritedObjectType.Equals("19195a5a-6da0-11d0-afd3-00c04fd930c9");
+                        break;
+                }
 
                 if (!toContinue)
                 {
