@@ -48,6 +48,9 @@ namespace Sharphound2
             [Option(DefaultValue = null)]
             public string Uri { get; set; }
 
+            [Option(DefaultValue = 0)]
+            public int LdapPort { get; set; }
+
             [Option(DefaultValue = null)]
             public string UserPass { get; set; }
 
@@ -167,6 +170,9 @@ Enumeration Options:
 Connection Options:
     --SecureLdap
         Uses secure LDAP (LDAPS) instead of regular
+
+    --LdapPort
+        Override the port used to connect to LDAP
 
     --IgnoreLdapCert
         Ignores the SSL certificate for LDAP. Use for self-signed certs
@@ -411,7 +417,7 @@ General Options
             catch (LdapException)
             {
                 Console.WriteLine("Ldap Connection Failure.");
-                Console.WriteLine("Try again with the IgnoreLdapCert option if using SecureLDAP or check your DomainController option");
+                Console.WriteLine("Try again with the IgnoreLdapCert option if using SecureLDAP or check your DomainController/LdapPort option");
                 return;
             }
 

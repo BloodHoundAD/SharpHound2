@@ -488,9 +488,11 @@ namespace Sharphound2
 
             var domainController = _options.DomainController ?? targetDomain.Name;
 
-            var identifier = _options.SecureLdap
-                ? new LdapDirectoryIdentifier(domainController, 636, false, false)
-                : new LdapDirectoryIdentifier(domainController, false, false);
+            var port = 0;
+            port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
+
+            var identifier =
+                new LdapDirectoryIdentifier(domainController, port, false, false);
 
             var connection = new LdapConnection(identifier);
             

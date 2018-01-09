@@ -146,6 +146,10 @@ function Invoke-BloodHound{
 
         Uses LDAPs instead of unencrypted LDAP on port 636
 
+    .PARAMETER LdapPort
+
+        Override the port used to connect to LDAP
+
     .PARAMETER IgnoreLdapCert
 
         Ignores the certificate for LDAP
@@ -281,7 +285,10 @@ function Invoke-BloodHound{
         $Jitter,
 
         [int]
-        $Throttle
+        $Throttle,
+
+        [int]
+        $LdapPort
     )
 
     $vars = New-Object System.Collections.Generic.List[System.Object]
@@ -421,6 +428,11 @@ function Invoke-BloodHound{
     if ($Jitter){
         $vars.Add("--Jitter");
         $vars.Add($Jitter);
+    }
+
+    if ($LdapPort){
+        $vars.Add("--LdapPort");
+        $vars.Add($LdapPort);
     }
 
     $passed = [string[]]$vars.ToArray()
