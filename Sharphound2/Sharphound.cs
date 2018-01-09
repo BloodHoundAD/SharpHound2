@@ -289,6 +289,17 @@ General Options
                 return;
             }
 
+            try
+            {
+                // ReSharper disable once ReturnValueOfPureMethodIsNotUsed
+                Path.Combine(options.CSVFolder, options.CacheFile);
+            }
+            catch (ArgumentException)
+            {
+                Console.WriteLine("Invalid characters in output path. Check for trailing backslashes!");
+                return;
+            }
+
             var collectionMethods = new List<CollectionMethod>();
             if (options.CollectionMethod.Length == 1)
             {
