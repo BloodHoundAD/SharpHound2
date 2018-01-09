@@ -201,10 +201,10 @@ Performance Tuning:
         Percent jitter to apply to throttle
 
 Output Options
-    -f , --CSVFolder (Default: .)
+    --CSVFolder (Default: .)
         The folder in which to store CSV files
 
-    -p , --CSVPrefix (Default: """")
+    --CSVPrefix (Default: """")
         The prefix to add to your CSV files
 
     --URI (Default: """")
