@@ -192,24 +192,36 @@ namespace Sharphound2.Enumeration
                     toContinue |= (guid.Equals("00000000-0000-0000-0000-000000000000") || guid.Equals("bf9679c0-0de6-11d0-a285-00aa003049e2") || guid.Equals("bf9679a8-0de6-11d0-a285-00aa003049e2") || toContinue);
 
                 var inheritedObjectType = ace != null ? ace.InheritedObjectAceType.ToString() : "00000000-0000-0000-0000-000000000000";
-                
-                switch (mappedPrincipal.ObjectType)
+                var isInherited = false;
+
+                switch (entryType)
                 {
                     case "user":
-                        toContinue = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
+                        isInherited = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
                                      inheritedObjectType.Equals("bf967aba-0de6-11d0-a285-00aa003049e2");
                         break;
                     case "group":
-                        toContinue = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
+                        isInherited = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
                                      inheritedObjectType.Equals("bf967a9c-0de6-11d0-a285-00aa003049e2");
                         break;
                     case "domain":
-                        toContinue = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
+                        isInherited = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
                                      inheritedObjectType.Equals("19195a5a-6da0-11d0-afd3-00c04fd930c9");
                         break;
                 }
 
-                if (!toContinue)
+                //if (entryDisplayName.Contains("TESTGROUPINHERIT"))
+                //{
+                //    Console.WriteLine(mappedPrincipal.PrincipalName);
+                //    Console.WriteLine(adRightString);
+                //    Console.WriteLine(inheritedObjectType);
+                //    Console.WriteLine(entryType);
+                //    Console.WriteLine(toContinue);
+                //    Console.WriteLine(isInherited);
+                //    Console.WriteLine();
+                //}
+
+                if (!toContinue || !isInherited)
                 {
                     continue;
                 }
