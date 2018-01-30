@@ -25,7 +25,7 @@ namespace Sharphound2
         Acl,
         [Description("ObjectType,ObjectName,ObjectGUID,GPODisplayName,GPOGuid,IsEnforced")]
         GpLink,
-        [Description("ContainerType,ContainerName,ContainerGUID,ContainerBlocksInheritance,ObjectType,ObjectName")]
+        [Description("ContainerType,ContainerName,ContainerGUID,ContainerBlocksInheritance,ObjectType,ObjectName,ObjectId")]
         Containers
     }
 

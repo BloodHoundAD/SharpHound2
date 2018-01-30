@@ -62,11 +62,10 @@ namespace Sharphound2.Enumeration
             foreach (var container in _utils.DoSearch("(objectclass=container)", SearchScope.OneLevel, new[] {"name", "distinguishedname"},
                 domain))
             {
-                var name = container.GetProp("name");
                 var path = container.DistinguishedName;
 
                 foreach (var obj in _utils.DoSearch("(|(samAccountType=805306368)(samAccountType=805306369))",
-                    SearchScope.Subtree, new[] {"samaccounttype", "samaccountname", "distinguishedname", "dnshostname"},
+                    SearchScope.Subtree, new[] {"samaccounttype", "samaccountname", "distinguishedname", "dnshostname", "objectsid"},
                     domain, path))
                 {
                     var resolved = obj.ResolveAdEntry();
@@ -76,17 +75,18 @@ namespace Sharphound2.Enumeration
                         ContainerBlocksInheritance = false,
                         ContainerGuid = domainGuid,
                         ObjectType = resolved.ObjectType,
-                        //Is this supposed to be the domain or the containername
-                        ContainerName = name,
-                        ObjectName = resolved.BloodHoundDisplay
+                        ContainerName = domain,
+                        ObjectName = resolved.BloodHoundDisplay,
+                        ObjectId = obj.GetSid()
                     };
                 }
             }
 
             foreach (var ou in _utils.DoSearch("(objectcategory=organizationalUnit)", SearchScope.OneLevel,
-                new[] {"name"}, domain))
+                new[] {"name", "objectguid"}, domain))
             {
                 var name = ou.GetProp("name");
+                var guid = new Guid(ou.GetPropBytes("objectguid")).ToString();
 
                 yield return new Container
                 {
@@ -95,7 +95,8 @@ namespace Sharphound2.Enumeration
                     ContainerGuid = domainGuid,
                     ContainerBlocksInheritance = false,
                     ObjectType = "ou",
-                    ObjectName = name
+                    ObjectName = name,
+                    ObjectId = guid
                 };
 
                 queue.Enqueue(ou.DistinguishedName);
@@ -138,7 +139,7 @@ namespace Sharphound2.Enumeration
 
                 foreach (var sub in _utils.DoSearch(
                     "(|(samAccountType=805306368)(samAccountType=805306369)(objectclass=organizationalUnit))",
-                    SearchScope.OneLevel, new[] {"name", "objectguid", "gplink", "gpoptions", "objectclass"}, domain, distinguishedName))
+                    SearchScope.OneLevel, new[] {"name", "objectguid", "gplink", "gpoptions", "objectclass", "objectsid"}, domain, distinguishedName))
                 {
                     var objClass = sub.GetProp("objectclass");
                     var subName = sub.GetProp("name");
@@ -152,7 +153,8 @@ namespace Sharphound2.Enumeration
                             ContainerGuid = guid,
                             ContainerBlocksInheritance = blocksInheritance,
                             ObjectType = "ou",
-                            ObjectName = subName
+                            ObjectName = subName,
+                            ObjectId = new Guid(sub.GetPropBytes("objectguid").ToString()).ToString()
                         };
                     }else if (objClass.Contains("computer"))
                     {
@@ -163,7 +165,8 @@ namespace Sharphound2.Enumeration
                             ContainerGuid = guid,
                             ContainerBlocksInheritance = blocksInheritance,
                             ObjectType = "computer",
-                            ObjectName = subName
+                            ObjectName = subName,
+                            ObjectId = sub.GetSid()
                         };
                     }
                     else
@@ -175,7 +178,8 @@ namespace Sharphound2.Enumeration
                             ContainerGuid = guid,
                             ContainerBlocksInheritance = blocksInheritance,
                             ObjectType = "user",
-                            ObjectName = subName
+                            ObjectName = subName,
+                            ObjectId = sub.GetSid()
                         };
                     }
                 }

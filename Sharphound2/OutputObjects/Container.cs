@@ -10,11 +10,12 @@ namespace Sharphound2.OutputObjects
         internal bool ContainerBlocksInheritance { get; set; }
         internal string ObjectType { get; set; }
         internal string ObjectName { get; set; }
+        internal string ObjectId { get; set; }
         
         public override string ToCsv()
         {
             return
-                $"{ContainerType},{ContainerName},{ContainerGuid},{ContainerBlocksInheritance},{ObjectType},{ObjectName}";
+                $"{ContainerType},{ContainerName},{ContainerGuid},{ContainerBlocksInheritance},{ObjectType},{ObjectName},{ObjectId}";
         }
 
         public override object ToParam()
