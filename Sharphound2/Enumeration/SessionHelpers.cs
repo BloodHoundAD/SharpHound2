@@ -278,6 +278,8 @@ namespace Sharphound2.Enumeration
                 });
             }
 
+            NetApiBufferFree(intPtr);
+
             foreach (var sess in  toReturn.Distinct())
             {
                 yield return sess;

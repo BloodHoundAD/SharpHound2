@@ -93,6 +93,7 @@ namespace Sharphound2
                 {
                     dnsHostName = hostName;
                 }
+                NetApiBufferFree(data);
             }
 
             _dnsResolveCache.TryAdd(hostName, dnsHostName);
@@ -157,6 +158,7 @@ namespace Sharphound2
             var result = NetWkstaGetInfo(server, 100, out var buf);
             if (result != 0) return null;
             var marshalled = (WorkstationInfo100) Marshal.PtrToStructure(buf, typeof(WorkstationInfo100));
+            NetApiBufferFree(buf);
             return marshalled.computer_name;
         }
 
