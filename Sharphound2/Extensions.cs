@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
+using System.Linq;
 using System.Security.Principal;
 using Sharphound2.Enumeration;
 
@@ -118,6 +119,17 @@ namespace Sharphound2
                 entry.ObjectType = "computer";
                 entry.ComputerSamAccountName = shortName;
                 return entry;
+            }
+
+            if (accountType == null)
+            {
+                var objClass = result.GetPropArray("objectClass");
+                if (objClass.Contains("groupPolicyContainer"))
+                {
+                    entry.BloodHoundDisplay = result.GetProp("displayname");
+                    entry.ObjectType = "grouppolicycontainer";
+                    return entry;
+                }
             }
 
             entry.BloodHoundDisplay = domainName;

@@ -160,6 +160,7 @@ namespace Sharphound2.Enumeration
                 //bf967aba-0de6-11d0-a285-00aa003049e2 - User
                 //bf967a9c-0de6-11d0-a285-00aa003049e2 - Group
                 //19195a5a-6da0-11d0-afd3-00c04fd930c9 - Domain
+                //f30e3bc2-9ff0-11d1-b603-0000f80367c1 - GPC
 
                 if (mappedPrincipal.PrincipalName.Contains("Local System"))
                     continue;
@@ -182,14 +183,19 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("ExtendedRight"))
                 {
-                    toContinue |= (guid.Equals("00000000-0000-0000-0000-000000000000") || guid.Equals("") || guid.Equals("00299570-246d-11d0-a768-00aa006e0529") || toContinue);
+                    toContinue |= (guid.Equals("00000000-0000-0000-0000-000000000000") || guid.Equals("") ||
+                                   guid.Equals("00299570-246d-11d0-a768-00aa006e0529") || toContinue);
 
                     //DCSync rights
-                    toContinue |= (guid.Equals("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2") || guid.Equals("1131f6ad-9c07-11d1-f79f-00c04fc2dcd2") || toContinue);
+                    toContinue |= (guid.Equals("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2") ||
+                                   guid.Equals("1131f6ad-9c07-11d1-f79f-00c04fc2dcd2") || toContinue);
                 }
 
                 if (adRightString.Contains("WriteProperty"))
-                    toContinue |= (guid.Equals("00000000-0000-0000-0000-000000000000") || guid.Equals("bf9679c0-0de6-11d0-a285-00aa003049e2") || guid.Equals("bf9679a8-0de6-11d0-a285-00aa003049e2") || toContinue);
+                    toContinue |= (guid.Equals("00000000-0000-0000-0000-000000000000") ||
+                                   guid.Equals("bf9679c0-0de6-11d0-a285-00aa003049e2") ||
+                                   guid.Equals("bf9679a8-0de6-11d0-a285-00aa003049e2") ||
+                                   guid.Equals("f30e3bc1-9ff0-11d1-b603-0000f80367c1") || toContinue);
 
                 var inheritedObjectType = ace != null ? ace.InheritedObjectAceType.ToString() : "00000000-0000-0000-0000-000000000000";
                 var isInherited = false;
@@ -208,18 +214,11 @@ namespace Sharphound2.Enumeration
                         isInherited = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
                                      inheritedObjectType.Equals("19195a5a-6da0-11d0-afd3-00c04fd930c9");
                         break;
+                    case "gpc":
+                        isInherited = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
+                                      inheritedObjectType.Equals("f30e3bc2-9ff0-11d1-b603-0000f80367c1");
+                        break;
                 }
-
-                //if (entryDisplayName.Contains("TESTGROUPINHERIT"))
-                //{
-                //    Console.WriteLine(mappedPrincipal.PrincipalName);
-                //    Console.WriteLine(adRightString);
-                //    Console.WriteLine(inheritedObjectType);
-                //    Console.WriteLine(entryType);
-                //    Console.WriteLine(toContinue);
-                //    Console.WriteLine(isInherited);
-                //    Console.WriteLine();
-                //}
 
                 if (!toContinue || !isInherited)
                 {
@@ -384,6 +383,19 @@ namespace Sharphound2.Enumeration
                             RightName = "WriteProperty",
                             Qualifier = qAce.AceQualifier.ToString()
                         };
+                    }else if (guid.Equals("f30e3bc1-9ff0-11d1-b603-0000f80367c1") && entryType.Equals("grouppolicycontainer"))
+                    {
+                        yield return new ACL
+                        {
+                            AceType = "GPC-File-Sys-Path",
+                            Inherited = qAce.IsInherited,
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType,
+                            ObjectType = entryType,
+                            ObjectName = entryDisplayName,
+                            RightName = "WriteProperty",
+                            Qualifier = qAce.AceQualifier.ToString()
+                        };
                     }
                 }
 
@@ -403,7 +415,7 @@ namespace Sharphound2.Enumeration
                             Qualifier = qAce.AceQualifier.ToString()
                         };
                     }
-                    else
+                    else if (guid.Equals("00000000-0000-0000-0000-000000000000"))
                     {
                         yield return new ACL
                         {

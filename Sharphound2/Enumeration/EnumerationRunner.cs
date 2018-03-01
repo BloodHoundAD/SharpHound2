@@ -434,6 +434,7 @@ namespace Sharphound2.Enumeration
                         {
                             outputQueue.CompleteAdding();
                             writer.Wait();
+                            Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
                             continue;
                         }
                     }
@@ -448,6 +449,7 @@ namespace Sharphound2.Enumeration
                         {
                             outputQueue.CompleteAdding();
                             writer.Wait();
+                            Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
                             continue;
                         }
                     }
