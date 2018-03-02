@@ -139,6 +139,8 @@ namespace Sharphound2.Enumeration
                     cname = target.BloodHoundDisplay;
 
                 var dnsHostName = _utils.ResolveHost(cname);
+                if (dnsHostName == null)
+                    continue;
 
                 //If we're skipping Global Catalog deconfliction, just return a session
                 if (_options.SkipGcDeconfliction)

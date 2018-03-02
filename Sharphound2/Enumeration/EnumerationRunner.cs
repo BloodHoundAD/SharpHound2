@@ -864,10 +864,11 @@ namespace Sharphound2.Enumeration
 
                     var resolved = _utils.ResolveHost(item);
 
-                    if (!_utils.PingHost(resolved))
+                    if (resolved == null || !_utils.PingHost(resolved))
                     {
                         Interlocked.Increment(ref _currentCount);
                         Interlocked.Increment(ref _noPing);
+                        wrapper.Item = null;
                         continue;
                     }
 
