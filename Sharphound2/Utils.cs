@@ -188,6 +188,7 @@ namespace Sharphound2
 
         internal bool DoPing(string hostname)
         {
+            
             try
             {
                 using (var client = new TcpClient())
@@ -602,16 +603,23 @@ namespace Sharphound2
             {
                 return domainObj;
             }
-
-            if (domainName == null)
+            try
             {
-                domainObj = Domain.GetCurrentDomain();
+                if (domainName == null)
+                {
+                    domainObj = Domain.GetCurrentDomain();
+                }
+                else
+                {
+                    var context = new DirectoryContext(DirectoryContextType.Domain, domainName);
+                    domainObj = Domain.GetDomain(context);
+                }
             }
-            else
+            catch
             {
-                var context = new DirectoryContext(DirectoryContextType.Domain, domainName);
-                domainObj = Domain.GetDomain(context);
+                domainObj = null;
             }
+            
 
             _domainCache.TryAdd(key, domainObj);
             return domainObj;

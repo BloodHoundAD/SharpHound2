@@ -338,7 +338,7 @@ General Options
                 options.Threads = 1;
             }
 
-            if (options.MaxLoopTime != null && options.CurrentCollectionMethod.Equals(SessionLoop))
+            if (options.MaxLoopTime != null && collectionMethods.Contains(SessionLoop))
             {
                 var regex = new Regex("[0-9]+[smdh]");
                 var matches = regex.Matches(options.MaxLoopTime);
@@ -390,6 +390,16 @@ General Options
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
             var nowtime = DateTime.Now;
             Console.WriteLine($"Initializing BloodHound at {nowtime.ToShortTimeString()} on {nowtime.ToShortDateString()}");
+
+            if (options.ComputerFile != null)
+            {
+                if (options.PingTimeout < 1000)
+                {
+                    Console.WriteLine("Increasing ping timeout to 1 second for ComputerFile mode");
+                    options.PingTimeout = 1000;
+                }
+            }
+
             Cache.CreateInstance(options);
             Utils.CreateInstance(options);
 
