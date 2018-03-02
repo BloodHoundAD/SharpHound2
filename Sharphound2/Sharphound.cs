@@ -409,6 +409,12 @@ General Options
                 return;
             }
 
+            if (Utils.Instance.GetDomainList().Count == 0)
+            {
+                Console.WriteLine("Unable to contact domain. Try from a domain context!");
+                return;
+            }
+
             SessionHelpers.Init(options);
             LocalAdminHelpers.Init();
             GroupHelpers.Init();

@@ -581,10 +581,14 @@ namespace Sharphound2
             }
             if (_options.Domain != null)
             {
-                return new List<string>() { _options.Domain };
+                return new List<string> { _options.Domain };
             }
 
-            return new List<string>() { GetDomain().Name };
+            var d = GetDomain();
+            if (d != null)
+                return new List<string> { GetDomain().Name };
+            
+            return new List<string>();
         }
 
         private static List<string> GetForestDomains()
