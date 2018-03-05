@@ -134,8 +134,8 @@ namespace Sharphound2
                 var objClass = result.GetPropArray("objectClass");
                 if (objClass.Contains("groupPolicyContainer"))
                 {
-                    entry.BloodHoundDisplay = result.GetProp("displayname");
-                    entry.ObjectType = "grouppolicycontainer";
+                    entry.BloodHoundDisplay = $"{result.GetProp("displayname")}@{domainName}";
+                    entry.ObjectType = "gpo";
                     return entry;
                 }
 

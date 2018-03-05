@@ -383,7 +383,7 @@ namespace Sharphound2.Enumeration
                             RightName = "WriteProperty",
                             Qualifier = qAce.AceQualifier.ToString()
                         };
-                    }else if (guid.Equals("f30e3bc1-9ff0-11d1-b603-0000f80367c1") && entryType.Equals("grouppolicycontainer"))
+                    }else if (guid.Equals("f30e3bc1-9ff0-11d1-b603-0000f80367c1") && entryType.Equals("gpo"))
                     {
                         yield return new ACL
                         {
