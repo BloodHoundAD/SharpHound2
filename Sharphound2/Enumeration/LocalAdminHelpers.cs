@@ -19,7 +19,6 @@ namespace Sharphound2.Enumeration
     [SuppressMessage("ReSharper", "FieldCanBeMadeReadOnly.Local")]
     internal static class LocalAdminHelpers
     {
-        private static Cache _cache;
         private static Utils _utils;
         private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
         private static readonly Regex KeyRegex = new Regex(@"(.+?)\s*=(.*)", RegexOptions.Compiled);
@@ -40,7 +39,6 @@ namespace Sharphound2.Enumeration
 
         public static void Init()
         {
-            _cache = Cache.Instance;
             _utils = Utils.Instance;
             var sid = new SecurityIdentifier("S-1-5-32");
             _sidbytes = new byte[sid.BinaryLength];

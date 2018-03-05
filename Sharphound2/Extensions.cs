@@ -63,6 +63,14 @@ namespace Sharphound2
             return "domain";
         }
 
+        internal static void PrintEntry(this SearchResultEntry result)
+        {
+            foreach (var property in result.Attributes.AttributeNames)
+            {
+                Console.WriteLine(property);
+            }
+        }
+
         internal static ResolvedEntry ResolveAdEntry(this SearchResultEntry result)
         {
             var entry = new ResolvedEntry();
@@ -128,6 +136,13 @@ namespace Sharphound2
                 {
                     entry.BloodHoundDisplay = result.GetProp("displayname");
                     entry.ObjectType = "grouppolicycontainer";
+                    return entry;
+                }
+
+                if (objClass.Contains("organizationalUnit"))
+                {
+                    entry.BloodHoundDisplay = $"{result.GetProp("name")}@{domainName}";
+                    entry.ObjectType = "organizationalunit";
                     return entry;
                 }
             }

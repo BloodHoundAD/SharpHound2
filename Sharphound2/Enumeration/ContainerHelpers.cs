@@ -43,13 +43,16 @@ namespace Sharphound2.Enumeration
                 {
                     var split = t.Split(';');
                     var dn = split[0];
-                    var enforced = split[1].Equals("2");
+                    var status = split[1];
+                    if (status.Equals("3") || status.Equals("1"))
+                        continue;
+                    var enforced = status.Equals("2");
                     var index = dn.IndexOf("CN=", StringComparison.Ordinal) + 4;
                     var name = dn.Substring(index, index + 25);
                     var dName = cache[name];
                     yield return new GpLink
                     {
-                        GpoDisplayName = dName,
+                        GpoDisplayName = $"{dName}@{domain}",
                         IsEnforced = enforced,
                         ObjectGuid = domainGuid,
                         ObjectType = "domain",
@@ -85,7 +88,7 @@ namespace Sharphound2.Enumeration
             foreach (var ou in _utils.DoSearch("(objectcategory=organizationalUnit)", SearchScope.OneLevel,
                 new[] {"name", "objectguid"}, domain))
             {
-                var name = ou.GetProp("name");
+                var name = $"{ou.GetProp("name")}@{domain}".ToUpper();
                 var guid = new Guid(ou.GetPropBytes("objectguid")).ToString();
 
                 yield return new Container
@@ -121,17 +124,20 @@ namespace Sharphound2.Enumeration
                     {
                         var split = t.Split(';');
                         var dn = split[0];
-                        var enforced = split[1].Equals("2");
+                        var status = split[1];
+                        if (status.Equals("3") || status.Equals("1"))
+                            continue;
+                        var enforced = status.Equals("2");
                         var index = dn.IndexOf("CN=", StringComparison.CurrentCultureIgnoreCase) + 4;
                         var name = dn.Substring(index, index + 25);
                         var dName = cache[name];
                         yield return new GpLink
                         {
-                            GpoDisplayName = dName,
+                            GpoDisplayName = $"{dName}@{domain}".ToUpper(),
                             IsEnforced = enforced,
                             ObjectGuid = guid,
                             ObjectType = "ou",
-                            ObjectName = ouname,
+                            ObjectName = $"{ouname}@{domain}".ToUpper(),
                             GpoGuid = name
                         };
                     }
@@ -139,46 +145,32 @@ namespace Sharphound2.Enumeration
 
                 foreach (var sub in _utils.DoSearch(
                     "(|(samAccountType=805306368)(samAccountType=805306369)(objectclass=organizationalUnit))",
-                    SearchScope.OneLevel, new[] {"name", "objectguid", "gplink", "gpoptions", "objectclass", "objectsid"}, domain, distinguishedName))
+                    SearchScope.OneLevel, new[] {"samaccountname","name", "objectguid", "gplink", "gpoptions", "objectclass", "objectsid", "samaccounttype", "dnshostname"}, domain, distinguishedName))
                 {
-                    var objClass = sub.GetProp("objectclass");
-                    var subName = sub.GetProp("name");
+                    var resolved = sub.ResolveAdEntry();
 
-                    if (objClass.Contains("organizationalunit"))
+                    if (resolved.ObjectType.Equals("organizationalunit"))
                     {
                         yield return new Container
                         {
                             ContainerType = "ou",
-                            ContainerName = ouname,
+                            ContainerName = $"{ouname}@{domain}".ToUpper(),
                             ContainerGuid = guid,
                             ContainerBlocksInheritance = blocksInheritance,
                             ObjectType = "ou",
-                            ObjectName = subName,
+                            ObjectName = resolved.BloodHoundDisplay,
                             ObjectId = new Guid(sub.GetPropBytes("objectguid").ToString()).ToString()
                         };
-                    }else if (objClass.Contains("computer"))
+                    }else
                     {
                         yield return new Container
                         {
                             ContainerType = "ou",
-                            ContainerName = ouname,
+                            ContainerName = $"{ouname}@{domain}".ToUpper(),
                             ContainerGuid = guid,
                             ContainerBlocksInheritance = blocksInheritance,
-                            ObjectType = "computer",
-                            ObjectName = subName,
-                            ObjectId = sub.GetSid()
-                        };
-                    }
-                    else
-                    {
-                        yield return new Container
-                        {
-                            ContainerType = "ou",
-                            ContainerName = ouname,
-                            ContainerGuid = guid,
-                            ContainerBlocksInheritance = blocksInheritance,
-                            ObjectType = "user",
-                            ObjectName = subName,
+                            ObjectType = resolved.ObjectType,
+                            ObjectName = resolved.BloodHoundDisplay,
                             ObjectId = sub.GetSid()
                         };
                     }
