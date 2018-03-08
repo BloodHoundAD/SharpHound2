@@ -47,18 +47,21 @@ namespace Sharphound2.Enumeration
                     if (status.Equals("3") || status.Equals("1"))
                         continue;
                     var enforced = status.Equals("2");
-                    var index = dn.IndexOf("CN=", StringComparison.Ordinal) + 4;
+                    var index = dn.IndexOf("CN=", StringComparison.CurrentCultureIgnoreCase) + 4;
                     var name = dn.Substring(index, index + 25);
-                    var dName = cache[name];
-                    yield return new GpLink
+                    if (cache.ContainsKey(name))
                     {
-                        GpoDisplayName = $"{dName}@{domain}",
-                        IsEnforced = enforced,
-                        ObjectGuid = domainGuid,
-                        ObjectType = "domain",
-                        ObjectName = domain,
-                        GpoGuid = name
-                    };
+                        var dName = cache[name];
+                        yield return new GpLink
+                        {
+                            GpoDisplayName = $"{dName}@{domain}",
+                            IsEnforced = enforced,
+                            ObjectGuid = domainGuid,
+                            ObjectType = "domain",
+                            ObjectName = domain,
+                            GpoGuid = name
+                        };
+                    }
                 }
             }
 
@@ -130,16 +133,19 @@ namespace Sharphound2.Enumeration
                         var enforced = status.Equals("2");
                         var index = dn.IndexOf("CN=", StringComparison.CurrentCultureIgnoreCase) + 4;
                         var name = dn.Substring(index, index + 25);
-                        var dName = cache[name];
-                        yield return new GpLink
-                        {
-                            GpoDisplayName = $"{dName}@{domain}".ToUpper(),
-                            IsEnforced = enforced,
-                            ObjectGuid = guid,
-                            ObjectType = "ou",
-                            ObjectName = $"{ouname}@{domain}".ToUpper(),
-                            GpoGuid = name
-                        };
+                        if (cache.ContainsKey(name))
+						{
+                            var dName = cache[name];
+                            yield return new GpLink
+                            {
+                                GpoDisplayName = $"{dName}@{domain}".ToUpper(),
+                                IsEnforced = enforced,
+                                ObjectGuid = guid,
+                                ObjectType = "ou",
+                                ObjectName = $"{ouname}@{domain}".ToUpper(),
+                                GpoGuid = name
+                            };
+                        }
                     }
                 }
 
@@ -159,7 +165,7 @@ namespace Sharphound2.Enumeration
                             ContainerBlocksInheritance = blocksInheritance,
                             ObjectType = "ou",
                             ObjectName = resolved.BloodHoundDisplay,
-                            ObjectId = new Guid(sub.GetPropBytes("objectguid").ToString()).ToString()
+                            ObjectId = new Guid(sub.GetPropBytes("objectguid")).ToString()
                         };
                     }else
                     {
