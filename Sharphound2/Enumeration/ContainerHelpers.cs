@@ -47,7 +47,7 @@ namespace Sharphound2.Enumeration
                     if (status.Equals("3") || status.Equals("1"))
                         continue;
                     var enforced = status.Equals("2");
-                    var index = dn.IndexOf("CN=", StringComparison.CurrentCultureIgnoreCase) + 4;
+                    var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
                     var name = dn.Substring(index, index + 25);
                     if (cache.ContainsKey(name))
                     {
@@ -131,7 +131,7 @@ namespace Sharphound2.Enumeration
                         if (status.Equals("3") || status.Equals("1"))
                             continue;
                         var enforced = status.Equals("2");
-                        var index = dn.IndexOf("CN=", StringComparison.CurrentCultureIgnoreCase) + 4;
+                        var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
                         var name = dn.Substring(index, index + 25);
                         if (cache.ContainsKey(name))
 						{
