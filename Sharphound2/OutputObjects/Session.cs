@@ -15,8 +15,8 @@
         {
             return new
             {
-                a = UserName.ToUpper(),
-                b = ComputerName.ToUpper(),
+                a = ComputerName.ToUpper(),
+                b = UserName.ToUpper(),
                 weight = Weight
             };
         }
