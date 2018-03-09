@@ -148,8 +148,9 @@ namespace Sharphound2.Enumeration
                 {
                     sids[i] = null;
                 }
-                
             }
+
+            
 
             Utils.Debug($"Starting LsaOpenPolicy");
             //Open the LSA policy on the target machine
@@ -317,6 +318,9 @@ namespace Sharphound2.Enumeration
                         break;
                     case SidNameUse.SidTypeWellKnownGroup:
                         type = "wellknown";
+                        break;
+                    case SidNameUse.SidTypeAlias:
+                        type = "group";
                         break;
                     default:
                         type = null;
