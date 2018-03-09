@@ -18,7 +18,12 @@ namespace Sharphound2.Enumeration
 
         internal static IEnumerable<OutputBase> GetContainersForDomain(string domain)
         {
-            domain = _utils.GetDomain(domain).Name;
+            var d = _utils.GetDomain(domain);
+            if (d == null)
+            {
+                yield break;
+            }
+            domain = d.Name;
             var queue = new Queue<string>();
             var cache = new ConcurrentDictionary<string, string>();
 

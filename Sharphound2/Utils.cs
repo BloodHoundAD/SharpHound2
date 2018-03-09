@@ -491,10 +491,15 @@ namespace Sharphound2
                 return null;
             }
 
+            if (targetDomain == null)
+            {
+                Verbose($"Unable to contact domain {domainName}");
+                return null;
+            }
+
             var domainController = _options.DomainController ?? targetDomain.Name;
 
-            var port = 0;
-            port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
+            var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
 
             var identifier =
                 new LdapDirectoryIdentifier(domainController, port, false, false);

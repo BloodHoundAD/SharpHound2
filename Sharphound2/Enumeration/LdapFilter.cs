@@ -15,11 +15,11 @@ namespace Sharphound2.Enumeration
                     props = new string[] { };
                     break;
                 case CollectionMethod.Group:
-                    ldapFilter = "(|(memberof=*)(primarygroupid=*))";
+                    //private static readonly HashSet<string> Groups = new HashSet<string> { "268435456", "268435457", "536870912", "536870913" };
+                    ldapFilter = "(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913)(primarygroupid=*))";
                     props = new[]
                     {
-                        "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
-                        "memberof"
+                        "samaccountname", "distinguishedname", "samaccounttype", "member", "cn", "primarygroupid", "dnshostname"
                     };
                     break;
                 case CollectionMethod.ComputerOnly:
@@ -96,11 +96,11 @@ namespace Sharphound2.Enumeration
                     };
                     break;
                 case CollectionMethod.Default:
-                    ldapFilter = "(|(memberof=*)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
+                    ldapFilter = "(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913)(primarygroupid=*)(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))))";
                     props = new[]
                     {
                         "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "primarygroupid",
-                        "memberof"
+                        "member", "cn"
                     };
                     break;
                 case CollectionMethod.ObjectProps:

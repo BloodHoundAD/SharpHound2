@@ -208,12 +208,11 @@ namespace Sharphound2.Enumeration
                         }
 
                         Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var entry in _utils.DoSearch("(|(memberof=*)(primarygroupid=*))",
+                        foreach (var entry in _utils.DoSearch("(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913))",
                             SearchScope.Subtree,
                             new[]
                             {
-                                "samaccountname", "distinguishedname", "dnshostname", "samaccounttype",
-                                "primarygroupid", "memberof", "serviceprincipalname"
+                                "samaccountname", "distinguishedname", "samaccounttype", "member", "cn"
                             }, domainName))
                         {
                             var resolved = entry.ResolveAdEntry();
