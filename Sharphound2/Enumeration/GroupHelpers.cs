@@ -32,8 +32,9 @@ namespace Sharphound2.Enumeration
             var principalDomainName = Utils.ConvertDnToDomain(entry.DistinguishedName);
 
             //If this object is a group, add it to our DN cache
-            _cache.AddMapValue(entry.DistinguishedName, "group", principalDisplayName);
-
+            if (resolvedEntry.ObjectType.Equals("group"))
+                _cache.AddMapValue(entry.DistinguishedName, "group", principalDisplayName);
+            
             foreach (var dn in entry.GetPropArray("member"))
             {
                 //Check our cache first
@@ -74,6 +75,8 @@ namespace Sharphound2.Enumeration
                         }
                     }
                 }
+
+                
 
                 if (principal != null)
                 {
