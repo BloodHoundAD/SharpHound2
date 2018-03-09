@@ -14,10 +14,11 @@ namespace Sharphound2.OutputObjects
         internal string ServicePrincipalNames { get; set; }
         internal string DisplayName { get; set; }
         internal string Email { get; set; }
+        internal string Domain { get; set; }
 
         public override string ToCsv()
         {
-            return $"{AccountName},{StringToCsvCell(DisplayName)},{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},{StringToCsvCell(ServicePrincipalNames)},{StringToCsvCell(Email)}";
+            return $"{AccountName},{StringToCsvCell(DisplayName)},{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},{StringToCsvCell(ServicePrincipalNames)},{StringToCsvCell(Email)},{Domain}";
         }
 
         public override object ToParam()
@@ -34,7 +35,8 @@ namespace Sharphound2.OutputObjects
                 SidHistory,
                 HasSpn,
                 Email,
-                ServicePrincipalNames = spn
+                ServicePrincipalNames = spn,
+                Domain
             };
         }
 

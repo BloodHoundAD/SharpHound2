@@ -15,11 +15,11 @@ namespace Sharphound2
         LocalAdmin,
         [Description("UserName,ComputerName,Weight")]
         Session,
-        [Description("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames,Email")]
+        [Description("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames,Email,Domain")]
         UserProperties,
         [Description("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive")]
         Trusts,
-        [Description("AccountName,Enabled,UnconstrainedDelegation,PwdLastSet,LastLogon,OperatingSystem,Sid")]
+        [Description("AccountName,Enabled,UnconstrainedDelegation,PwdLastSet,LastLogon,OperatingSystem,Sid,Domain")]
         ComputerProperties,
         [Description("ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited")]
         Acl,

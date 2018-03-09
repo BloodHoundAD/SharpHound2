@@ -11,10 +11,11 @@ namespace Sharphound2.OutputObjects
         internal string ObjectSid { get; set; }
         internal string OperatingSystem { get; set; }
         internal bool UnconstrainedDelegation { get; set; }
+        internal string Domain { get; set; }
 
         public override string ToCsv()
         {
-            return $"{ComputerName},{Enabled},{UnconstrainedDelegation},{PwdLastSet},{LastLogon},{StringToCsvCell(OperatingSystem)},{ObjectSid}";
+            return $"{ComputerName},{Enabled},{UnconstrainedDelegation},{PwdLastSet},{LastLogon},{StringToCsvCell(OperatingSystem)},{ObjectSid},{Domain}";
         }
 
         public override object ToParam()
@@ -27,7 +28,8 @@ namespace Sharphound2.OutputObjects
                 PwdLastSet,
                 LastLogon,
                 OperatingSystem,
-                ObjectSid
+                ObjectSid,
+                Domain
             };
         }
 

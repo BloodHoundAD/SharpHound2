@@ -1,5 +1,6 @@
 ﻿using System;
 using System.DirectoryServices.Protocols;
+using System.Linq;
 using System.Security.Principal;
 using Sharphound2.OutputObjects;
 
@@ -34,6 +35,9 @@ namespace Sharphound2.Enumeration
             var sid = entry.GetSid();
             var os = entry.GetProp("operatingsystem");
             var sp = entry.GetProp("operatingsystemservicepack");
+            var domainS = resolved.BloodHoundDisplay.Split('.');
+            domainS = domainS.Skip(1).ToArray();
+            var domain = string.Join(".", domainS).ToUpper();
 
             if (sp != null)
             {
@@ -48,7 +52,8 @@ namespace Sharphound2.Enumeration
                 ObjectSid = sid,
                 OperatingSystem = os,
                 PwdLastSet = lastSet,
-                UnconstrainedDelegation = unconstrained
+                UnconstrainedDelegation = unconstrained,
+                Domain = domain
             };
         }
 
@@ -77,6 +82,7 @@ namespace Sharphound2.Enumeration
             var sid = entry.GetSid();
             var sidhistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
             var mail = entry.GetProp("mail");
+            var domain = resolved.BloodHoundDisplay.Split('@')[1].ToUpper();
 
             return new UserProp
             {
@@ -89,7 +95,8 @@ namespace Sharphound2.Enumeration
                 HasSpn = hasSpn,
                 ServicePrincipalNames = spnString,
                 DisplayName = displayName,
-                Email = mail
+                Email = mail,
+                Domain = domain
             };
         }
 
