@@ -400,7 +400,7 @@ namespace Sharphound2
                         yield return new Wrapper<SearchResultEntry>{Item = entry};
                     }
 
-                    if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
+                    if (pageResponse.Cookie.Length == 0)
                     {
                         break;
                     }
@@ -504,8 +504,9 @@ namespace Sharphound2
             var identifier =
                 new LdapDirectoryIdentifier(domainController, port, false, false);
 
-            var connection = new LdapConnection(identifier);
-            
+            var connection = new LdapConnection(identifier) {Timeout = new TimeSpan(0,0,0,60)};
+
+
             //Add LdapSessionOptions
             var lso = connection.SessionOptions;
             if (!_options.DisableKerbSigning)
