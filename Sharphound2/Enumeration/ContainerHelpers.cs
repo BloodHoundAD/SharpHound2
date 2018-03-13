@@ -80,6 +80,10 @@ namespace Sharphound2.Enumeration
                     domain, path))
                 {
                     var resolved = obj.ResolveAdEntry();
+                    if (resolved == null)
+                    {
+                        continue;
+                    }
                     yield return new Container
                     {
                         ContainerType = "domain",
