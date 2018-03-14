@@ -34,8 +34,49 @@ namespace Sharphound2.Enumeration
             //If this object is a group, add it to our DN cache
             if (resolvedEntry.ObjectType.Equals("group"))
                 _cache.AddMapValue(entry.DistinguishedName, "group", principalDisplayName);
-            
-            foreach (var dn in entry.GetPropArray("member"))
+
+            var members = entry.GetPropArray("member");
+
+            if (members.Length == 0)
+            {
+                var tempMembers = new List<string>();
+                var finished = false;
+                var bottom = 0;
+                
+                while (!finished)
+                {
+                    var top = bottom + 1499;
+                    var range = $"member;range={bottom}-{top}";
+                    bottom += 1500;
+                    //Try ranged retrieval
+                    foreach (var result in _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] { range },
+                        principalDomainName,
+                        entry.DistinguishedName))
+                    {
+                        if (result.Attributes.AttributeNames == null) continue;
+                        var en = result.Attributes.AttributeNames.GetEnumerator();
+
+                        //If the enumerator fails, that means theres really no members at all
+                        if (!en.MoveNext())
+                        {
+                            finished = true;
+                            break;
+                        }
+                        
+                        if (en.Current == null) continue;
+                        var attrib = en.Current.ToString();
+                        if (attrib.EndsWith("-*"))
+                        {
+                            finished = true;
+                        }
+                        tempMembers.AddRange(result.GetPropArray(attrib));
+                    }
+                }
+
+                members = tempMembers.ToArray();
+            }
+
+            foreach (var dn in members)
             {
                 //Check our cache first
                 if (!_cache.GetMapValueUnknownType(dn, out var principal))
@@ -76,7 +117,7 @@ namespace Sharphound2.Enumeration
                     }
                 }
 
-                
+
 
                 if (principal != null)
                 {
@@ -88,6 +129,7 @@ namespace Sharphound2.Enumeration
                     };
                 }
             }
+
 
             var pgi = entry.GetProp("primarygroupid");
             if (pgi == null) yield break;
