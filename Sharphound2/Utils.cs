@@ -390,8 +390,10 @@ namespace Sharphound2
                             pageResponse = (PageResultResponseControl) response.Controls[0];
                         }
                     }
-                    catch
+                    catch (Exception e)
                     {
+                        Debug("Exception in Domain Searcher.");
+                        Debug(e.Message);
                         yield break;
                     }
                     if (response == null || pageResponse == null) continue;
@@ -504,7 +506,7 @@ namespace Sharphound2
             var identifier =
                 new LdapDirectoryIdentifier(domainController, port, false, false);
 
-            var connection = new LdapConnection(identifier) {Timeout = new TimeSpan(0,0,0,60)};
+            var connection = new LdapConnection(identifier) {Timeout = new TimeSpan(0,0,5,0)};
 
 
             //Add LdapSessionOptions

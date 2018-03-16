@@ -13,6 +13,7 @@
         SessionLoop,
         Default,
         ObjectProps,
-        Container
+        Container,
+        All
     }
 }

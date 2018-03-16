@@ -323,6 +323,12 @@ General Options
                 try
                 {
                     var e = (CollectionMethod)Enum.Parse(typeof(CollectionMethod), unparsed, true);
+                    if (e.Equals(All))
+                    {
+                        collectionMethods.Clear();
+                        collectionMethods.AddRange(new [] {Default, ACL, ObjectProps, Container});
+                        break;
+                    }
                     collectionMethods.Add(e);
                 }
                 catch
