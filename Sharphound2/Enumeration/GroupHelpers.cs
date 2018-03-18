@@ -106,13 +106,17 @@ namespace Sharphound2.Enumeration
                         else
                         {
                             var resolvedObj = objEntry.ResolveAdEntry();
-
-                            _cache.AddMapValue(dn, resolvedObj.ObjectType, resolvedObj.BloodHoundDisplay);
-                            principal = new MappedPrincipal
-                            (
-                                resolvedObj.BloodHoundDisplay,
-                                resolvedObj.ObjectType
-                            );
+                            if (resolvedObj == null)
+                                principal = null;
+                            else
+                            {
+                                _cache.AddMapValue(dn, resolvedObj.ObjectType, resolvedObj.BloodHoundDisplay);
+                                principal = new MappedPrincipal
+                                (
+                                    resolvedObj.BloodHoundDisplay,
+                                    resolvedObj.ObjectType
+                                );
+                            }
                         }
                     }
                 }
