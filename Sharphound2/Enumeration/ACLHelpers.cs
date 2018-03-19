@@ -85,6 +85,16 @@ namespace Sharphound2.Enumeration
 
             var entryDisplayName = resolvedEntry.BloodHoundDisplay;
             var entryType = resolvedEntry.ObjectType;
+            string entryGuid;
+            if (entryType.Equals("gpo"))
+            {
+                var n = entry.GetProp("name").ToUpper();
+                entryGuid = n.Substring(1, n.Length - 2);
+            }
+            else
+            {
+                entryGuid = "";
+            }
 
             //We have no exploitable paths for Computer, so just ignore them
             if (entryType.Equals("computer"))
@@ -117,7 +127,8 @@ namespace Sharphound2.Enumeration
                         AceType = "",
                         ObjectName = entryDisplayName,
                         ObjectType = entryType,
-                        Qualifier = "AccessAllowed"
+                        Qualifier = "AccessAllowed",
+                        ObjectGuid = entryGuid
                     };
                 }
                 else
@@ -319,7 +330,8 @@ namespace Sharphound2.Enumeration
                         ObjectType = entryType,
                         ObjectName = entryDisplayName,
                         RightName = "GenericAll",
-                        Qualifier = qAce.AceQualifier.ToString()
+                        Qualifier = qAce.AceQualifier.ToString(),
+                        ObjectGuid = entryGuid
                     };
                 }
 
@@ -334,7 +346,8 @@ namespace Sharphound2.Enumeration
                         ObjectType = entryType,
                         ObjectName = entryDisplayName,
                         RightName = "GenericWrite",
-                        Qualifier = qAce.AceQualifier.ToString()
+                        Qualifier = qAce.AceQualifier.ToString(),
+                        ObjectGuid = entryGuid
                     };
                 }
 
@@ -349,7 +362,8 @@ namespace Sharphound2.Enumeration
                         ObjectType = entryType,
                         ObjectName = entryDisplayName,
                         RightName = "WriteOwner",
-                        Qualifier = qAce.AceQualifier.ToString()
+                        Qualifier = qAce.AceQualifier.ToString(),
+                        ObjectGuid = entryGuid
                     };
                 }
 
@@ -364,7 +378,8 @@ namespace Sharphound2.Enumeration
                         ObjectType = entryType,
                         ObjectName = entryDisplayName,
                         RightName = "WriteDacl",
-                        Qualifier = qAce.AceQualifier.ToString()
+                        Qualifier = qAce.AceQualifier.ToString(),
+                        ObjectGuid = entryGuid
                     };
                 }
 
@@ -381,7 +396,8 @@ namespace Sharphound2.Enumeration
                             ObjectType = entryType,
                             ObjectName = entryDisplayName,
                             RightName = "WriteProperty",
-                            Qualifier = qAce.AceQualifier.ToString()
+                            Qualifier = qAce.AceQualifier.ToString(),
+                            ObjectGuid = entryGuid
                         };
                     }else if (guid.Equals("f30e3bc1-9ff0-11d1-b603-0000f80367c1") && entryType.Equals("gpo"))
                     {
@@ -394,7 +410,8 @@ namespace Sharphound2.Enumeration
                             ObjectType = entryType,
                             ObjectName = entryDisplayName,
                             RightName = "WriteProperty",
-                            Qualifier = qAce.AceQualifier.ToString()
+                            Qualifier = qAce.AceQualifier.ToString(),
+                            ObjectGuid = entryGuid
                         };
                     }
                 }
@@ -412,7 +429,8 @@ namespace Sharphound2.Enumeration
                             ObjectType = entryType,
                             ObjectName = entryDisplayName,
                             RightName = "ExtendedRight",
-                            Qualifier = qAce.AceQualifier.ToString()
+                            Qualifier = qAce.AceQualifier.ToString(),
+                            ObjectGuid = entryGuid
                         };
                     }
                     else if (guid.Equals("00000000-0000-0000-0000-000000000000"))
@@ -426,7 +444,8 @@ namespace Sharphound2.Enumeration
                             ObjectType = entryType,
                             ObjectName = entryDisplayName,
                             RightName = "ExtendedRight",
-                            Qualifier = qAce.AceQualifier.ToString()
+                            Qualifier = qAce.AceQualifier.ToString(),
+                            ObjectGuid = entryGuid
                         };
                     }
                 }

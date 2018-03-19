@@ -9,6 +9,7 @@ namespace Sharphound2.OutputObjects
         public string ObjectType { get; set; }
         public string PrincipalName { get; set; }
         public string PrincipalType { get; set; }
+        public string ObjectGuid { get; set; }
         public string RightName { get; set; }
         public string AceType { get; set; }
         public string Qualifier { get; set; }
@@ -16,7 +17,7 @@ namespace Sharphound2.OutputObjects
 
         public override string ToCsv()
         {
-            return $"{ObjectName},{ObjectType},{PrincipalName},{PrincipalType},{RightName},{AceType},{Qualifier},{Inherited}";
+            return $"{ObjectName},{ObjectType},{PrincipalName},{PrincipalType},{RightName},{AceType},{Qualifier},{Inherited},{ObjectGuid}";
         }
 
         public override object ToParam()

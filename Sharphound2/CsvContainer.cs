@@ -21,7 +21,7 @@ namespace Sharphound2
         Trusts,
         [Description("AccountName,Enabled,UnconstrainedDelegation,PwdLastSet,LastLogon,OperatingSystem,Sid,Domain")]
         ComputerProperties,
-        [Description("ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited")]
+        [Description("ObjectName,ObjectType,PrincipalName,PrincipalType,ActiveDirectoryRights,ACEType,AccessControlType,IsInherited,ObjectGuid")]
         Acl,
         [Description("ObjectType,ObjectName,ObjectGUID,GPODisplayName,GPOGuid,IsEnforced")]
         GpLink,
