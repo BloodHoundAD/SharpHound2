@@ -61,10 +61,10 @@ namespace Sharphound2.Enumeration
                         {
                             GpoDisplayName = $"{dName}@{domain}",
                             IsEnforced = enforced,
-                            ObjectGuid = domainGuid,
+                            ObjectGuid = domainGuid.ToUpper(),
                             ObjectType = "domain",
                             ObjectName = domain,
-                            GpoGuid = name
+                            GpoGuid = name.ToUpper()
                         };
                     }
                 }
@@ -88,11 +88,11 @@ namespace Sharphound2.Enumeration
                     {
                         ContainerType = "domain",
                         ContainerBlocksInheritance = false,
-                        ContainerGuid = domainGuid,
+                        ContainerGuid = domainGuid.ToUpper(),
                         ObjectType = resolved.ObjectType,
                         ContainerName = domain,
                         ObjectName = resolved.BloodHoundDisplay,
-                        ObjectId = obj.GetSid()
+                        ObjectId = obj.GetSid().ToUpper()
                     };
                 }
             }
@@ -107,11 +107,11 @@ namespace Sharphound2.Enumeration
                 {
                     ContainerType = "domain",
                     ContainerName = domain,
-                    ContainerGuid = domainGuid,
+                    ContainerGuid = domainGuid.ToUpper(),
                     ContainerBlocksInheritance = false,
                     ObjectType = "ou",
                     ObjectName = name,
-                    ObjectId = guid
+                    ObjectId = guid.ToUpper()
                 };
 
                 queue.Enqueue(ou.DistinguishedName);
@@ -149,10 +149,10 @@ namespace Sharphound2.Enumeration
                             {
                                 GpoDisplayName = $"{dName}@{domain}".ToUpper(),
                                 IsEnforced = enforced,
-                                ObjectGuid = guid,
+                                ObjectGuid = guid.ToUpper(),
                                 ObjectType = "ou",
                                 ObjectName = $"{ouname}@{domain}".ToUpper(),
-                                GpoGuid = name
+                                GpoGuid = name.ToUpper()
                             };
                         }
                     }
@@ -170,11 +170,11 @@ namespace Sharphound2.Enumeration
                         {
                             ContainerType = "ou",
                             ContainerName = $"{ouname}@{domain}".ToUpper(),
-                            ContainerGuid = guid,
+                            ContainerGuid = guid.ToUpper(),
                             ContainerBlocksInheritance = blocksInheritance,
                             ObjectType = "ou",
                             ObjectName = resolved.BloodHoundDisplay,
-                            ObjectId = new Guid(sub.GetPropBytes("objectguid")).ToString()
+                            ObjectId = new Guid(sub.GetPropBytes("objectguid")).ToString().ToUpper()
                         };
                     }else
                     {
@@ -182,11 +182,11 @@ namespace Sharphound2.Enumeration
                         {
                             ContainerType = "ou",
                             ContainerName = $"{ouname}@{domain}".ToUpper(),
-                            ContainerGuid = guid,
+                            ContainerGuid = guid.ToUpper(),
                             ContainerBlocksInheritance = blocksInheritance,
                             ObjectType = resolved.ObjectType,
                             ObjectName = resolved.BloodHoundDisplay,
-                            ObjectId = sub.GetSid()
+                            ObjectId = sub.GetSid().ToUpper()
                         };
                     }
                 }
