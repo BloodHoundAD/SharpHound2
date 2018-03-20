@@ -385,7 +385,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteProperty"))
                 {
-                    if (guid.Equals("bf9679c0-0de6-11d0-a285-00aa003049e2"))
+                    if (guid.Equals("bf9679c0-0de6-11d0-a285-00aa003049e2") && !entryType.Equals("domain"))
                     {
                         yield return new ACL
                         {
@@ -418,7 +418,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("ExtendedRight"))
                 {
-                    if (guid.Equals("00299570-246d-11d0-a768-00aa006e0529"))
+                    if (guid.Equals("00299570-246d-11d0-a768-00aa006e0529") && !entryType.Equals("domain"))
                     {
                         yield return new ACL
                         {
