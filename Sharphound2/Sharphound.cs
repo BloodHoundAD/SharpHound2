@@ -474,10 +474,14 @@ General Options
                     {
                         client.DownloadData(options.GetCheckURI());
                         Console.WriteLine("Successfully connected to the Neo4j REST endpoint.");
+                        Console.WriteLine("WARNING: As of BloodHound 1.5, using the REST API is unsupported and will be removed in a future release.");
+                        Console.WriteLine("WARNING: Container collection will not work with the REST API, and bugs may exist.");
                     }
                     catch
                     {
                         Console.WriteLine("Unable to connect to the Neo4j REST endpoint. Check your URI and username/password");
+                        Console.WriteLine("WARNING: As of BloodHound 1.5, using the REST API is unsupported and will be removed in a future release.");
+                        Console.WriteLine("WARNING: Container collection will not work with the REST API, and bugs may exist.");
                         return;
                     }
                 }

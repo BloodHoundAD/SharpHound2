@@ -25,11 +25,13 @@ function Invoke-BloodHound{
             SessionLoop - Continuously collect session information until killed
             Trusts - Enumerate domain trust data
             ACL - Collect ACL (Access Control List) data
+            Container - Collect GPO/OU Data
             ComputerOnly - Collects Local Admin and Session data
             GPOLocalGroup - Collects Local Admin information using GPO (Group Policy Objects)
             LoggedOn - Collects session information using privileged methods (needs admin!)
             ObjectProps - Collects node property information for users and computers
             Default - Collects Group Membership, Local Admin, Sessions, and Domain Trusts
+            All - Collect all data
 
         This can be a list of comma seperated valued as well to run multiple collection methods!
 
@@ -116,11 +118,13 @@ function Invoke-BloodHound{
 
         The URI for the Neo4j REST API. Setting this option will turn off CSV output
         Format for this options is http(s)://SERVER:PORT
+        REST API ingestion is deprecated, and will be removed in a future release
 
     .PARAMETER UserPass
 
         Credentials for the Neo4j REST API. 
         Format for this option is username:password
+        REST API ingestion is deprecated, and will be removed in a future release
 
     .PARAMETER CacheFile
 
