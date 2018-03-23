@@ -225,7 +225,7 @@ namespace Sharphound2.Enumeration
                         isInherited = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
                                      inheritedObjectType.Equals("19195a5a-6da0-11d0-afd3-00c04fd930c9");
                         break;
-                    case "gpc":
+                    case "gpo":
                         isInherited = inheritedObjectType.Equals("00000000-0000-0000-0000-000000000000") ||
                                       inheritedObjectType.Equals("f30e3bc2-9ff0-11d1-b603-0000f80367c1");
                         break;
@@ -399,21 +399,22 @@ namespace Sharphound2.Enumeration
                             Qualifier = qAce.AceQualifier.ToString(),
                             ObjectGuid = entryGuid
                         };
-                    }else if (guid.Equals("f30e3bc1-9ff0-11d1-b603-0000f80367c1") && entryType.Equals("gpo"))
-                    {
-                        yield return new ACL
-                        {
-                            AceType = "GPC-File-Sys-Path",
-                            Inherited = qAce.IsInherited,
-                            PrincipalName = mappedPrincipal.PrincipalName,
-                            PrincipalType = mappedPrincipal.ObjectType,
-                            ObjectType = entryType,
-                            ObjectName = entryDisplayName,
-                            RightName = "WriteProperty",
-                            Qualifier = qAce.AceQualifier.ToString(),
-                            ObjectGuid = entryGuid
-                        };
                     }
+                    //else if (guid.Equals("f30e3bc1-9ff0-11d1-b603-0000f80367c1") && entryType.Equals("gpo"))
+                    //{
+                    //    yield return new ACL
+                    //    {
+                    //        AceType = "GPC-File-Sys-Path",
+                    //        Inherited = qAce.IsInherited,
+                    //        PrincipalName = mappedPrincipal.PrincipalName,
+                    //        PrincipalType = mappedPrincipal.ObjectType,
+                    //        ObjectType = entryType,
+                    //        ObjectName = entryDisplayName,
+                    //        RightName = "WriteProperty",
+                    //        Qualifier = qAce.AceQualifier.ToString(),
+                    //        ObjectGuid = entryGuid
+                    //    };
+                    //}
                 }
 
                 if (adRightString.Contains("ExtendedRight"))
