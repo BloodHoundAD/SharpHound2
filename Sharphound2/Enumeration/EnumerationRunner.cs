@@ -453,6 +453,17 @@ namespace Sharphound2.Enumeration
                         }
                     }
 
+                    if (c.Equals(CollectionMethod.Default) || c.Equals(CollectionMethod.Group))
+                    {
+                        foreach (var g in GroupHelpers.GetEnterpriseDCs(domainName))
+                        {
+                            outputQueue.Add(new Wrapper<OutputBase>
+                            {
+                                Item = g
+                            });
+                        }
+                    }
+
                     for (var i = 0; i < _options.Threads; i++)
                     {
                         taskhandles[i] = StartRunner(inputQueue, outputQueue);

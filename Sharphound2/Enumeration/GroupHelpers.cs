@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Reflection;
@@ -12,11 +13,44 @@ namespace Sharphound2.Enumeration
         private static Utils _utils;
         private static Cache _cache;
         private static readonly string[] Props = { "samaccountname", "distinguishedname", "samaccounttype", "dnshostname" };
+        private static readonly HashSet<string> FinishedForests = new HashSet<string>();
 
         public static void Init()
         {
             _utils = Utils.Instance;
             _cache = Cache.Instance;
+        }
+
+        public static IEnumerable<GroupMember> GetEnterpriseDCs(string domain = null)
+        {
+            var d = _utils.GetDomain(domain);
+
+            if (d == null)
+                yield break;
+
+            var f = d.Forest;
+
+            var fName = f.Name;
+
+            if (FinishedForests.Contains(fName))
+                yield break;
+
+            var groupName = $"ENTERPRISE DOMAIN CONTROLLERS@{fName}";
+
+            foreach (Domain subdomain in f.Domains)
+            {
+                foreach (DomainController dc in subdomain.DomainControllers)
+                {
+                    yield return new GroupMember
+                    {
+                        AccountName = dc.Name,
+                        ObjectType = "computer",
+                        GroupName = groupName
+                    };
+                }
+            }
+
+            FinishedForests.Add(fName);
         }
 
         /// <summary>
