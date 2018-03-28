@@ -117,45 +117,39 @@ namespace Sharphound2
 
         internal static void DeduplicateFiles()
         {
+            var tempfile = GetCsvFileName("temp.csv");
             foreach (var f in UsedFiles)
             {
                 var n = f.FileName;
                 var removed = 0;
-                var scanned = new OrderedHashSet<string>();
-                var first = true;
+                var seen = new HashSet<int>();
+
                 using (var reader = new StreamReader(n))
                 {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
+                    using (var writer = new StreamWriter(tempfile))
                     {
-                        if (first)
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
                         {
-                            first = false;
-                            if (!line.Equals(CsvContainer.GetFileTypeHeader(f.FileType)))
+                            var hash = line.GetHashCode();
+                            if (!seen.Contains(hash))
                             {
-                                scanned.Add(CsvContainer.GetFileTypeHeader(f.FileType));
+                                writer.WriteLine(line);
                             }
-                        }
-                        try
-                        {
-                            scanned.Add(line);
-                        }
-                        catch
-                        {
-                            removed++;
+                            else
+                            {
+                                removed++;
+                            }
+                            seen.Add(hash);
                         }
                     }
                 }
 
-                using (var writer = new StreamWriter(f.FileName, false))
-                {
-                    foreach (var line in scanned)
-                    {
-                        writer.WriteLine(line);
-                    }
-                }
+                File.Delete(n);
+                File.Move(tempfile, n);
+
                 if (removed > 0)
-                    Console.WriteLine($"Removed {removed} duplicate lines from {f.FileName}");
+                    Console.WriteLine($"Removed {removed} duplicate lines from {n}");
             }
         }
 
