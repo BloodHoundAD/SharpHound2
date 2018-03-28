@@ -54,19 +54,19 @@ namespace Sharphound2.Enumeration
                     var enforced = status.Equals("2");
                     var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
                     var name = dn.Substring(index, index + 25);
-                    if (cache.ContainsKey(name))
+
+                    if (!cache.ContainsKey(name)) continue;
+
+                    var dName = cache[name];
+                    yield return new GpLink
                     {
-                        var dName = cache[name];
-                        yield return new GpLink
-                        {
-                            GpoDisplayName = $"{dName}@{domain}",
-                            IsEnforced = enforced,
-                            ObjectGuid = domainGuid.ToUpper(),
-                            ObjectType = "domain",
-                            ObjectName = domain,
-                            GpoGuid = name.ToUpper()
-                        };
-                    }
+                        GpoDisplayName = $"{dName}@{domain}",
+                        IsEnforced = enforced,
+                        ObjectGuid = domainGuid.ToUpper(),
+                        ObjectType = "domain",
+                        ObjectName = domain,
+                        GpoGuid = name.ToUpper()
+                    };
                 }
             }
 
@@ -163,6 +163,9 @@ namespace Sharphound2.Enumeration
                     SearchScope.OneLevel, new[] {"samaccountname","name", "objectguid", "gplink", "gpoptions", "objectclass", "objectsid", "samaccounttype", "dnshostname"}, domain, distinguishedName))
                 {
                     var resolved = sub.ResolveAdEntry();
+
+                    if (resolved == null)
+                        continue;
 
                     if (resolved.ObjectType.Equals("organizationalunit"))
                     {
