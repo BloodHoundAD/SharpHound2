@@ -170,13 +170,6 @@ function Invoke-BloodHound{
 
     .EXAMPLE
         
-        PS C:\> Invoke-BloodHound -URI localhost:7474 -UserPass neo4j:BloodHound
-
-        Executes default collection options and exports data to the Neo4j database using the
-        REST API
-
-    .EXAMPLE
-        
         PS C:\> Invoke-BloodHound -CollectionMethod SessionLoop -LoopTime 1 -MaxLoopTime 10
     
         Executes session collection in a loop. Will wait 1 minute after each run to continue collection
@@ -184,9 +177,9 @@ function Invoke-BloodHound{
 
     .EXAMPLE
 
-        PS C:\> Invoke-BloodHound -CollectionMethod ACL,ObjectProps,Default -CompressData -RemoveCSV
+        PS C:\> Invoke-BloodHound -CollectionMethod All -CompressData -RemoveCSV
     
-        Runs ACL, ObjectProps, and Default collection methods sequentially, compressed the data to a zip file,
+        Runs ACL, ObjectProps, Container, and Default collection methods sequentially, compressed the data to a zip file,
         and then removes the CSV files from disk
     #>
 

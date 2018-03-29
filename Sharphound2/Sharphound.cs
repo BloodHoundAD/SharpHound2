@@ -138,6 +138,8 @@ Enumeration Options:
         Trusts - Enumerate Domain Trusts
         ACL - Enumerate ACLs
         ObjectProps - Enumerate Object Properties for Users/Computers
+        Container - Collects GPO/OU Structure
+        All - Performs all enumeration methods
 
         This can be a list of comma seperated valued as well to run multiple collection methods!
 
