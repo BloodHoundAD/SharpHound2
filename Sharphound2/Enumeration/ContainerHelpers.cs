@@ -27,6 +27,7 @@ namespace Sharphound2.Enumeration
             var queue = new Queue<string>();
             var cache = new ConcurrentDictionary<string, string>();
 
+            //Cache GPO GUIDS -> Display Name
             foreach (var entry in _utils.DoSearch("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))",
                 SearchScope.Subtree, new[] {"displayname", "name"}, domain))
             {
@@ -36,12 +37,14 @@ namespace Sharphound2.Enumeration
                 cache.TryAdd(name, dName);
             }
 
+            //Get the base domain object
             var domainBase = _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] {"gplink", "objectguid"}, domain)
                 .Take(1).First();
 
             var domainGuid = new Guid(domainBase.GetPropBytes("objectguid")).ToString();
             var domainGpLink = domainBase.GetProp("gplink");
 
+            //Get GpLinks for the domain
             if (domainGpLink != null)
             {
                 foreach (var t in domainGpLink.Split(']', '[').Where(x => x.StartsWith("LDAP")))
@@ -70,6 +73,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
+            //Find non-ou containers and enumerate the users/computers in them
             foreach (var container in _utils.DoSearch("(objectclass=container)", SearchScope.OneLevel, new[] {"name", "distinguishedname"},
                 domain))
             {
@@ -179,6 +183,7 @@ namespace Sharphound2.Enumeration
                             ObjectName = resolved.BloodHoundDisplay,
                             ObjectId = new Guid(sub.GetPropBytes("objectguid")).ToString().ToUpper()
                         };
+                        queue.Enqueue(sub.DistinguishedName);
                     }else
                     {
                         yield return new Container

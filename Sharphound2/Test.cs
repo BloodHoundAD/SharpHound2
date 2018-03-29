@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using Sharphound2.Enumeration;
 
 namespace Sharphound2
 {
@@ -7,9 +8,9 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            for (int i = 0; i < 20; i++)
+            foreach (var d in GroupHelpers.GetEnterpriseDCs(host))
             {
-                Utils.DoJitter();
+                Console.WriteLine(d.AccountName);
             }
         }
     }
