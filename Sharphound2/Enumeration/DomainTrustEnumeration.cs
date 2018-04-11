@@ -91,6 +91,10 @@ namespace Sharphound2.Enumeration
                 {
                     trust.IsTransitive = false;
                 }
+                else
+                {
+                    trust.IsTransitive = true;
+                }
                     
                 yield return trust;
             }
