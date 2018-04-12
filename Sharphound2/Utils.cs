@@ -250,23 +250,30 @@ namespace Sharphound2
             var entry = DoSearch($"(objectsid={dSid})", SearchScope.Subtree, new[] {"distinguishedname"}, useGc: true)
                 .DefaultIfEmpty(null).FirstOrDefault();
 
-            if (entry == null)
+            if (entry != null)
             {
-                Debug($"Searching for sid in AD by securityidentifier");
-                entry = DoSearch($"(securityidentifier={dSid})", SearchScope.Subtree, new[] { "distinguishedname" }, useGc: true)
-                    .DefaultIfEmpty(null).FirstOrDefault();
+                domainName = ConvertDnToDomain(entry.DistinguishedName);
+                Debug($"Converted sid to {domainName}");
+                _cache.AddDomainFromSid(dSid, domainName);
+                _cache.AddDomainFromSid(domainName, dSid);
+                return domainName;
             }
 
-            if (entry == null)
+            Debug($"Searching for sid in AD by securityidentifier");
+            entry = DoSearch($"(securityidentifier={dSid})", SearchScope.Subtree, new[] { "cn" }, useGc: true)
+                .DefaultIfEmpty(null).FirstOrDefault();
+
+            if (entry != null)
             {
-                Debug($"No sid found");
-                return null;
+                domainName = entry.GetProp("cn");
+                Debug($"Converted sid to {domainName}");
+                _cache.AddDomainFromSid(dSid, domainName);
+                _cache.AddDomainFromSid(domainName, dSid);
+                return domainName;
             }
-            domainName = ConvertDnToDomain(entry.DistinguishedName);
-            Debug($"Converted sid to {domainName}");
-            _cache.AddDomainFromSid(sid, domainName);
-            _cache.AddDomainFromSid(domainName, sid);
-            return domainName;
+
+            Debug($"No sid found");
+            return null;
         }
 
         /// <summary>
