@@ -1,4 +1,6 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using ProtoBuf;
 using Sharphound2.Enumeration;
@@ -139,6 +141,7 @@ namespace Sharphound2
 
         public void AddDomainFromSid(string sid, string domainName)
         {
+            Utils.Debug($"Cached {sid} to {domainName}");
             _domainToSidCache.TryAdd(sid, domainName);
         }
 
