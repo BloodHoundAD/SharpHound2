@@ -115,17 +115,10 @@ namespace Sharphound2.Enumeration
                 //Check our cache first
                 if (!_cache.GetMapValueUnknownType(dn, out var principal))
                 {
-                    if (dn.Contains("ForeignSecurityPrincipals") && !dn.StartsWith("CN=S-1-5-21"))
+                    if (dn.Contains("ForeignSecurityPrincipals") && dn.StartsWith("CN=S-1-5-21"))
                     {
-                        if (dn.Contains("S-1-5-21"))
-                        {
-                            var sid = entry.GetProp("cn");
-                            principal = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid), Props);
-                        }
-                        else
-                        {
-                            principal = null;
-                        }
+                        var sid = dn.Split(',')[0].Substring(2);
+                        principal = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid), Props);
                     }
                     else
                     {
