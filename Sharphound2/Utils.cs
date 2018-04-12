@@ -247,13 +247,13 @@ namespace Sharphound2
 
             Debug($"Searching for sid in AD by objectsid");
 
-            var entry = DoSearch($"(objectsid={sid})", SearchScope.Subtree, new[] {"distinguishedname"}, useGc: true)
+            var entry = DoSearch($"(objectsid={dSid})", SearchScope.Subtree, new[] {"distinguishedname"}, useGc: true)
                 .DefaultIfEmpty(null).FirstOrDefault();
 
             if (entry == null)
             {
                 Debug($"Searching for sid in AD by securityidentifier");
-                entry = DoSearch($"(securityidentifier={sid})", SearchScope.Subtree, new[] { "distinguishedname" }, useGc: true)
+                entry = DoSearch($"(securityidentifier={dSid})", SearchScope.Subtree, new[] { "distinguishedname" }, useGc: true)
                     .DefaultIfEmpty(null).FirstOrDefault();
             }
 
