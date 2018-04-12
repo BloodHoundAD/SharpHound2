@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.XPath;
 using Sharphound2.OutputObjects;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
@@ -339,7 +340,7 @@ namespace Sharphound2.Enumeration
 
                 if (type.Equals("unknown"))
                 {
-                    Utils.Debug("Resolving Sid to object");
+                    Utils.Debug("Resolving Sid to object UnknownType");
                     var mp = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid),
                         AdminProps);
                     if (mp == null)
@@ -574,99 +575,147 @@ namespace Sharphound2.Enumeration
                 yield break;
             }
 
-            var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
-            var currentSection = string.Empty;
             var resolvedList = new List<MappedPrincipal>();
 
-            if (!File.Exists(template))
-                yield break;
-
-            using (var reader = new StreamReader(template))
+            var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
+            var currentSection = string.Empty;
+            
+            if (File.Exists(template))
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                using (var reader = new StreamReader(template))
                 {
-                    var sMatch = SectionRegex.Match(line);
-                    if (sMatch.Success)
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
                     {
-                        currentSection = sMatch.Captures[0].Value.Trim();
-                    }
-
-                    if (!currentSection.Equals("[Group Membership]"))
-                    {
-                        continue;
-                    }
-
-                    var kMatch = KeyRegex.Match(line);
-
-                    if (!kMatch.Success)
-                        continue;
-
-                    var n = kMatch.Groups[1].Value;
-                    var v = kMatch.Groups[2].Value;
-
-                    if (!n.Contains(targetSid))
-                        continue;
-
-                    v = v.Trim();
-                    var members = v.Split(',');
-
-
-                    foreach (var m in members)
-                    {
-                        var member = m.Trim('*');
-                        string sid;
-                        if (!member.StartsWith("S-1-", StringComparison.CurrentCulture))
+                        var sMatch = SectionRegex.Match(line);
+                        if (sMatch.Success)
                         {
-                            try
-                            {
-                                sid = new NTAccount(domainName, m).Translate(typeof(SecurityIdentifier)).Value;
-                            }
-                            catch
-                            {
-                                sid = null;
-                            }
-                        }
-                        else
-                        {
-                            sid = member;
+                            currentSection = sMatch.Captures[0].Value.Trim();
                         }
 
-                        if (sid == null)
+                        if (!currentSection.Equals("[Group Membership]"))
+                        {
+                            continue;
+                        }
+
+                        var kMatch = KeyRegex.Match(line);
+
+                        if (!kMatch.Success)
                             continue;
 
-                        var domain = _utils.SidToDomainName(sid) ?? domainName;
-                        var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
-                        if (resolvedPrincipal != null)
-                            resolvedList.Add(resolvedPrincipal);
+                        var n = kMatch.Groups[1].Value;
+                        var v = kMatch.Groups[2].Value;
+
+                        if (!n.Contains(targetSid))
+                            continue;
+
+                        v = v.Trim();
+                        var members = v.Split(',');
+
+
+                        foreach (var m in members)
+                        {
+                            var member = m.Trim('*');
+                            string sid;
+                            if (!member.StartsWith("S-1-", StringComparison.CurrentCulture))
+                            {
+                                try
+                                {
+                                    sid = new NTAccount(domainName, m).Translate(typeof(SecurityIdentifier)).Value;
+                                }
+                                catch
+                                {
+                                    sid = null;
+                                }
+                            }
+                            else
+                            {
+                                sid = member;
+                            }
+
+                            if (sid == null)
+                                continue;
+
+                            var domain = _utils.SidToDomainName(sid) ?? domainName;
+                            var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                            if (resolvedPrincipal != null)
+                                resolvedList.Add(resolvedPrincipal);
+                        }
                     }
                 }
             }
 
-            foreach (var ouObject in _utils.DoSearch($"(gplink=*{name}*)", SearchScope.Subtree, GpLinkProps, domainName))
+            var xml = $"{path}\\USER\\Preferences\\Groups\\Groups.xml";
+
+            if (File.Exists(xml))
             {
-                var adspath = ouObject.DistinguishedName;
+                var doc = new XPathDocument(xml);
+                var nav = doc.CreateNavigator();
+                var nodes = nav.Select("/Groups/Group");
 
-                foreach (var compEntry in _utils.DoSearch("(objectclass=computer)", SearchScope.Subtree, GpoProps,
-                    domainName, adspath))
+                while (nodes.MoveNext())
                 {
-                    var samAccountType = compEntry.GetProp("samaccounttype");
-                    if (samAccountType == null || samAccountType != "805306369")
-                        continue;
-
-                    var server = compEntry.ResolveAdEntry()?.BloodHoundDisplay;
-
-                    if (server == null)
-                        continue;
-
-                    foreach (var user in resolvedList)
+                    var properties = nodes.Current.Select("Properties");
+                    while (properties.MoveNext())
                     {
-                        yield return new LocalAdmin
+                        var groupSid = properties.Current.GetAttribute("groupSid", "");
+                        if (groupSid == "")
+                            continue;
+
+                        if (!groupSid.Equals("S-1-5-32-544"))
+                            continue;
+
+
+                        var members = properties.Current.Select("Members");
+                        while (members.MoveNext())
                         {
-                            ObjectName = user.PrincipalName,
-                            ObjectType = user.ObjectType,
-                            Server = server
-                        };
+                            var subMembers = members.Current.Select("Member");
+                            while (subMembers.MoveNext())
+                            {
+                                var action = subMembers.Current.GetAttribute("action", "");
+                                if (action.Equals("ADD"))
+                                {
+                                    var sid = subMembers.Current.GetAttribute("sid", "");
+                                    if (sid == "")
+                                        continue;
+                                    var domain = _utils.SidToDomainName(sid) ?? domainName;
+                                    var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                                    if (resolvedPrincipal != null)
+                                        resolvedList.Add(resolvedPrincipal);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (resolvedList.Count > 0)
+            {
+                foreach (var ouObject in _utils.DoSearch($"(gplink=*{name}*)", SearchScope.Subtree, GpLinkProps, domainName))
+                {
+                    var adspath = ouObject.DistinguishedName;
+
+                    foreach (var compEntry in _utils.DoSearch("(objectclass=computer)", SearchScope.Subtree, GpoProps,
+                        domainName, adspath))
+                    {
+                        var samAccountType = compEntry.GetProp("samaccounttype");
+                        if (samAccountType == null || samAccountType != "805306369")
+                            continue;
+
+                        var server = compEntry.ResolveAdEntry()?.BloodHoundDisplay;
+
+                        if (server == null)
+                            continue;
+
+                        foreach (var user in resolvedList)
+                        {
+                            yield return new LocalAdmin
+                            {
+                                ObjectName = user.PrincipalName,
+                                ObjectType = user.ObjectType,
+                                Server = server
+                            };
+                        }
                     }
                 }
             }

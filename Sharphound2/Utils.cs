@@ -609,9 +609,9 @@ namespace Sharphound2
         {
             var f = Forest.GetCurrentForest();
             var domains = new List<string>();
-            foreach (var d in f.Domains)
+            foreach (Domain d in f.Domains)
             {
-                domains.Add(d.ToString());
+                domains.Add(d.Name);
             }
 
             return domains;
