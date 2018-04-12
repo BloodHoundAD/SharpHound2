@@ -13,7 +13,7 @@ namespace Sharphound2.OutputObjects
 
         public override string ToCsv()
         {
-            return $"{ObjectType},{ObjectName},{ObjectGuid},{GpoDisplayName},{GpoGuid},{IsEnforced}";
+            return $"{ObjectType},{Utils.StringToCsvCell(ObjectName)},{ObjectGuid},{Utils.StringToCsvCell(GpoDisplayName)},{GpoGuid},{IsEnforced}";
         }
 
         public override object ToParam()

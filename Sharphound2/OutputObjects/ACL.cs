@@ -17,7 +17,7 @@ namespace Sharphound2.OutputObjects
 
         public override string ToCsv()
         {
-            return $"{ObjectName},{ObjectType},{PrincipalName},{PrincipalType},{RightName},{AceType},{Qualifier},{Inherited},{ObjectGuid}";
+            return $"{Utils.StringToCsvCell(ObjectName)},{ObjectType},{Utils.StringToCsvCell(PrincipalName)},{PrincipalType},{RightName},{AceType},{Qualifier},{Inherited},{ObjectGuid}";
         }
 
         public override object ToParam()

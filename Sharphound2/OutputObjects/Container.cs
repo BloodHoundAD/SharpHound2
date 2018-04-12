@@ -15,7 +15,7 @@ namespace Sharphound2.OutputObjects
         public override string ToCsv()
         {
             return
-                $"{ContainerType},{ContainerName},{ContainerGuid},{ContainerBlocksInheritance},{ObjectType},{ObjectName},{ObjectId}";
+                $"{ContainerType},{Utils.StringToCsvCell(ContainerName)},{ContainerGuid},{ContainerBlocksInheritance},{ObjectType},{Utils.StringToCsvCell(ObjectName)},{ObjectId}";
         }
 
         public override object ToParam()

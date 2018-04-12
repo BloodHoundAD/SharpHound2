@@ -10,6 +10,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using ICSharpCode.SharpZipLib.Zip;
 using Sharphound2.Enumeration;
@@ -240,6 +241,7 @@ namespace Sharphound2
             Debug($"Got Domain Sid {dSid}");
             if (_cache.GetDomainFromSid(dSid, out var domainName))
             {
+                Debug($"Cache hit for SidToDomainName: {domainName}");
                 return domainName;
             }
 
@@ -959,6 +961,25 @@ namespace Sharphound2
                     break;
             }
             return result;
+        }
+
+        //Thanks to Ed Bayiates on Stack Overflow for this. https://stackoverflow.com/questions/6377454/escaping-tricky-string-to-csv-format
+        internal static string StringToCsvCell(string str)
+        {
+            if (str == null)
+                return null;
+            var mustQuote = (str.Contains(",") || str.Contains("\"") || str.Contains("\r") || str.Contains("\n"));
+            if (!mustQuote) return str;
+            var sb = new StringBuilder();
+            sb.Append("\"");
+            foreach (var nextChar in str)
+            {
+                sb.Append(nextChar);
+                if (nextChar == '"')
+                    sb.Append("\"");
+            }
+            sb.Append("\"");
+            return sb.ToString();
         }
 
         #region PINVOKE
