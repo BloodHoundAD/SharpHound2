@@ -39,7 +39,17 @@ namespace Sharphound2.Enumeration
 
             foreach (Domain subdomain in f.Domains)
             {
-                foreach (DomainController dc in subdomain.DomainControllers)
+                DomainControllerCollection dcs;
+                try
+                {
+                    dcs = subdomain.DomainControllers;
+                }
+                catch
+                {
+                    continue;
+                }
+                
+                foreach (DomainController dc in dcs)
                 {
                     yield return new GroupMember
                     {
