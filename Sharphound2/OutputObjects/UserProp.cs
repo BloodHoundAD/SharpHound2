@@ -15,10 +15,12 @@ namespace Sharphound2.OutputObjects
         internal string DisplayName { get; set; }
         internal string Email { get; set; }
         internal string Domain { get; set; }
+        internal string Title { get; set; }
+        internal string HomeDirectory { get; set; }
 
         public override string ToCsv()
         {
-            return $"{AccountName},{Utils.StringToCsvCell(DisplayName)},{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},{Utils.StringToCsvCell(ServicePrincipalNames)},{Utils.StringToCsvCell(Email)},{Domain}";
+            return $"{AccountName},{Utils.StringToCsvCell(DisplayName)},{Enabled},{PwdLastSet},{LastLogon},{ObjectSid},{SidHistory},{HasSpn},{Utils.StringToCsvCell(ServicePrincipalNames)},{Utils.StringToCsvCell(Email)},{Utils.StringToCsvCell(Title)},{HomeDirectory},{Domain}";
         }
 
         public override object ToParam()

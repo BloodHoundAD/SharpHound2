@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Reflection;
-using System.Text;
+﻿using System.ComponentModel;
 
 namespace Sharphound2
 {
@@ -15,7 +10,7 @@ namespace Sharphound2
         LocalAdmin,
         [Description("UserName,ComputerName,Weight")]
         Session,
-        [Description("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames,Email,Domain")]
+        [Description("AccountName,DisplayName,Enabled,PwdLastSet,LastLogon,Sid,SidHistory,HasSPN,ServicePrincipalNames,Email,Title,HomeDirectory,Domain")]
         UserProperties,
         [Description("SourceDomain,TargetDomain,TrustDirection,TrustType,Transitive")]
         Trusts,

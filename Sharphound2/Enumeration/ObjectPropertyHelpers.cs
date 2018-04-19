@@ -83,6 +83,8 @@ namespace Sharphound2.Enumeration
             var sidhistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
             var mail = entry.GetProp("mail");
             var domain = resolved.BloodHoundDisplay.Split('@')[1].ToUpper();
+            var title = entry.GetProp("title");
+            var homedir = entry.GetProp("homeDirectory");
 
             return new UserProp
             {
@@ -96,7 +98,9 @@ namespace Sharphound2.Enumeration
                 ServicePrincipalNames = spnString,
                 DisplayName = displayName,
                 Email = mail,
-                Domain = domain
+                Domain = domain,
+                Title = title,
+                HomeDirectory = homedir
             };
         }
 
