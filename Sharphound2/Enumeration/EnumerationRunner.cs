@@ -444,13 +444,11 @@ namespace Sharphound2.Enumeration
                         {
                             outputQueue.Add(new Wrapper<OutputBase> { Item = container });
                         }
-                        if (_options.CurrentCollectionMethod.Equals(CollectionMethod.Container))
-                        {
-                            outputQueue.CompleteAdding();
-                            writer.Wait();
-                            Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
-                            continue;
-                        }
+                        
+                        outputQueue.CompleteAdding();
+                        writer.Wait();
+                        Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
+                        continue;
                     }
 
                     if (c.Equals(CollectionMethod.Default) || c.Equals(CollectionMethod.Group))
