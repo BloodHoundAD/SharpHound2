@@ -231,7 +231,16 @@ namespace Sharphound2
         public string SidToDomainName(string sid, string domainController = null)
         {
             Debug($"Creating SecurityIdentifier from {sid}");
-            var id = new SecurityIdentifier(sid);
+            SecurityIdentifier id;
+            try
+            {
+                id = new SecurityIdentifier(sid);
+            }
+            catch
+            {
+                return null;
+            }
+            
             if (id.AccountDomainSid == null)
             {
                 Debug($"SecurityIdentifier was null");

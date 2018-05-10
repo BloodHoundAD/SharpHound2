@@ -221,7 +221,11 @@ namespace Sharphound2
             if (!result.Attributes.Contains("objectsid"))
                 return null;
 
-            return new SecurityIdentifier(result.Attributes["objectsid"][0] as byte[], 0).ToString();
+            var s = result.Attributes["objectsid"][0];
+            if (!(s is byte[]))
+                return null;
+
+            return new SecurityIdentifier(s as byte[], 0).ToString();
         }
     }
 }
