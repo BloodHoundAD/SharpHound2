@@ -128,7 +128,13 @@ namespace Sharphound2.Enumeration
                     if (dn.Contains("ForeignSecurityPrincipals") && dn.Contains("CN=S-1-5-21"))
                     {
                         var sid = dn.Split(',')[0].Substring(3);
-                        principal = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid), Props);
+                        var domain = _utils.SidToDomainName(sid);
+                        if (domain == null)
+                        {
+                            Utils.Verbose($"Unable to resolve domain for FSP {dn}");
+                            continue;
+                        }
+                        principal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
                     }
                     else
                     {

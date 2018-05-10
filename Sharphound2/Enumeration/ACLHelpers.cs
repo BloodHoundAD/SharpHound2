@@ -117,7 +117,7 @@ namespace Sharphound2.Enumeration
                 {
                     yield return new ACL
                     {
-                        PrincipalName = $"{owner.PrincipalName}",
+                        PrincipalName = owner.PrincipalName,
                         PrincipalType = owner.ObjectType,
                         Inherited = false,
                         RightName = "Owner",
