@@ -178,7 +178,7 @@ namespace Sharphound2.Enumeration
                 //Convert our right to an ActiveDirectoryRight enum object, and then to a string
                 var adRight = (ActiveDirectoryRights) Enum.ToObject(typeof(ActiveDirectoryRights), qAce.AccessMask);
                 var adRightString = adRight.ToString();
-
+                   
                 //Get the ACE for our right
                 var ace = qAce as ObjectAce;
                 var guid = ace != null ? ace.ObjectAceType.ToString() : "";
@@ -208,6 +208,8 @@ namespace Sharphound2.Enumeration
                 var inheritedObjectType = ace != null ? ace.InheritedObjectAceType.ToString() : "00000000-0000-0000-0000-000000000000";
                 var isInherited = false;
 
+                //Check if the ACE applies to us. This can either be because the ACE applies to any object type (the null guid)
+                //or because the ACE replies to our object type (which is different per entry type).
                 switch (entryType)
                 {
                     case "user":
@@ -227,7 +229,15 @@ namespace Sharphound2.Enumeration
                                       inheritedObjectType.Equals("f30e3bc2-9ff0-11d1-b603-0000f80367c1");
                         break;
                 }
-
+                
+                //Special case used for example by Exchange: the ACE is inherited but also applies to the object it is set on
+                // this is verified by looking if this ACE is not inherited, and is not an inherit-only ACE
+                if (!isInherited && !((ace.AceFlags & AceFlags.InheritOnly) == AceFlags.InheritOnly) && !((ace.AceFlags & AceFlags.Inherited) == AceFlags.Inherited))
+                {
+                    //If these conditions hold the ACE applies to this object anyway
+                    isInherited = true;
+                }
+                    
                 if (!toContinue || !isInherited)
                 {
                     continue;
@@ -243,6 +253,11 @@ namespace Sharphound2.Enumeration
                             break;
                         case "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2":
                             aceType = "DS-Replication-Get-Changes-All";
+                            break;
+                        //Though it doesn't make sense privilege wise, the Exchange reset password permissions also apply to the
+                        //domain object. We need to catch this properly otherwise "All" access is assumed, which is incorrect
+                        case "00299570-246d-11d0-a768-00aa006e0529":
+                            aceType = "User-Force-Change-Password";
                             break;
                         default:
                             aceType = "All";
