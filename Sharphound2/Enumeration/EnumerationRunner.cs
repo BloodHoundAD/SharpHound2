@@ -328,6 +328,7 @@ namespace Sharphound2.Enumeration
                         }
                         break;
                     case CollectionMethod.Trusts:
+                        Console.WriteLine("Doing stealth enumeration for Trusts");
                         var trusts = DomainTrustEnumeration.DoTrustEnumeration(domainName);
                         foreach (var trust in trusts)
                         {
@@ -354,6 +355,14 @@ namespace Sharphound2.Enumeration
                             output.Add(new Wrapper<OutputBase> { Item = a });
                         }
                         AclHelpers.ClearSyncers();
+                        break;
+                    case CollectionMethod.Container:
+                        Console.WriteLine("Doing stealth enumeration for Containers");
+                        foreach (var container in ContainerHelpers.GetContainersForDomain(domainName))
+                        {
+                            output.Add(new Wrapper<OutputBase> { Item = container });
+                        }
+
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
