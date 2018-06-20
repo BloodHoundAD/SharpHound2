@@ -569,7 +569,6 @@ namespace Sharphound2.Enumeration
             var name = entry.GetProp("name");
             var path = entry.GetProp("gpcfilesyspath");
 
-
             if (displayName == null || name == null || path == null)
             {
                 yield break;
@@ -645,7 +644,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            var xml = $"{path}\\USER\\Preferences\\Groups\\Groups.xml";
+            var xml = $"{path}\\MACHINE\\Preferences\\Groups\\Groups.xml";
 
             if (File.Exists(xml))
             {
