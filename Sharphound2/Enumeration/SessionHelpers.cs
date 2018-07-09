@@ -156,7 +156,7 @@ namespace Sharphound2.Enumeration
                         var temp = new List<string>();
                         foreach (var entry in _utils.DoSearch(
                             $"(&(samAccountType=805306368)(samaccountname={username}))", SearchScope.Subtree,
-                            new[] {"distinguishedname"}, null, useGc:true))
+                            new[] {"distinguishedname"}, null, "", true))
                         {
                             temp.Add(Utils.ConvertDnToDomain(entry.DistinguishedName).ToUpper());
                         }
