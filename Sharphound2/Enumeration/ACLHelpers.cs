@@ -347,7 +347,7 @@ namespace Sharphound2.Enumeration
                     };
                 }
 
-                if (adRightString.Contains("GenericWrite"))
+                if (adRightString.Contains("GenericWrite") && !entryType.Equals("domain"))
                 {
                     yield return new ACL
                     {
