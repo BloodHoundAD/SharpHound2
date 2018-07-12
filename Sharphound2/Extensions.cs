@@ -129,6 +129,8 @@ namespace Sharphound2
                 return entry;
             }
 
+            
+
             if (accountType == null)
             {
                 var objClass = result.GetPropArray("objectClass");
@@ -142,11 +144,22 @@ namespace Sharphound2
                 if (objClass.Contains("organizationalUnit"))
                 {
                     entry.BloodHoundDisplay = $"{result.GetProp("name")}@{domainName}";
-                    entry.ObjectType = "organizationalunit";
+                    entry.ObjectType = "ou";
+                    return entry;
+                }
+
+                if (objClass.Contains("container"))
+                {
+                    entry.BloodHoundDisplay = domainName;
+                    entry.ObjectType = "container";
                     return entry;
                 }
             }
-
+            else
+            {
+                if (accountType.Equals("805306370"))
+                    return null;
+            }
             entry.BloodHoundDisplay = domainName;
             entry.ObjectType = "domain";
             return entry;

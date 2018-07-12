@@ -1,4 +1,5 @@
 ﻿using System;
+using System.DirectoryServices.Protocols;
 using System.Runtime.InteropServices;
 using Sharphound2.Enumeration;
 
@@ -8,10 +9,9 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            foreach (var d in GroupHelpers.GetEnterpriseDCs(host))
-            {
-                Console.WriteLine(d.AccountName);
-            }
+            var nbt = Utils.GetComputerNetbiosName("192.168.52.20", out var domain);
+            Console.WriteLine(nbt);
+            Console.WriteLine(domain);
         }
     }
 }

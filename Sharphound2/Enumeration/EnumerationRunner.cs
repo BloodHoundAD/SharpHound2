@@ -10,8 +10,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using Newtonsoft.Json;
+using Sharphound2.JsonObjects;
 using Sharphound2.OutputObjects;
 using static Sharphound2.Sharphound;
+using Session = Sharphound2.JsonObjects.Session;
 
 namespace Sharphound2.Enumeration
 {
@@ -22,8 +25,6 @@ namespace Sharphound2.Enumeration
         private readonly Options _options;
         private readonly System.Timers.Timer _statusTimer;
         private readonly Utils _utils;
-        private string _currentDomainSid;
-        private string _currentDomain;
         private Stopwatch _watch;
 
         private int _noPing;
@@ -53,320 +54,174 @@ namespace Sharphound2.Enumeration
             _statusTimer.Start();
         }
 
-        public void StartStealthEnumeration()
+        internal void StartStealthEnumeration()
         {
             foreach (var domainName in _utils.GetDomainList())
             {
-                var output = new BlockingCollection<Wrapper<OutputBase>>();
-                var writer = _options.Uri == null
-                    ? StartOutputWriter(output)
-                    : StartRestWriter(output);
+                var output = new BlockingCollection<Wrapper<JsonBase>>();
+                var writer = StartOutputWriter(output);
 
                 _currentCount = 0;
                 _timeouts = 0;
                 _noPing = 0;
                 _watch = Stopwatch.StartNew();
-
-                Console.WriteLine($"Starting {_options.CurrentCollectionMethod} stealth enumeration for {domainName}");
-                var domainSid = _utils.GetDomainSid(domainName);
-                var data = LdapFilter.GetLdapFilter(_options.CurrentCollectionMethod, _options.ExcludeDC, true);
-
+                
+                Console.WriteLine($"Starting Stealth Enumeration for {domainName}");
                 _statusTimer.Start();
 
-                switch (_options.CurrentCollectionMethod)
+                var domainSid = _utils.GetDomainSid(domainName);
+                var res = _options.ResolvedCollMethods;
+                var data = LdapFilter.BuildLdapData(res, _options.ExcludeDC);
+
+                ContainerHelpers.BuildGpoCache(domainName);
+
+                foreach (var entry in _utils.DoSearch(data.Filter, SearchScope.Subtree, data.Properties, domainName))
                 {
-                    case CollectionMethod.ObjectProps:
-                        Console.WriteLine("Doing stealth enumeration for object properties");
-                        foreach (var entry in _utils.DoSearch(data.Filter, SearchScope.Subtree, data.Properties, domainName))
+                    var resolved = entry.ResolveAdEntry();
+                    _currentCount++;
+                    if (resolved == null)
+                        continue;
+                    var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
+                    
+                    if (resolved.ObjectType == "user")
+                    {
+                        var obj = new User
                         {
-                            var resolved = entry.ResolveAdEntry();
-                            if (resolved == null)
-                            {
-                                _currentCount++;
-                                continue;
-                            }
+                            Name = resolved.BloodHoundDisplay,
+                            Domain = domain,
+                            ObjectSid = entry.GetSid()
+                        };
 
-                            OutputBase props;
-                            if (resolved.ObjectType.Equals("computer"))
-                            {
-                                props = ObjectPropertyHelpers.GetComputerProps(entry, resolved);
-                            }
-                            else
-                            {
-                                props = ObjectPropertyHelpers.GetUserProps(entry, resolved);
-                            }
-                            if (props != null)
-                                output.Add(new Wrapper<OutputBase> {Item = props});
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
 
-                            _currentCount++;
-                        }
-                        break;
-                    case CollectionMethod.Session:
-                        Console.WriteLine("Doing stealth enumeration for sessions");
-                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                        output.Add(new Wrapper<JsonBase>
                         {
-                            if (!_utils.PingHost(path.BloodHoundDisplay))
-                            {
-                                _noPing++;
-                                _currentCount++;
-                                continue;
-                            }
-                                
-                            try
-                            {
-                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                                foreach (var s in sessions)
-                                {
-                                    output.Add(new Wrapper<OutputBase> {Item = s});
-                                }
-                            }
-                            catch (TimeoutException)
-                            {
-                                _timeouts++;
-                            }
-                            Utils.DoJitter();
-                            _currentCount++;
-                        }
-                        break;
-                    case CollectionMethod.ComputerOnly:
-                        Console.WriteLine("Doing stealth enumeration for sessions");
-                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                            Item = obj
+                        });
+                    }else if (resolved.ObjectType == "group")
+                    {
+                        var obj = new Group
                         {
-                            if (!_utils.PingHost(path.BloodHoundDisplay))
-                            {
-                                _noPing++;
-                                _currentCount++;
-                                continue;
-                            }
+                            Name = resolved.BloodHoundDisplay,
+                            Domain = domain,
+                            ObjectSid = entry.GetSid()
+                        };
 
-                            try
-                            {
-                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                                foreach (var s in sessions)
-                                {
-                                    output.Add(new Wrapper<OutputBase> {Item = s});
-                                }
-                            }
-                            catch (TimeoutException)
-                            {
-                                _timeouts++;
-                            }
-                            Utils.DoJitter();
-                            _currentCount++;
-                        }
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
 
-                        Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var entry in _utils.DoSearch(
-                            data.Filter, SearchScope.Subtree,
-                            data.Properties, domainName))
+                        output.Add(new Wrapper<JsonBase>
                         {
-                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
-                            {
-                                output.Add(new Wrapper<OutputBase> {Item = admin});
-                            }
-                            
-                            _currentCount++;
-                        }
-                        break;
-                    case CollectionMethod.Default:
-                        Console.WriteLine("Doing stealth enumeration for sessions");
-                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                            Item = obj
+                        });
+                    }
+                    else if (resolved.ObjectType == "computer")
+                    {
+                        var obj = new Computer
                         {
-                            if (!_utils.PingHost(path.BloodHoundDisplay))
-                            {
-                                _noPing++;
-                                _currentCount++;
-                                continue;
-                            }
+                            Name = resolved.BloodHoundDisplay,
+                            Domain = domain,
+                            ObjectSid = entry.GetSid()
+                        };
 
-                            try
-                            {
-                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                                foreach (var s in sessions)
-                                {
-                                    output.Add(new Wrapper<OutputBase> {Item = s});
-                                }
-                            }
-                            catch (TimeoutException)
-                            {
-                                _timeouts++;
-                            }
-                            Utils.DoJitter();
-                            _currentCount++;
-                        }
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
 
-                        Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var entry in _utils.DoSearch(
-                            "(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))", SearchScope.Subtree,
-                            new[] { "displayname", "name", "gpcfilesyspath" }, domainName))
+                        output.Add(new Wrapper<JsonBase>
                         {
-                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
-                            {
-                                output.Add(new Wrapper<OutputBase>{Item = admin});
-                                _currentCount++;
-                            }
-                        }
-
-                        Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var entry in _utils.DoSearch("(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913))",
-                            SearchScope.Subtree,
-                            new[]
-                            {
-                                "samaccountname", "distinguishedname", "samaccounttype", "member", "cn"
-                            }, domainName))
+                            Item = obj
+                        });
+                    }
+                    else if (resolved.ObjectType == "domain")
+                    {
+                        var obj = new Domain
                         {
-                            var resolved = entry.ResolveAdEntry();
+                            Name = resolved.BloodHoundDisplay,
+                            ObjectSid = entry.GetSid()
+                        };
 
-                            if (resolved == null)
-                            {
-                                _currentCount++;
-                                continue;
-                            }
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
+                        ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
+                        DomainTrustEnumeration.DoTrustEnumeration(resolved, ref obj);
 
-                            if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                            {
-                                _noPing++;
-                                _currentCount++;
-                                continue;
-                            }
-                            
-                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolved, domainSid))
-                            {
-                                output.Add(new Wrapper<OutputBase> {Item = group});
-                            }
-                        }
-                        break;
-                    case CollectionMethod.SessionLoop:
-                        Console.WriteLine("Doing stealth enumeration for sessions");
-                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
+                        output.Add(new Wrapper<JsonBase>
                         {
-                            if (!_utils.PingHost(path.BloodHoundDisplay))
-                            {
-                                _noPing++;
-                                _currentCount++;
-                                continue;
-                            }
+                            Item = obj
+                        });
+                    }
+                    else if (resolved.ObjectType == "gpo")
+                    {
+                        var obj = new Gpo
+                        {
+                            Name = resolved.BloodHoundDisplay,
+                            Guid = entry.GetProp("name").Replace("{", "").Replace("}", "")
+                        };
 
-                            try
-                            {
-                                var sessions = SessionHelpers.GetNetSessions(path, domainName);
-                                foreach (var s in sessions)
-                                {
-                                    output.Add(new Wrapper<OutputBase> {Item = s});
-                                }
-                            }
-                            catch (TimeoutException)
-                            {
-                                _timeouts++;
-                            }
-                            Utils.DoJitter();
-                            _currentCount++;
-                        }
-                        break;
-                    case CollectionMethod.LoggedOn:
-                        Console.WriteLine("Doing LoggedOn enumeration for stealth targets");
-                        foreach (var path in SessionHelpers.CollectStealthTargets(domainName))
-                        {
-                            if (!_utils.PingHost(path.BloodHoundDisplay))
-                            {
-                                _noPing++;
-                                _currentCount++;
-                                continue;
-                            }
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
 
-                            var sessions = SessionHelpers.GetNetLoggedOn(path, domainName);
-                            foreach (var s in sessions)
-                            {
-                                output.Add(new Wrapper<OutputBase> { Item = s });
-                            }
-                            Utils.DoJitter();
-                            sessions = SessionHelpers.GetRegistryLoggedOn(path);
-                            foreach (var s in sessions)
-                            {
-                                output.Add(new Wrapper<OutputBase> { Item = s });
-                            }
-                            Utils.DoJitter();
-                            _currentCount++;
-                        }
-                        break;
-                    case CollectionMethod.Group:
-                        Console.WriteLine("Doing stealth enumeration for groups");
-                        foreach (var entry in _utils.DoSearch(data.Filter,
-                            SearchScope.Subtree,
-                            data.Properties, domainName))
+                        output.Add(new Wrapper<JsonBase>
                         {
-                            var resolved = entry.ResolveAdEntry();
+                            Item = obj
+                        });
 
-                            if (resolved == null)
+                        if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup)) continue;
+                        foreach (var admin in LocalGroupHelpers.GetGpoAdmins(entry, domainName))
+                        {
+                            output.Add(new Wrapper<JsonBase>
                             {
-                                _currentCount++;
-                                continue;
-                            }
-                                
+                                Item = admin
+                            });
+                        }
+                    }
+                    else if (resolved.ObjectType == "ou")
+                    {
+                        var obj = new Ou
+                        {
+                            Name = resolved.BloodHoundDisplay,
+                            Guid = new Guid(entry.GetPropBytes("objectguid")).ToString().ToUpper()
+                        };
 
-                            foreach (var group in GroupHelpers.ProcessAdObject(entry, resolved, domainSid))
-                            {
-                                output.Add(new Wrapper<OutputBase> { Item = group });
-                            }
-                            _currentCount++;
-                        }
-                        break;
-                    case CollectionMethod.LocalGroup:
-                        //This case will never happen
-                        break;
-                    case CollectionMethod.GPOLocalGroup:
-                        Console.WriteLine("Doing stealth enumeration for admins");
-                        foreach (var entry in _utils.DoSearch(
-                            data.Filter, SearchScope.Subtree,
-                            data.Properties, domainName))
-                        {
-                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, domainName))
-                            {
-                                output.Add(new Wrapper<OutputBase> { Item = admin });
-                            }
-                            _currentCount++;
-                        }
-                        break;
-                    case CollectionMethod.Trusts:
-                        Console.WriteLine("Doing stealth enumeration for Trusts");
-                        var trusts = DomainTrustEnumeration.DoTrustEnumeration(domainName);
-                        foreach (var trust in trusts)
-                        {
-                            _currentCount++;
-                            output.Add(new Wrapper<OutputBase> {Item = trust});
-                        }
-                        break;
-                    case CollectionMethod.ACL:
-                        Console.WriteLine("Doing stealth enumeration for ACLs");
-                        foreach (var entry in _utils.DoSearch(
-                            data.Filter,
-                            SearchScope.Subtree,
-                            data.Properties, domainName))
-                        {
-                            foreach (var acl in AclHelpers.ProcessAdObject(entry, domainName))
-                            {
-                                output.Add(new Wrapper<OutputBase>{Item = acl});
-                            }
-                            _currentCount++;
-                        }
+                        ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
 
-                        foreach (var a in AclHelpers.GetSyncers())
+                        output.Add(new Wrapper<JsonBase>
                         {
-                            output.Add(new Wrapper<OutputBase> { Item = a });
-                        }
-                        AclHelpers.ClearSyncers();
-                        break;
-                    case CollectionMethod.Container:
-                        Console.WriteLine("Doing stealth enumeration for Containers");
-                        foreach (var container in ContainerHelpers.GetContainersForDomain(domainName))
-                        {
-                            output.Add(new Wrapper<OutputBase> { Item = container });
-                        }
-
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
+                            Item = obj
+                        });
+                    }
                 }
+
+                if (Utils.IsMethodSet(ResolvedCollectionMethod.Session))
+                {
+                    Console.WriteLine("Doing stealth session enumeration");
+                    foreach (var target in SessionHelpers.CollectStealthTargets(domainName))
+                    {
+                        if (!_utils.PingHost(target.BloodHoundDisplay))
+                        {
+                            _noPing++;
+                            continue;
+                        }
+
+                        try
+                        {
+                            foreach (var session in SessionHelpers.GetNetSessions(target, domainName))
+                            {
+                                output.Add(new Wrapper<JsonBase>
+                                {
+                                    Item = session
+                                });
+                            }
+                        }
+                        catch (TimeoutException)
+                        {
+                            _timeouts++;
+                        }
+                    }
+                }
+
                 output.CompleteAdding();
                 PrintStatus();
                 Utils.Verbose("Waiting for writer thread to finish");
@@ -376,502 +231,480 @@ namespace Sharphound2.Enumeration
                 Console.WriteLine($"Finished stealth enumeration for {domainName} in {_watch.Elapsed}");
                 Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
             }
-            if (!_options.CurrentCollectionMethod.Equals(CollectionMethod.SessionLoop)) return;
-            if (_options.MaxLoopTime != null)
-            {
-                if (DateTime.Now > _options.LoopEnd)
-                {
-                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
-                    return;
-                }
-            }
-
-            Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
-            new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
-            if (_options.MaxLoopTime != null)
-            {
-                if (DateTime.Now > _options.LoopEnd)
-                {
-                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
-                    return;
-                }
-            }
-            Console.WriteLine("Starting next enumeration loop");
-            StartStealthEnumeration();
         }
 
-        public void StartEnumeration()
+        internal void StartCompFileEnumeration()
         {
-            //Let's determine what LDAP filter we need first
-            var data = LdapFilter.GetLdapFilter(_options.CurrentCollectionMethod, _options.ExcludeDC, _options.Stealth);
-            var ldapFilter = data.Filter;
-            var props = data.Properties;
-            var c = _options.CurrentCollectionMethod;
+            _noPing = 0;
+            _timeouts = 0;
+            _currentCount = 0;
+            Console.WriteLine($"Starting CompFile Enumeration");
 
+            _watch = Stopwatch.StartNew();
 
-            foreach (var domainName in _utils.GetDomainList())
+            var output = new BlockingCollection<Wrapper<JsonBase>>();
+            var input = new BlockingCollection<Wrapper<string>>(1000);
+            var taskHandles = new Task[_options.Threads];
+            var writer = StartOutputWriter(output);
+            
+            for (var i = 0; i < _options.Threads; i++)
             {
-                _noPing = 0;
-                _timeouts = 0;
-                Console.WriteLine($"Starting {c} enumeration for {domainName}");
+                taskHandles[i] = StartListRunner(input, output);
+            }
 
-                _watch = Stopwatch.StartNew();
-                _currentDomain = domainName;
-                _currentDomainSid = _utils.GetDomainSid(domainName);
-                _currentCount = 0;
-                var outputQueue = new BlockingCollection<Wrapper<OutputBase>>();
+            _statusTimer.Start();
 
-                if (_options.ComputerFile == null)
+            using (var reader = new StreamReader(_options.ComputerFile))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
                 {
-                    var inputQueue = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
-
-                    var taskhandles = new Task[_options.Threads];
-
-                    var writer = _options.Uri == null
-                        ? StartOutputWriter(outputQueue)
-                        : StartRestWriter(outputQueue);
-
-                    if (c.Equals(CollectionMethod.Trusts) ||
-                        c.Equals(CollectionMethod.Default))
+                    input.Add(new Wrapper<string>
                     {
-                        foreach (var domain in DomainTrustEnumeration.DoTrustEnumeration(domainName))
-                        {
-                            outputQueue.Add(new Wrapper<OutputBase> {Item = domain});
-                        }
-                        if (_options.CurrentCollectionMethod.Equals(CollectionMethod.Trusts))
-                        {
-                            outputQueue.CompleteAdding();
-                            writer.Wait();
-                            Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
-                            continue;
-                        }
-                    }
+                        Item = line
+                    });
+                }
+            }
 
-                    if (c.Equals(CollectionMethod.Container))
-                    {
-                        foreach (var container in ContainerHelpers.GetContainersForDomain(domainName))
-                        {
-                            outputQueue.Add(new Wrapper<OutputBase> { Item = container });
-                        }
-                        
-                        outputQueue.CompleteAdding();
-                        writer.Wait();
-                        Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
-                        continue;
-                    }
+            input.CompleteAdding();
+            Utils.Verbose("Waiting for enumeration threads to finish");
+            Task.WaitAll(taskHandles);
 
-                    if (c.Equals(CollectionMethod.Default) || c.Equals(CollectionMethod.Group))
+            _statusTimer.Stop();
+            PrintStatus();
+            output.CompleteAdding();
+            Utils.Verbose("Waiting for writer thread to finish");
+            writer.Wait();
+            _watch.Stop();
+            Console.WriteLine($"Finished CompFile enumeration in {_watch.Elapsed}");
+            Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+            _watch = null;
+
+            if ((_options.ResolvedCollMethods & ResolvedCollectionMethod.SessionLoop) == 0)
+            {
+                return;
+            }
+
+        
+            _options.SessionLoopRunning = true;
+            _options.ResolvedCollMethods = ResolvedCollectionMethod.SessionLoop;
+            Console.WriteLine();
+            Console.WriteLine("---------------------------");
+            Console.WriteLine("Starting Session Loop Mode.");
+            Console.WriteLine("---------------------------");
+            Console.WriteLine();
+            new ManualResetEvent(false).WaitOne(1000);
+            StartListSessionLoopEnumeration();
+        }
+
+        internal void StartSessionLoopEnumeration()
+        {
+            var output = new BlockingCollection<Wrapper<JsonBase>>();
+            var writer = StartOutputWriter(output);
+            while (true)
+            {
+                foreach (var domain in _utils.GetDomainList())
+                {
+                    _noPing = 0;
+                    _timeouts = 0;
+                    _currentCount = 0;
+                    Console.WriteLine($"Starting Enumeration for {domain}");
+
+                    _watch = Stopwatch.StartNew();
+
+                    if (_options.Stealth)
                     {
-                        foreach (var g in GroupHelpers.GetEnterpriseDCs(domainName))
+                        foreach (var target in SessionHelpers.CollectStealthTargets(domain))
                         {
-                            outputQueue.Add(new Wrapper<OutputBase>
+                            if (!_utils.PingHost(target.BloodHoundDisplay))
                             {
-                                Item = g
-                            });
+                                _noPing++;
+                                continue;
+                            }
+                            
+                            try
+                            {
+                                foreach (var s in SessionHelpers.GetNetSessions(target, domain))
+                                {
+                                    output.Add(new Wrapper<JsonBase>
+                                    {
+                                        Item = s
+                                    });
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                _timeouts++;
+                            }
+
+                            foreach (var s in SessionHelpers.DoLoggedOnCollection(target, domain))
+                            {
+                                output.Add(new Wrapper<JsonBase>
+                                {
+                                    Item = s
+                                });
+                            }
+
+                            PrintStatus();
+                            _watch.Stop();
+                            Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
+                            Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                            _watch = null;
                         }
-                    }
-
-                    for (var i = 0; i < _options.Threads; i++)
-                    {
-                        taskhandles[i] = StartRunner(inputQueue, outputQueue);
-                    }
-
-                    _statusTimer.Start();
-
-                    IEnumerable<Wrapper<SearchResultEntry>> items;
-
-                    if ((c.Equals(CollectionMethod.ComputerOnly) || c.Equals(CollectionMethod.Session) ||
-                         c.Equals(CollectionMethod.LocalGroup) || c.Equals(CollectionMethod.LoggedOn)) &&
-                        _options.Ou != null)
-                    {
-                        items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName, _options.Ou);
                     }
                     else
                     {
-                        items = _utils.DoWrappedSearch(ldapFilter, SearchScope.Subtree, props, domainName);
-                    }
+                        var input = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
+                        var taskHandles = new Task[_options.Threads];
+                        var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC);
 
-                    foreach (var item in items)
-                    {
-                        inputQueue.Add(item);
-                    }
-
-                    inputQueue.CompleteAdding();
-                    Utils.Verbose("Waiting for enumeration threads to finish");
-                    Task.WaitAll(taskhandles);
-
-                    _statusTimer.Stop();
-
-                    if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
-                    {
-                        foreach (var a in AclHelpers.GetSyncers())
+                        for (var i = 0; i < _options.Threads; i++)
                         {
-                            outputQueue.Add(new Wrapper<OutputBase> {Item = a});
+                            taskHandles[i] = StartRunner(input, output);
                         }
-                        AclHelpers.ClearSyncers();
+
+                        _statusTimer.Start();
+
+                        foreach (var item in _utils.DoWrappedSearch(ldapData.Filter, SearchScope.Subtree, ldapData.Properties,
+                            domain, _options.Ou))
+                        {
+                            input.Add(item);
+                        }
+
+                        input.CompleteAdding();
+                        Utils.Verbose("Waiting for enumeration threads to finish");
+                        Task.WaitAll(taskHandles);
+
+                        _statusTimer.Stop();
+                        PrintStatus();
+                        _watch.Stop();
+                        Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
+                        Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                        _watch = null;
                     }
-                    PrintStatus();
-                    outputQueue.CompleteAdding();
-                    Utils.Verbose("Waiting for writer thread to finish");
-                    writer.Wait();
-                    _watch.Stop();
-                    Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
-                    Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
-                    _watch = null;
                 }
-                else
+
+                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
                 {
-                    var inputQueue = new BlockingCollection<Wrapper<string>>(1000);
+                    Console.WriteLine("User pressed escape, exiting session loop");
+                    output.CompleteAdding();
+                    writer.Wait();
+                    break;
+                }
 
-                    var taskhandles = new Task[_options.Threads];
+                if (_options.MaxLoopTime != null)
+                {
+                    if (DateTime.Now > _options.LoopEnd)
+                    {
+                        Console.WriteLine("Exiting session loop as LoopEndTime has passed.");
+                        output.CompleteAdding();
+                        writer.Wait();
+                        break;
+                    }
+                }
 
-                    var writer = _options.Uri == null ? StartOutputWriter(outputQueue) : StartRestWriter(outputQueue);
+                Console.WriteLine($"Starting next session run in {_options.LoopDelay} seconds");
+                new ManualResetEvent(false).WaitOne(_options.LoopDelay * 1000);
+
+                if (_options.MaxLoopTime != null)
+                {
+                    if (DateTime.Now > _options.LoopEnd)
+                    {
+                        Console.WriteLine("Exiting session loop as LoopEndTime has passed.");
+                        output.CompleteAdding();
+                        writer.Wait();
+                        break;
+                    }
+                }
+
+                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
+                {
+                    Console.WriteLine("User pressed escape, exiting session loop");
+                    output.CompleteAdding();
+                    writer.Wait();
+                    break;
+                }
+
+                Console.WriteLine("Starting next session loop");
+            }
+        }
+
+        internal void StartListSessionLoopEnumeration()
+        {
+            var output = new BlockingCollection<Wrapper<JsonBase>>();
+            var writer = StartOutputWriter(output);
+            while (true)
+            {
+                foreach (var domain in _utils.GetDomainList())
+                {
+                    _noPing = 0;
+                    _timeouts = 0;
+                    _currentCount = 0;
+                    Console.WriteLine($"Starting Enumeration for {domain}");
+
+                    _watch = Stopwatch.StartNew();
+
+
+                    var input = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
+                    var taskHandles = new Task[_options.Threads];
+                    var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC);
+
+                    ContainerHelpers.BuildGpoCache(domain);
 
                     for (var i = 0; i < _options.Threads; i++)
                     {
-                        taskhandles[i] = StartCompListRunner(inputQueue, outputQueue);
+                        taskHandles[i] = StartRunner(input, output);
                     }
 
                     _statusTimer.Start();
 
-                    using (var reader = new StreamReader(_options.ComputerFile))
+                    foreach (var item in _utils.DoWrappedSearch(ldapData.Filter, SearchScope.Subtree, ldapData.Properties,
+                        domain, _options.Ou))
                     {
-                        string line;
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            inputQueue.Add(new Wrapper<string> {Item = line});
-                        }
-                        inputQueue.CompleteAdding();
+                        input.Add(item);
                     }
+
+                    input.CompleteAdding();
                     Utils.Verbose("Waiting for enumeration threads to finish");
-                    Task.WaitAll(taskhandles);
+                    Task.WaitAll(taskHandles);
 
                     _statusTimer.Stop();
                     PrintStatus();
-                    outputQueue.CompleteAdding();
-                    Utils.Verbose("Waiting for writer thread to finish");
-                    writer.Wait();
+                    output.CompleteAdding();
                     _watch.Stop();
-                    Console.WriteLine($"Finished enumeration for {domainName} in {_watch.Elapsed}");
+                    Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
                     Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
                     _watch = null;
                 }
-                
-            }
 
-            if (!_options.CurrentCollectionMethod.Equals(CollectionMethod.SessionLoop)) return;
-            if (_options.MaxLoopTime != null)
-            {
-                if (DateTime.Now > _options.LoopEnd)
+                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
                 {
-                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
-                    return;
+                    Console.WriteLine("User pressed escape, exiting session loop");
+                    output.CompleteAdding();
+                    writer.Wait();
+                    break;
                 }
-            }
 
-            Console.WriteLine($"Starting next session run in {_options.LoopTime} minutes");
-            new ManualResetEvent(false).WaitOne(_options.LoopTime * 60 * 1000);
-            if (_options.MaxLoopTime != null)
-            {
-                if (DateTime.Now > _options.LoopEnd)
+                if (_options.MaxLoopTime != null)
                 {
-                    Console.WriteLine("Exiting session loop as LoopEndTime as passed");
-                    return;
+                    if (DateTime.Now > _options.LoopEnd)
+                    {
+                        Console.WriteLine("Exiting session loop as LoopEndTime has passed.");
+                        output.CompleteAdding();
+                        writer.Wait();
+                        break;
+                    }
                 }
+
+                Console.WriteLine($"Starting next session run in {_options.LoopDelay} seconds");
+                new ManualResetEvent(false).WaitOne(_options.LoopDelay * 1000);
+
+                if (_options.MaxLoopTime != null)
+                {
+                    if (DateTime.Now > _options.LoopEnd)
+                    {
+                        Console.WriteLine("Exiting session loop as LoopEndTime has passed.");
+                        output.CompleteAdding();
+                        writer.Wait();
+                        break;
+                    }
+                }
+
+                if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
+                {
+                    Console.WriteLine("User pressed escape, exiting session loop");
+                    output.CompleteAdding();
+                    writer.Wait();
+                    break;
+                }
+
+                Console.WriteLine("Starting next session loop");
             }
-            Console.WriteLine("Starting next enumeration loop");
-            StartEnumeration();
         }
 
-        private Task StartRunner(BlockingCollection<Wrapper<SearchResultEntry>> processQueue, BlockingCollection<Wrapper<OutputBase>> writeQueue)
+        internal void StartEnumeration()
+        {
+            foreach (var domain in _utils.GetDomainList())
+            {
+                _noPing = 0;
+                _timeouts = 0;
+                _currentCount = 0;
+                Console.WriteLine($"Starting Enumeration for {domain}");
+
+                _watch = Stopwatch.StartNew();
+                
+                var output = new BlockingCollection<Wrapper<JsonBase>>();
+                var input = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
+                var taskHandles = new Task[_options.Threads];
+                var writer = StartOutputWriter(output);
+                var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC);
+
+                ContainerHelpers.BuildGpoCache(domain);
+
+                for (var i = 0; i < _options.Threads; i++)
+                {
+                    taskHandles[i] = StartRunner(input, output);
+                }
+
+                _statusTimer.Start();
+
+                foreach (var item in _utils.DoWrappedSearch(ldapData.Filter, SearchScope.Subtree, ldapData.Properties,
+                    domain, _options.Ou))
+                {
+                    input.Add(item);
+                }
+
+                input.CompleteAdding();
+                Utils.Verbose("Waiting for enumeration threads to finish");
+                Task.WaitAll(taskHandles);
+
+                _statusTimer.Stop();
+                PrintStatus();
+                output.CompleteAdding();
+                Utils.Verbose("Waiting for writer thread to finish");
+                writer.Wait();
+                _watch.Stop();
+                Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
+                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                _watch = null;
+            }
+
+            if ((_options.ResolvedCollMethods & ResolvedCollectionMethod.SessionLoop) == 0)
+            {
+                return;
+            }
+    
+            _options.SessionLoopRunning = true;
+            _options.ResolvedCollMethods = ResolvedCollectionMethod.SessionLoop;
+            Console.WriteLine();
+            Console.WriteLine("---------------------------");
+            Console.WriteLine("Starting Session Loop Mode.");
+            Console.WriteLine("---------------------------");
+            Console.WriteLine();
+            new ManualResetEvent(false).WaitOne(1000);
+            StartSessionLoopEnumeration();
+        }
+
+        private static Task StartOutputWriter(BlockingCollection<Wrapper<JsonBase>> outputQueue)
         {
             return Task.Factory.StartNew(() =>
             {
-                foreach (var wrapper in processQueue.GetConsumingEnumerable())
+                var serializer = new JsonSerializer
                 {
-                    
-                    var entry = wrapper.Item;
+                    NullValueHandling = NullValueHandling.Ignore
+                };
+                var computerCount = 0;
+                var userCount = 0;
+                var groupCount = 0;
+                var domainCount = 0;
+                var gpoCount = 0;
+                var ouCount = 0;
+                var sessionCount = 0;
+                var gpoAdminCount = 0;
 
-                    var resolved = entry.ResolveAdEntry();
-                    
-                    if (resolved == null)
+                JsonTextWriter computers = null;
+                JsonTextWriter users = null;
+                JsonTextWriter groups = null;
+                JsonTextWriter domains = null;
+                JsonTextWriter gpos = null;
+                JsonTextWriter ous = null;
+                JsonTextWriter sessions = null;
+                JsonTextWriter gpoadmin = null;
+
+                foreach (var obj in outputQueue.GetConsumingEnumerable())
+                {
+                    var item = obj.Item;
+                    switch (item)
                     {
-                        Interlocked.Increment(ref _currentCount);
-                        wrapper.Item = null;
-                        continue;
+                        case Group g:
+                            if (groups == null)
+                                groups = CreateFileStream("groups");
+                            
+                            serializer.Serialize(groups, g);
+                            groupCount++;
+                            if (groupCount % 100 == 0)
+                                groups.Flush();
+                            break;
+                        case Computer c:
+                            if (computers == null)
+                                computers = CreateFileStream("computers");
+
+                            serializer.Serialize(computers, c);
+                            computerCount++;
+                            if (computerCount % 100 == 0)
+                                computers.Flush();
+                            break;
+                        case User u:
+                            if (users == null)
+                                users = CreateFileStream("users");
+
+                            serializer.Serialize(users, u);
+                            userCount++;
+                            if (userCount % 100 == 0)
+                                users.Flush();
+                            break;
+                        case Domain d:
+                            if (domains == null)
+                                domains = CreateFileStream("domains");
+
+                            serializer.Serialize(domains, d);
+                            domainCount++;
+                            if (domainCount % 100 == 0)
+                                domains.Flush();
+                            break;
+                        case Gpo g:
+                            if (gpos == null)
+                                gpos = CreateFileStream("gpos");
+
+                            serializer.Serialize(gpos, g);
+                            gpoCount++;
+                            if (gpoCount % 100 == 0)
+                                gpos.Flush();
+                            break;
+                        case Ou o:
+                            if (ous == null)
+                                ous = CreateFileStream("ous");
+
+                            serializer.Serialize(ous, o);
+                            ouCount++;
+                            
+                            if (ouCount % 100 == 0)
+                                ous.Flush();
+                            break;
+                        case Session s:
+                            if (sessions == null)
+                                sessions = CreateFileStream("sessions");
+
+                            serializer.Serialize(sessions, s);
+                            sessionCount++;
+
+                            if (sessionCount % 100 == 0)
+                                sessions.Flush();
+                            break;
+                        case GpoAdmin a:
+                            if (gpoadmin == null)
+                                gpoadmin = CreateFileStream("gpoadmins");
+
+                            serializer.Serialize(gpoadmin, a);
+                            gpoAdminCount++;
+                            if (gpoAdminCount % 100 == 0)
+                                gpoadmin.Flush();
+                            break;
                     }
 
-                    switch (_options.CurrentCollectionMethod)
-                    {
-                        case CollectionMethod.ObjectProps:
-                            {
-                                OutputBase props;
-                                if (resolved.ObjectType.Equals("computer"))
-                                {
-                                    props = ObjectPropertyHelpers.GetComputerProps(entry, resolved);
-                                }
-                                else
-                                {
-                                    props = ObjectPropertyHelpers.GetUserProps(entry, resolved);
-                                }
-
-                                if (props != null)
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = props });
-                            }
-                            break;
-                        case CollectionMethod.Group:
-                            {
-                                var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
-                                foreach (var g in groups)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = g });
-                                }
-                            }
-                            break;
-                        case CollectionMethod.ComputerOnly:
-                            {
-                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                                {
-                                    Interlocked.Increment(ref _noPing);
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
-
-                                    foreach (var admin in admins)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = admin });
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-
-                                Utils.DoJitter();
-
-                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
-                                {
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-
-                                    foreach (var session in sessions)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> {Item = session});
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-
-                                Utils.DoJitter();
-                            }
-                            break;
-                        case CollectionMethod.LocalGroup:
-                            {
-                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                                {
-                                    Interlocked.Increment(ref _noPing);
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
-
-                                    foreach (var admin in admins)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> {Item = admin});
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-
-                                Utils.DoJitter();
-                            }
-                            break;
-                        case CollectionMethod.GPOLocalGroup:
-                            foreach (var admin in LocalAdminHelpers.GetGpoAdmins(entry, _currentDomain))
-                            {
-                                writeQueue.Add(new Wrapper<OutputBase> {Item = admin});
-                            }
-                            break;
-                        case CollectionMethod.Session:
-                            {
-                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                                {
-                                    Interlocked.Increment(ref _noPing);
-                                    break;
-                                }
-
-                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
-                                {
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-
-                                    foreach (var session in sessions)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-
-                                Utils.DoJitter();
-                            }
-                            break;
-                        case CollectionMethod.LoggedOn:
-                            {
-                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                                {
-                                    Interlocked.Increment(ref _noPing);
-                                    break;
-                                }
-                                var sessions =
-                                    SessionHelpers.GetNetLoggedOn(resolved,
-                                        _currentDomain);
-
-                                foreach (var s in sessions)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
-                                }
-                                Utils.DoJitter();
-                                sessions = SessionHelpers.GetRegistryLoggedOn(resolved);
-                                foreach (var s in sessions)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = s });
-                                }
-                                Utils.DoJitter();
-                            }
-                            break;
-                        case CollectionMethod.Trusts:
-                            break;
-                        case CollectionMethod.ACL:
-                            {
-                                var acls = AclHelpers.ProcessAdObject(entry, _currentDomain);
-                                foreach (var a in acls)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase>{Item = a});
-                                }
-                            }
-                            break;
-                        case CollectionMethod.SessionLoop:
-                            {
-                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                                {
-                                    Interlocked.Increment(ref _noPing);
-                                    break;
-                                }
-
-                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
-                                {
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-
-                                    foreach (var session in sessions)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-                                Utils.DoJitter();
-                            }
-                            break;
-                        case CollectionMethod.Default:
-                            {
-                                var groups = GroupHelpers.ProcessAdObject(entry, resolved, _currentDomainSid);
-                                foreach (var g in groups)
-                                {
-                                    writeQueue.Add(new Wrapper<OutputBase> { Item = g });
-                                }
-
-                                if (!resolved.ObjectType.Equals("computer"))
-                                {
-                                    break;
-                                }
-
-                                if (_options.Ou != null && !entry.DistinguishedName.Contains(_options.Ou))
-                                {
-                                    break;
-                                }
-
-                                if (!_utils.PingHost(resolved.BloodHoundDisplay))
-                                {
-                                    Interlocked.Increment(ref _noPing);
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var admins = LocalAdminHelpers.GetSamAdmins(resolved);
-
-                                    foreach (var admin in admins)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = admin });
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-
-                                Utils.DoJitter();
-
-                                if (_options.ExcludeDC && entry.DistinguishedName.Contains("OU=Domain Controllers"))
-                                {
-                                    break;
-                                }
-
-                                try
-                                {
-                                    var sessions = SessionHelpers.GetNetSessions(resolved, _currentDomain);
-
-                                    foreach (var session in sessions)
-                                    {
-                                        writeQueue.Add(new Wrapper<OutputBase> { Item = session });
-                                    }
-                                }
-                                catch (TimeoutException)
-                                {
-                                    Interlocked.Increment(ref _timeouts);
-                                }
-
-                                Utils.DoJitter();
-                            }
-                        break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
-                    }
-                    Interlocked.Increment(ref _currentCount);
-                    wrapper.Item = null;
+                    obj.Item = null;
                 }
+                groups?.Close();
+                sessions?.Close();
+                computers?.Close();
+                users?.Close();
+                ous?.Close();
+                domains?.Close();
+                gpos?.Close();
             }, TaskCreationOptions.LongRunning);
         }
 
-        private Task StartCompListRunner(BlockingCollection<Wrapper<string>> input,
-            BlockingCollection<Wrapper<OutputBase>> output)
+        private Task StartListRunner(BlockingCollection<Wrapper<string>> input, BlockingCollection<Wrapper<JsonBase>> output)
         {
             return Task.Factory.StartNew(() =>
             {
@@ -880,293 +713,307 @@ namespace Sharphound2.Enumeration
                     var item = wrapper.Item;
 
                     var resolved = _utils.ResolveHost(item);
-
+                    Interlocked.Increment(ref _currentCount);
                     if (resolved == null || !_utils.PingHost(resolved))
                     {
-                        Interlocked.Increment(ref _currentCount);
                         Interlocked.Increment(ref _noPing);
                         wrapper.Item = null;
                         continue;
                     }
 
-                    var netbios = Utils.GetComputerNetbiosName(resolved);
-
-                    var fullItem = new ResolvedEntry
+                    var netbios = Utils.GetComputerNetbiosName(resolved, out var domain);
+                    domain = _utils.GetDomain(domain).Name;
+                    var full = new ResolvedEntry
                     {
                         BloodHoundDisplay = resolved,
-                        ComputerSamAccountName = netbios
+                        ComputerSamAccountName = netbios,
+                        ObjectType = "computer"
                     };
 
-                    var c = _options.CurrentCollectionMethod;
-
-                    if (c.Equals(CollectionMethod.Session) ||
-                        c.Equals(CollectionMethod.SessionLoop) ||
-                        c.Equals(CollectionMethod.ComputerOnly))
+                    var obj = new Computer
                     {
-                        try
+                        Name = resolved
+                    };
+                    var timeout = false;
+
+                    try
+                    {
+                        foreach (var s in SessionHelpers.GetNetSessions(full, domain))
                         {
-                            var sessions = SessionHelpers.GetNetSessions(fullItem, _currentDomain);
-                            foreach (var session in sessions)
-                                output.Add(new Wrapper<OutputBase> {Item = session});
+                            output.Add(new Wrapper<JsonBase>
+                            {
+                                Item = s
+                            });
                         }
-                        catch (TimeoutException)
-                        {
-                            Interlocked.Increment(ref _timeouts);
-                        }
-                        Utils.DoJitter();
+                    }
+                    catch (TimeoutException)
+                    {
+                        timeout = true;
+                    }
+                    
+                    try
+                    {
+                        obj.LocalAdmins = LocalGroupHelpers
+                            .GetGroupMembers(full, LocalGroupHelpers.LocalGroupRids.Administrators).ToArray();
+                    }
+                    catch (TimeoutException)
+                    {
+                        timeout = true;
                     }
 
-                    if (c.Equals(CollectionMethod.LocalGroup) || c.Equals(CollectionMethod.ComputerOnly))
+                    try
                     {
-                        try
-                        {
-                            var admins = LocalAdminHelpers.GetSamAdmins(fullItem);
-                            foreach (var admin in admins)
-                                output.Add(new Wrapper<OutputBase> {Item = admin});
-                        }
-                        catch (TimeoutException)
-                        {
-                            Interlocked.Increment(ref _timeouts);
-                        }
-                        Utils.DoJitter();
+                        obj.RemoteDesktopUsers = LocalGroupHelpers
+                            .GetGroupMembers(full, LocalGroupHelpers.LocalGroupRids.RemoteDesktopUsers).ToArray();
+                    }
+                    catch (TimeoutException)
+                    {
+                        timeout = true;
                     }
 
-                    if (c.Equals(CollectionMethod.LoggedOn))
+                    foreach (var s in SessionHelpers.DoLoggedOnCollection(full, domain))
                     {
-                        var sessions = SessionHelpers.GetNetLoggedOn(fullItem, _currentDomain);
-                        sessions = sessions.Concat(SessionHelpers.GetRegistryLoggedOn(fullItem));
-
-                        foreach (var session in sessions)
-                            output.Add(new Wrapper<OutputBase> {Item = session});
-
-                        Utils.DoJitter();
+                        output.Add(new Wrapper<JsonBase>
+                        {
+                            Item = s
+                        });
                     }
-                    Interlocked.Increment(ref _currentCount);
-                    wrapper.Item = null;
+
+                    if (timeout)
+                        Interlocked.Increment(ref _timeouts);
+
+                    if (obj.LocalAdmins?.Length == 0)
+                        obj.LocalAdmins = null;
+
+                    if (obj.RemoteDesktopUsers?.Length == 0)
+                        obj.RemoteDesktopUsers = null;
+
+                    if (!_options.SessionLoopRunning)
+                    {
+                        output.Add(new Wrapper<JsonBase>
+                        {
+                            Item = obj
+                        });
+                    }
                 }
-                
             });
         }
 
-        private StreamWriter CreateFileStream(string baseName, FileTypes fType)
-        {
-            var fileName = Utils.GetCsvFileName(baseName);
-            Utils.AddUsedFile(new CsvContainer
-            {
-                FileName = fileName,
-                FileType = fType
-            });
-            var e = File.Exists(fileName);
-            var writer = new StreamWriter(fileName, e);
-            if (!e)
-                writer.WriteLine(CsvContainer.GetFileTypeHeader(fType));
-
-            return writer;
-        }
-
-        private Task StartOutputWriter(BlockingCollection<Wrapper<OutputBase>> output)
+        private Task StartRunner(BlockingCollection<Wrapper<SearchResultEntry>> processQueue,
+            BlockingCollection<Wrapper<JsonBase>> output)
         {
             return Task.Factory.StartNew(() =>
             {
-                var adminCount = 0;
-                var sessionCount = 0;
-                var aclCount = 0;
-                var groupCount = 0;
-                var userPropsCount = 0;
-                var compPropsCount = 0;
-                var containerCount = 0;
-                var gplinkCount = 0;
-
-                StreamWriter admins = null;
-                StreamWriter sessions = null;
-                StreamWriter acls = null;
-                StreamWriter groups = null;
-                StreamWriter trusts = null;
-                StreamWriter userprops = null;
-                StreamWriter compprops = null;
-                StreamWriter containers = null;
-                StreamWriter gplinks = null;
-
-                foreach (var obj in output.GetConsumingEnumerable())
+                foreach (var wrapper in processQueue.GetConsumingEnumerable())
                 {
-                    var item = obj.Item;
-                    if (item is GroupMember)
-                    {
-                        if (groups == null)
-                        {
-                            groups = CreateFileStream("group_membership.csv", FileTypes.GroupMembership);
-                        }
-                        groups.WriteLine(item.ToCsv());
-                        groupCount++;
-                        if (groupCount % 100 == 0)
-                        {
-                            groups.Flush();
-                        }
-                    }else if (item is Container)
-                    {
-                        if (containers == null)
-                        {
-                            containers = CreateFileStream("container_structure.csv", FileTypes.Containers);
-                        }
-                        containers.WriteLine(item.ToCsv());
-                        containerCount++;
-                        if (containerCount % 100 == 0)
-                        {
-                            containers.Flush();
-                        }
-                    }else if (item is GpLink)
-                    {
-                        if (gplinks == null)
-                        {
-                            gplinks = CreateFileStream("container_gplinks.csv", FileTypes.GpLink);
-                        }
-                        gplinks.WriteLine(item.ToCsv());
-                        gplinkCount++;
-                        if (gplinkCount % 100 == 0)
-                        {
-                            gplinks.Flush();
-                        }
-                    }
-                    else if (item is UserProp)
-                    {
-                        if (userprops == null)
-                        {
-                            userprops = CreateFileStream("user_props.csv", FileTypes.UserProperties);
-                        }
-                        userprops.WriteLine(item.ToCsv());
-                        userPropsCount++;
-                        if (userPropsCount % 100 == 0)
-                        {
-                            userprops.Flush();
-                        }
-                    }
-                    else if (item is ComputerProp)
-                    {
-                        if (compprops == null)
-                        {
-                            compprops = CreateFileStream("computer_props.csv", FileTypes.ComputerProperties);
-                        }
-                        compprops.WriteLine(item.ToCsv());
-                        compPropsCount++;
-                        if (compPropsCount % 100 == 0)
-                        {
-                            compprops.Flush();
-                        }
-                    }
-                    else if (item is Session)
-                    {
-                        if (sessions == null)
-                        {
-                            sessions = CreateFileStream("sessions.csv", FileTypes.Session);
-                        }
-                        sessions.WriteLine(item.ToCsv());
-                        sessionCount++;
-                        if (sessionCount % 100 == 0)
-                        {
-                            sessions.Flush();
-                        }
-                    }
-                    else if (item is LocalAdmin)
-                    {
-                        if (admins == null)
-                        {
-                            admins = CreateFileStream("local_admins.csv", FileTypes.LocalAdmin);
-                        }
-                        admins.WriteLine(item.ToCsv());
-                        adminCount++;
-                        if (adminCount % 100 == 0)
-                        {
-                            admins.Flush();
-                        }
-                    }
-                    else if (item is ACL)
-                    {
-                        if (acls == null)
-                        {
-                            acls = CreateFileStream("acls.csv", FileTypes.Acl);
-                        }
-                        acls.WriteLine(item.ToCsv());
-                        aclCount++;
-                        if (aclCount % 100 == 0)
-                        {
-                            acls.Flush();
-                        }
-                    }
-                    else if (item is DomainTrust)
-                    {
-                        if (trusts == null)
-                        {
-                            trusts = CreateFileStream("trusts.csv", FileTypes.Trusts);
-                        }
-                        trusts.WriteLine(item.ToCsv());
-                        trusts.Flush();
-                    }
-                    obj.Item = null;
-                }
-                groups?.Dispose();
-                sessions?.Dispose();
-                acls?.Dispose();
-                admins?.Dispose();
-                trusts?.Dispose();
-                userprops?.Dispose();
-                compprops?.Dispose();
-                containers?.Dispose();
-                gplinks?.Dispose();
-            }, TaskCreationOptions.LongRunning);
-        }
+                    var entry = wrapper.Item;
+                    var resolved = entry.ResolveAdEntry();
 
-        private Task StartRestWriter(BlockingCollection<Wrapper<OutputBase>> output)
-        {
-            return Task.Factory.StartNew(() =>
-            {
-                var objectCount = 0;
-
-                using (var client = new WebClient())
-                {
-                    client.Headers.Add("content-type", "application/json");
-                    client.Headers.Add("Accept", "application/json; charset=UTF-8");
-                    client.Headers.Add("Authorization", _options.GetEncodedUserPass());
-
-                    var coll = new RestOutput();
-                    var serializer = new JavaScriptSerializer();
-
-                    foreach (var obj in output.GetConsumingEnumerable())
+                    if (resolved == null)
                     {
-                        var item = obj.Item;
+                        Interlocked.Increment(ref _currentCount);
+                        wrapper.Item = null;
+                        continue;
+                    }
 
-                        if (item is DomainTrust temp)
+                    var sid = entry.GetSid();
+                    var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
+                    var domainSid = _utils.GetDomainSid(domain);
+
+                    if (resolved.ObjectType == "user")
+                    {
+                        var obj = new User
                         {
-                            foreach (var x in temp.ToMultipleParam())
-                            {
-                                coll.AddNewData(temp.TypeHash(), x);
-                            }
-                        }else if (item is ACL acl)
+                            Name = resolved.BloodHoundDisplay,
+                            Domain = domain,
+                            ObjectSid = sid
+                        };
+
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
+
+                        output.Add(new Wrapper<JsonBase>
                         {
-                            foreach (var x in acl.GetAllTypeHashes())
-                            {
-                                coll.AddNewData(x, acl.ToParam());
-                            }
+                            Item = obj
+                        });
+                    }else if (resolved.ObjectType == "group")
+                    {
+                        var obj = new Group
+                        {
+                            Name = resolved.BloodHoundDisplay,
+                            Domain = domain,
+                            ObjectSid = sid
+                        };
+
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
+
+                        output.Add(new Wrapper<JsonBase>
+                        {
+                            Item = obj
+                        });
+                    }else if (resolved.ObjectType == "computer")
+                    {
+                        var obj = new Computer
+                        {
+                            Name = resolved.BloodHoundDisplay,
+                            ObjectSid = sid,
+                            Domain = domain
+                        };
+
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
+                        if (!_utils.PingHost(resolved.BloodHoundDisplay))
+                        {
+                            Interlocked.Increment(ref _noPing);
                         }
                         else
                         {
-                            coll.AddNewData(item.TypeHash(), item.ToParam());
+                            var timeout = false;
+                            try
+                            {
+                                obj.LocalAdmins = LocalGroupHelpers
+                                    .GetGroupMembers(resolved, LocalGroupHelpers.LocalGroupRids.Administrators)
+                                    .ToArray();
+                            }
+                            catch (TimeoutException)
+                            {
+                                timeout = true;
+                            }
+
+                            try
+                            {
+                                obj.RemoteDesktopUsers = LocalGroupHelpers.GetGroupMembers(resolved,
+                                    LocalGroupHelpers.LocalGroupRids.RemoteDesktopUsers).ToArray();
+                            }
+                            catch (TimeoutException)
+                            {
+                                timeout = true;
+                            }
+
+                            try
+                            {
+                                foreach (var s in SessionHelpers.GetNetSessions(resolved, domain))
+                                {
+                                    output.Add(new Wrapper<JsonBase>
+                                    {
+                                        Item = s
+                                    });
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                timeout = true;
+                            }
+
+                            foreach (var s in SessionHelpers.DoLoggedOnCollection(resolved, domain))
+                            {
+                                output.Add(new Wrapper<JsonBase>
+                                {
+                                    Item = s
+                                });
+                            }
+
+                            if (timeout)
+                                Interlocked.Increment(ref _timeouts);
                         }
                         
-                        obj.Item = null;
-                        objectCount++;
+                        if (obj.LocalAdmins?.Length == 0)
+                            obj.LocalAdmins = null;
 
-                        if (objectCount % 500 != 0) continue;
-                        var data = serializer.Serialize(coll.GetStatements());
-                        client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(data));
-                        coll.Reset();
+                        if (obj.RemoteDesktopUsers?.Length == 0)
+                            obj.RemoteDesktopUsers = null;
+
+                        if (!_options.SessionLoopRunning)
+                        {
+                            output.Add(new Wrapper<JsonBase>
+                            {
+                                Item = obj
+                            });
+                        }
                     }
-                    var remainingData = serializer.Serialize(coll.GetStatements());
-                    client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
-                    //var responseArray = client.UploadData(_options.GetURI(), "POST", Encoding.Default.GetBytes(remainingData));
-                    //Console.WriteLine(Encoding.ASCII.GetString(responseArray));
+                    else if (resolved.ObjectType == "domain")
+                    {
+                        var obj = new Domain
+                        {
+                            Name = resolved.BloodHoundDisplay,
+                            ObjectSid = entry.GetSid()
+                        };
 
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
+                        ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
+                        DomainTrustEnumeration.DoTrustEnumeration(resolved, ref obj);
+
+                        output.Add(new Wrapper<JsonBase>
+                        {
+                            Item = obj
+                        });
+                    }else if (resolved.ObjectType == "gpo")
+                    {
+                        var obj = new Gpo
+                        {
+                            Name = resolved.BloodHoundDisplay,
+                            Guid = entry.GetProp("name").Replace("{", "").Replace("}", "")
+                        };
+
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
+
+                        output.Add(new Wrapper<JsonBase>
+                        {
+                            Item = obj
+                        });
+
+                        if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup)) continue;
+                        foreach (var admin in LocalGroupHelpers.GetGpoAdmins(entry, domain))
+                        {
+                            output.Add(new Wrapper<JsonBase>
+                            {
+                                Item = admin
+                            });
+                        }
+                    }else if (resolved.ObjectType == "ou")
+                    {
+                        var obj = new Ou
+                        {
+                            Name = resolved.BloodHoundDisplay,
+                            Guid = new Guid(entry.GetPropBytes("objectguid")).ToString().ToUpper()
+                        };
+
+                        ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
+
+                        output.Add(new Wrapper<JsonBase>
+                        {
+                            Item = obj
+                        });
+                    }
+
+                    Interlocked.Increment(ref _currentCount);
+                    wrapper.Item = null;
                 }
             }, TaskCreationOptions.LongRunning);
         }
+
+        private static JsonTextWriter CreateFileStream(string baseName)
+        {
+            var fileName = Utils.GetJsonFileName(baseName);
+            Utils.AddUsedFile(fileName);
+            var e = File.Exists(fileName);
+            if (e)
+            {
+                throw new Exception($"File {fileName} already exists, throwing exception!");
+            }
+            var writer = new StreamWriter(fileName, false, Encoding.UTF8);
+            var jw = new JsonTextWriter(writer) {Formatting = Formatting.Indented};
+
+            jw.WriteStartObject();
+            jw.WritePropertyName(baseName);
+            jw.WriteStartArray();
+        
+            return jw;
+        }
+
     }
 }

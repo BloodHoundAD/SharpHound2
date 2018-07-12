@@ -8,6 +8,7 @@ using System.Security.Principal;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.XPath;
+using Sharphound2.JsonObjects;
 using Sharphound2.OutputObjects;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
@@ -18,7 +19,7 @@ namespace Sharphound2.Enumeration
     internal class SystemDownException : Exception { }
 
     [SuppressMessage("ReSharper", "FieldCanBeMadeReadOnly.Local")]
-    internal static class LocalAdminHelpers
+    internal static class LocalGroupHelpers
     {
         private static Utils _utils;
         private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
@@ -46,7 +47,7 @@ namespace Sharphound2.Enumeration
             sid.GetBinaryForm(_sidbytes, 0);
         }
 
-        private static SamEnumerationObject[] NetLocalGroupGetMembers(ResolvedEntry entry, out string machineSid)
+        private static SamEnumerationObject[] NetLocalGroupGetMembers(ResolvedEntry entry, int rid, out string machineSid)
         {
             Utils.Debug("Starting NetLocalGroupGetMembers");
             var server = new UNICODE_STRING(entry.BloodHoundDisplay);
@@ -99,7 +100,7 @@ namespace Sharphound2.Enumeration
 
             Utils.Debug($"Starting SamOpenAlias");
             //Open the alias for Local Administrators (always RID 544)
-            status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out var aliasHandle);
+            status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, (int)rid, out var aliasHandle);
             Utils.Debug($"SamOpenAlias returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess))
             {
@@ -239,8 +240,14 @@ namespace Sharphound2.Enumeration
             return resolvedObjects;
         }
 
-        public static IEnumerable<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
+        public static IEnumerable<LocalMember> GetGroupMembers(ResolvedEntry entry, LocalGroupRids rid)
         {
+            if (rid.Equals(LocalGroupRids.Administrators) && !Utils.IsMethodSet(ResolvedCollectionMethod.LocalAdmin))
+                yield break;
+
+            if (rid.Equals(LocalGroupRids.RemoteDesktopUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.RDP))
+                yield break;
+
             Utils.Debug("Starting GetSamAdmins");
             string machineSid = null;
             Utils.Debug("Starting Task");
@@ -248,7 +255,7 @@ namespace Sharphound2.Enumeration
             {
                 try
                 {
-                    return NetLocalGroupGetMembers(entry, out machineSid);
+                    return NetLocalGroupGetMembers(entry, (int)rid, out machineSid);
                 }
                 catch (ApiFailedException)
                 {
@@ -359,11 +366,10 @@ namespace Sharphound2.Enumeration
                     Utils.Debug($"Got Object: {resolvedName}");
                 }
 
-                yield return new LocalAdmin
+                yield return new LocalMember
                 {
-                    ObjectType = type,
-                    ObjectName = resolvedName,
-                    Server = entry.BloodHoundDisplay
+                    Type = type,
+                    Name = resolvedName
                 };
             }
         }
@@ -561,7 +567,7 @@ namespace Sharphound2.Enumeration
         //}
         #endregion
 
-        public static IEnumerable<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
+        public static IEnumerable<GpoAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
         {
             const string targetSid = "S-1-5-32-544__Members";
 
@@ -708,7 +714,7 @@ namespace Sharphound2.Enumeration
 
                         foreach (var user in resolvedList)
                         {
-                            yield return new LocalAdmin
+                            yield return new GpoAdmin
                             {
                                 ObjectName = user.PrincipalName,
                                 ObjectType = user.ObjectType,
@@ -726,6 +732,12 @@ namespace Sharphound2.Enumeration
             internal string AccountDomain { get; set; }
             internal string AccountSid { get; set; }
             internal SidNameUse SidUsage { get; set; }
+        }
+
+        internal enum LocalGroupRids
+        {
+            Administrators = 544,
+            RemoteDesktopUsers = 555
         }
 
         #region LSA Imports

@@ -18,7 +18,7 @@ namespace Sharphound2
     {
         public class Options
         {
-            [OptionArray('c', "CollectionMethod", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
+            [OptionArray('c', "CollectionMethod", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalAdmin, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
             public string[] CollectionMethod { get; set; }
 
             [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]
@@ -40,19 +40,19 @@ namespace Sharphound2
             public int Threads { get; set; }
 
             [Option(HelpText = "Folder to drop CSV files", DefaultValue = ".")]
-            public string CSVFolder { get; set; }
+            public string JsonFolder { get; set; }
 
             [Option(HelpText = "Prefix for CSV file names", DefaultValue = "")]
-            public string CSVPrefix { get; set; }
-
-            [Option(DefaultValue = null)]
-            public string Uri { get; set; }
+            public string JsonPrefix { get; set; }
 
             [Option(DefaultValue = 0)]
             public int LdapPort { get; set; }
 
-            [Option(DefaultValue = null)]
-            public string UserPass { get; set; }
+            //[Option(DefaultValue = null)]
+            //public string Uri { get; set; }
+
+            //[Option(DefaultValue = null)]
+            //public string UserPass { get; set; }
 
             [Option(HelpText ="Interval to display progress in milliseconds", DefaultValue =30000)]
             public int StatusInterval { get; set; }
@@ -60,7 +60,7 @@ namespace Sharphound2
             [Option(HelpText ="Skip ping checks for hosts", DefaultValue =false)]
             public bool SkipPing { get; set; }
 
-            [Option(HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =200)]
+            [Option(HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =500)]
             public int PingTimeout { get; set; }
 
             [Option(HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
@@ -69,14 +69,20 @@ namespace Sharphound2
             [Option(HelpText = "Filename for the data cache", DefaultValue = "BloodHound.bin")]
             public string CacheFile { get; set; }
 
+            [Option(HelpText = "Filename for the zip file", DefaultValue = null)]
+            public string ZipFileName { get; set; }
+
+            [Option(HelpText = "Random Filenames", DefaultValue = false)]
+            public bool RandomFilenames { get; set; }
+
             [Option(HelpText = "Invalidate and build new cache", DefaultValue = false)]
             public bool Invalidate { get; set; }
 
             [Option(HelpText = "Don't save the cache file to disk", DefaultValue = false)]
             public bool NoSaveCache { get; set; }
 
-            [Option(DefaultValue = 5, HelpText = "Time in minutes between each session loop")]
-            public int LoopTime { get; set; }
+            [Option(DefaultValue = 300, HelpText = "Time in seconds between each session loop")]
+            public int LoopDelay { get; set; }
 
             [Option(DefaultValue = null)]
             public string MaxLoopTime { get; set; }
@@ -109,7 +115,7 @@ namespace Sharphound2
             public bool Debug { get; set; }
 
             [Option(DefaultValue = false)]
-            public bool RemoveCSV { get; set; }
+            public bool RemoveJson { get; set; }
 
             [Option(DefaultValue = 0)]
             public int Throttle { get; set; }
@@ -130,7 +136,7 @@ Enumeration Options:
     -c , --CollectionMethod (Default: Default)
         Default - Enumerate Trusts, Sessions, Local Admin, and Group Membership
         Group - Enumerate Group Membership
-        LocalGroup - Enumerate Local Admin
+        LocalAdmin - Enumerate Local Admin
         Session - Enumerate Sessions
         SessionLoop - Continuously Enumerate Sessions
         LoggedOn - Enumerate Sessions using Elevation
@@ -161,7 +167,7 @@ Enumeration Options:
 
     --ComputerFile (Default: null)
         A file containing a list of computers to enumerate. This option can only be used with the following Collection Methods:
-        Session, SessionLoop, LocalGroup, ComputerOnly, LoggedOn
+        Session, SessionLoop, LocalAdmin, ComputerOnly, LoggedOn
 
     --DomainController (Default: null)
         Specify which Domain Controller to request data from. Defaults to closest DC using Site Names
@@ -193,7 +199,7 @@ Performance Tuning:
         Skip pinging computers (will most likely be slower)
         Use this option if ping is disabled on the network
 
-    --LoopTime
+    --LoopDelay
         Amount of time to wait in between session enumeration loops
         Use in conjunction with -c SessionLoop
 
@@ -209,10 +215,10 @@ Performance Tuning:
         Percent jitter to apply to throttle
 
 Output Options
-    --CSVFolder (Default: .)
+    --JsonFolder (Default: .)
         The folder in which to store CSV files
 
-    --CSVPrefix (Default: """")
+    --JsonPrefix (Default: """")
         The prefix to add to your CSV files
 
     --URI (Default: """")
@@ -226,7 +232,7 @@ Output Options
     --CompressData
         Compress CSVs into a zip file after run
 
-    --RemoveCSV
+    --RemoveJson
         Removes CSVs after running. Only usable with the CompressData flag
 
 Cache Options
@@ -256,27 +262,27 @@ General Options
                 return text;
             }
 
-            internal CollectionMethod CurrentCollectionMethod;
-
+            public ResolvedCollectionMethod ResolvedCollMethods { get; set; }
             public string CurrentUser { get; set; }
 
             public DateTime LoopEnd { get; set; }
+            public bool SessionLoopRunning = false;
 
-            public string GetEncodedUserPass()
-            {
-                var plainTextBytes = Encoding.UTF8.GetBytes(UserPass);
-                return Convert.ToBase64String(plainTextBytes);
-            }
+            //public string GetEncodedUserPass()
+            //{
+            //    var plainTextBytes = Encoding.UTF8.GetBytes(UserPass);
+            //    return Convert.ToBase64String(plainTextBytes);
+            //}
 
-            public string GetURI()
-            {
-                return $"{Uri}/db/data/transaction/commit";
-            }
+            //public string GetURI()
+            //{
+            //    return $"{Uri}/db/data/transaction/commit";
+            //}
 
-            public string GetCheckURI()
-            {
-                return $"{Uri}/db/data/";
-            }
+            //public string GetCheckURI()
+            //{
+            //    return $"{Uri}/db/data/";
+            //}
         }
 
         public static void Main(string[] args)
@@ -294,7 +300,7 @@ General Options
             try
             {
                 // ReSharper disable once ReturnValueOfPureMethodIsNotUsed
-                Path.Combine(options.CSVFolder, options.CacheFile);
+                Path.Combine(options.JsonFolder, options.CacheFile);
             }
             catch (ArgumentException)
             {
@@ -302,7 +308,6 @@ General Options
                 return;
             }
 
-            var collectionMethods = new List<CollectionMethod>();
             if (options.CollectionMethod.Length == 1)
             {
                 options.CollectionMethod = options.CollectionMethod[0].Split(',');
@@ -320,18 +325,69 @@ General Options
                 return;
             }
 
+            var resolved = ResolvedCollectionMethod.None;
+
             foreach (var unparsed in options.CollectionMethod)
             {
                 try
                 {
                     var e = (CollectionMethod)Enum.Parse(typeof(CollectionMethod), unparsed, true);
-                    if (e.Equals(All))
+                    switch (e)
                     {
-                        collectionMethods.Clear();
-                        collectionMethods.AddRange(new [] {Default, ACL, ObjectProps, Container});
-                        break;
+                        case All:
+                            resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
+                                       ResolvedCollectionMethod.Group | ResolvedCollectionMethod.LocalAdmin |
+                                       ResolvedCollectionMethod.ObjectProps | ResolvedCollectionMethod.RDP |
+                                       ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts;
+                            break;
+                        case DcOnly:
+                            resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
+                                       ResolvedCollectionMethod.Trusts | ResolvedCollectionMethod.ObjectProps |
+                                       ResolvedCollectionMethod.GPOLocalGroup | ResolvedCollectionMethod.Group;
+                            break;
+                        case CollectionMethod.Group:
+                            resolved = resolved | ResolvedCollectionMethod.Group;
+                            break;
+                        case ComputerOnly:
+                            resolved = resolved | ResolvedCollectionMethod.LocalAdmin |
+                                       ResolvedCollectionMethod.Session | ResolvedCollectionMethod.RDP;
+                            break;
+                        case LocalAdmin:
+                            resolved = resolved | ResolvedCollectionMethod.LocalAdmin;
+                            break;
+                        case GPOLocalGroup:
+                            resolved = resolved | ResolvedCollectionMethod.GPOLocalGroup;
+                            break;
+                        case Session:
+                            resolved = resolved | ResolvedCollectionMethod.Session;
+                            break;
+                        case LoggedOn:
+                            resolved = resolved | ResolvedCollectionMethod.LoggedOn;
+                            break;
+                        case Trusts:
+                            resolved = resolved | ResolvedCollectionMethod.Trusts;
+                            break;
+                        case ACL:
+                            resolved = resolved | ResolvedCollectionMethod.ACL;
+                            break;
+                        case SessionLoop:
+                            resolved = resolved | ResolvedCollectionMethod.SessionLoop;
+                            break;
+                        case Default:
+                            resolved = resolved | ResolvedCollectionMethod.LocalAdmin | ResolvedCollectionMethod.Group | ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts;
+                            break;
+                        case ObjectProps:
+                            resolved = resolved | ResolvedCollectionMethod.ObjectProps;
+                            break;
+                        case Container:
+                            resolved = resolved | ResolvedCollectionMethod.Container;
+                            break;
+                        case RDP:
+                            resolved = resolved | ResolvedCollectionMethod.RDP;
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
                     }
-                    collectionMethods.Add(e);
                 }
                 catch
                 {
@@ -346,52 +402,59 @@ General Options
                 options.Threads = 1;
             }
 
-            if (options.MaxLoopTime != null && collectionMethods.Contains(SessionLoop))
+            if ((resolved & ResolvedCollectionMethod.SessionLoop) != 0)
             {
-                var regex = new Regex("[0-9]+[smdh]");
-                var matches = regex.Matches(options.MaxLoopTime);
-                var numregex = new Regex("[0-9]+");
-                var timeregex = new Regex("[smdh]");
-                if (matches.Count == 0)
+                if (options.MaxLoopTime != null)
                 {
-                    Console.WriteLine("LoopEndTime does not match required format");
-                    return;
-                }
-
-                var now = DateTime.Now;
-                var drift = 0;
-                foreach (var match in matches)
-                {
-                    var num = int.Parse(numregex.Match(match.ToString()).Value);
-                    var spec = timeregex.Match(match.ToString());
-
-                    switch (spec.Value)
+                    var regex = new Regex("[0-9]+[smdh]");
+                    var matches = regex.Matches(options.MaxLoopTime);
+                    var numregex = new Regex("[0-9]+");
+                    var timeregex = new Regex("[smdh]");
+                    if (matches.Count == 0)
                     {
-                        case "s":
-                            now = now.AddSeconds(num);
-                            drift += num;
-                            break;
-                        case "m":
-                            now = now.AddMinutes(num);
-                            drift += num * 60;
-                            break;
-                        case "h":
-                            now = now.AddHours(num);
-                            drift += num * 60 * 60;
-                            break;
-                        case "d":
-                            now = now.AddDays(num);
-                            drift += num * 60 * 60 * 24;
-                            break;
+                        Console.WriteLine("LoopEndTime does not match required format");
+                        return;
+                    }
+
+                    var now = DateTime.Now;
+                    var drift = 0;
+                    foreach (var match in matches)
+                    {
+                        var num = int.Parse(numregex.Match(match.ToString()).Value);
+                        var spec = timeregex.Match(match.ToString());
+
+                        switch (spec.Value)
+                        {
+                            case "s":
+                                now = now.AddSeconds(num);
+                                drift += num;
+                                break;
+                            case "m":
+                                now = now.AddMinutes(num);
+                                drift += num * 60;
+                                break;
+                            case "h":
+                                now = now.AddHours(num);
+                                drift += num * 60 * 60;
+                                break;
+                            case "d":
+                                now = now.AddDays(num);
+                                drift += num * 60 * 60 * 24;
+                                break;
+                        }
+                    }
+
+                    options.LoopEnd = now;
+
+                    if (drift == 0)
+                    {
+                        Console.WriteLine("LoopEndTime is zero! Specify a real value");
+                        return;
                     }
                 }
-
-                options.LoopEnd = now;
-
-                if (drift == 0)
+                else
                 {
-                    Console.WriteLine("LoopEndTime is zero! Specify a real value");
-                    return;
+                    options.LoopEnd = DateTime.Now + TimeSpan.FromHours(2);
                 }
             }
             
@@ -424,7 +487,7 @@ General Options
             }
 
             SessionHelpers.Init(options);
-            LocalAdminHelpers.Init();
+            LocalGroupHelpers.Init();
             GroupHelpers.Init();
             AclHelpers.Init();
             DomainTrustEnumeration.Init();
@@ -456,43 +519,43 @@ General Options
                 return;
             }
 
-            if (options.Uri != null)
+            //if (options.Uri != null)
+            //{
+            //    if (!options.Uri.StartsWith("http",StringComparison.OrdinalIgnoreCase))
+            //    {
+            //        Console.WriteLine("URI must start with http:// or https://");
+            //        return;
+            //    }
+
+            //    using (var client = new WebClient())
+            //    {
+            //        client.Headers.Add("content-type", "application/json");
+            //        client.Headers.Add("Accept", "application/json; charset=UTF-8");
+
+            //        if (options.UserPass != null)
+            //            client.Headers.Add("Authorization", options.GetEncodedUserPass());
+
+            //        try
+            //        {
+            //            client.DownloadData(options.GetCheckURI());
+            //            Console.WriteLine("Successfully connected to the Neo4j REST endpoint.");
+            //            Console.WriteLine("WARNING: As of BloodHound 1.5, using the REST API is unsupported and will be removed in a future release.");
+            //            Console.WriteLine("WARNING: Container collection will not work with the REST API, and bugs may exist.");
+            //        }
+            //        catch
+            //        {
+            //            Console.WriteLine("Unable to connect to the Neo4j REST endpoint. Check your URI and username/password");
+            //            Console.WriteLine("WARNING: As of BloodHound 1.5, using the REST API is unsupported and will be removed in a future release.");
+            //            Console.WriteLine("WARNING: Container collection will not work with the REST API, and bugs may exist.");
+            //            return;
+            //        }
+            //    }
+            //}
+
+            if (options.RemoveJson && !options.CompressData)
             {
-                if (!options.Uri.StartsWith("http",StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine("URI must start with http:// or https://");
-                    return;
-                }
-
-                using (var client = new WebClient())
-                {
-                    client.Headers.Add("content-type", "application/json");
-                    client.Headers.Add("Accept", "application/json; charset=UTF-8");
-
-                    if (options.UserPass != null)
-                        client.Headers.Add("Authorization", options.GetEncodedUserPass());
-
-                    try
-                    {
-                        client.DownloadData(options.GetCheckURI());
-                        Console.WriteLine("Successfully connected to the Neo4j REST endpoint.");
-                        Console.WriteLine("WARNING: As of BloodHound 1.5, using the REST API is unsupported and will be removed in a future release.");
-                        Console.WriteLine("WARNING: Container collection will not work with the REST API, and bugs may exist.");
-                    }
-                    catch
-                    {
-                        Console.WriteLine("Unable to connect to the Neo4j REST endpoint. Check your URI and username/password");
-                        Console.WriteLine("WARNING: As of BloodHound 1.5, using the REST API is unsupported and will be removed in a future release.");
-                        Console.WriteLine("WARNING: Container collection will not work with the REST API, and bugs may exist.");
-                        return;
-                    }
-                }
-            }
-
-            if (options.RemoveCSV && !options.CompressData)
-            {
-                Console.WriteLine("Ignoring RemoveCSV as CompressData is not set");
-                options.RemoveCSV = false;
+                Console.WriteLine("Ignoring RemoveJson as CompressData is not set");
+                options.RemoveJson = false;
             }
 
             if (options.Stealth)
@@ -506,61 +569,94 @@ General Options
                     $"Adding a delay of {options.Throttle} milliseconds to computer requests with a jitter of {options.Jitter}%");
             }
 
-            foreach (var cmethod in collectionMethods)
+            //Do some sanity checks
+            if (options.ComputerFile != null)
             {
-                options.CurrentCollectionMethod = cmethod;
-                if (options.ComputerFile != null)
+                if (!File.Exists(options.ComputerFile))
                 {
-                    if (!File.Exists(options.ComputerFile))
-                    {
-                        Console.WriteLine("Specified ComputerFile does not exist!");
-                        return;
-                    }
-
-                    if (options.CurrentCollectionMethod.Equals(Default))
-                    {
-                        options.CurrentCollectionMethod = ComputerOnly;
-                        Console.WriteLine("ComputerFile detected with default enumeration. Switching to ComputerOnly collection method");
-                    }
-
-                    if (!(options.CurrentCollectionMethod.Equals(Session) || options.CurrentCollectionMethod.Equals(SessionLoop) ||
-                          options.CurrentCollectionMethod.Equals(LoggedOn) || options.CurrentCollectionMethod.Equals(LocalGroup) ||
-                          options.CurrentCollectionMethod.Equals(ComputerOnly)))
-                    {
-                        Console.WriteLine("ComputerFile can only be used with the following collection methods: ComputerOnly, Session, SessionLoop, LocalGroup, LoggedOn");
-                        continue;
-                    }
-                }
-
-                if (options.CurrentCollectionMethod.Equals(LocalGroup) && options.Stealth)
-                {
-                    Console.WriteLine("Note: You specified Stealth and LocalGroup which is equivalent to GPOLocalGroup");
-                    options.CurrentCollectionMethod = GPOLocalGroup;
-                }
-
-                var runner = new EnumerationRunner(options);
-
-                if (options.CurrentCollectionMethod.Equals(SessionLoop))
-                {
-                    Console.WriteLine(options.MaxLoopTime == null
-                        ? "Session Loop mode specified without MaxLoopTime, will loop indefinitely"
-                        : $"Session Loop mode specified. Looping will end on {options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()}");
+                    Console.WriteLine("Specified ComputerFile does not exist!");
+                    return;
                 }
 
                 if (options.Stealth)
                 {
-                    runner.StartStealthEnumeration();
+                    Console.WriteLine("Switching to one thread for ComputerFile, removing stealth");
+                    options.Stealth = false;
+                    options.Threads = 1;
                 }
-                else
+
+                Console.WriteLine("ComputerFile detected! Removing non-computer collection methods");
+                resolved = resolved ^ ResolvedCollectionMethod.ACL ^ ResolvedCollectionMethod.Group ^
+                           ResolvedCollectionMethod.GPOLocalGroup ^ ResolvedCollectionMethod.Trusts ^
+                           ResolvedCollectionMethod.Container ^ ResolvedCollectionMethod.ObjectProps;
+            }
+
+            if (options.Stealth)
+            {
+                if ((resolved & ResolvedCollectionMethod.LocalAdmin) != 0)
+                {
+                    Console.WriteLine("Note: You specified Stealth and LocalAdmin which is equivalent to GPOLocalGroup");
+                    resolved = resolved ^ ResolvedCollectionMethod.LocalAdmin;
+                    resolved = resolved | ResolvedCollectionMethod.GPOLocalGroup;
+                }
+
+                if ((resolved & ResolvedCollectionMethod.LoggedOn) != 0)
+                {
+                    Console.WriteLine("LoggedOn enumeration is not supported with Stealth");
+                    resolved = resolved ^ ResolvedCollectionMethod.LoggedOn;
+                }
+            }
+
+            if ((resolved & ResolvedCollectionMethod.Session) != 0 &&
+                (resolved & ResolvedCollectionMethod.SessionLoop) != 0)
+            {
+                resolved = resolved ^ ResolvedCollectionMethod.Session;
+            }
+
+            if ((resolved & ResolvedCollectionMethod.LoggedOn) != 0 &&
+                (resolved & ResolvedCollectionMethod.SessionLoop) != 0)
+            {
+                resolved = resolved ^ ResolvedCollectionMethod.LoggedOn;
+                resolved = resolved | ResolvedCollectionMethod.LoggedOnLoop;
+            }
+
+            if ((resolved & ResolvedCollectionMethod.SessionLoop) != 0)
+            {
+                Console.WriteLine(options.MaxLoopTime == null
+                    ? $"Session Loop mode specified without MaxLoopTime, will loop for 2 hours ({options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()})"
+                    : $"Session Loop mode specified. Looping will end on {options.LoopEnd.ToShortDateString()} at {options.LoopEnd.ToShortTimeString()}");
+                Console.WriteLine("Looping will start after any other collection methods");
+            }
+
+            if (resolved.Equals(ResolvedCollectionMethod.None))
+            {
+                Console.WriteLine("No collection methods specified. Exiting");
+                return;
+            }
+
+            Console.WriteLine($"Resolved Collection Methods to {resolved}");
+
+            options.ResolvedCollMethods = resolved;
+            var runner = new EnumerationRunner(options);
+
+            if (options.Stealth)
+            {
+                runner.StartStealthEnumeration();
+            }
+            else
+            {
+                if (options.ComputerFile == null)
                 {
                     runner.StartEnumeration();
                 }
-                Console.WriteLine();
+                else
+                {
+                    runner.StartCompFileEnumeration();
+                }
             }
-            
-            Cache.Instance.SaveCache();
+            Console.WriteLine();
 
-            Utils.DeduplicateFiles();
+            Cache.Instance.SaveCache();
 
             if (options.CompressData)
             {

@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Sharphound2.JsonObjects;
 using Sharphound2.OutputObjects;
 
 namespace Sharphound2.Enumeration
@@ -16,6 +17,88 @@ namespace Sharphound2.Enumeration
         public static void Init()
         {
             _utils = Utils.Instance;
+        }
+
+        internal static void DoTrustEnumeration(ResolvedEntry resolved, ref Domain obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Trusts))
+                return;
+
+            if (resolved == null)
+                return;
+
+            var trusts = new List<Trust>();
+            var dc = _utils
+                .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
+                    new[] { "dnshostname" }, resolved.BloodHoundDisplay).DefaultIfEmpty(null).FirstOrDefault();
+
+            if (dc == null)
+                return;
+
+
+            const uint flags = 63;
+            var ddt = typeof(DsDomainTrusts);
+            var result = DsEnumerateDomainTrusts(dc.GetProp("dnshostname"), flags, out var ptr, out var domainCount);
+
+            if (result != 0)
+                return;
+
+            var array = new DsDomainTrusts[domainCount];
+
+            var iter = ptr;
+
+            //Loop over the data and store it in an array
+            for (var i = 0; i < domainCount; i++)
+            {
+                array[i] = (DsDomainTrusts)Marshal.PtrToStructure(iter, ddt);
+                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(ddt));
+            }
+
+            NetApiBufferFree(ptr);
+
+            for (var i = 0; i < domainCount; i++)
+            {
+                var trust = new Trust();
+
+                var data = array[i];
+                var trustType = (TrustType)data.Flags;
+                var trustAttribs = (TrustAttrib)data.TrustAttributes;
+
+                if ((trustType & TrustType.DsDomainTreeRoot) == TrustType.DsDomainTreeRoot)
+                    continue;
+
+                trust.TargetName = data.DnsDomainName;
+                var inbound = (trustType & TrustType.DsDomainDirectInbound) == TrustType.DsDomainDirectInbound;
+                var outbound = (trustType & TrustType.DsDomainDirectOutbound) == TrustType.DsDomainDirectOutbound;
+
+                if (inbound && outbound)
+                {
+                    trust.TrustDirection = "Bidirectional";
+                }
+                else if (inbound)
+                {
+                    trust.TrustDirection = "Inbound";
+                }
+                else
+                {
+                    trust.TrustDirection = "Outbound";
+                }
+
+                trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
+
+                if ((trustAttribs & TrustAttrib.NonTransitive) == TrustAttrib.NonTransitive)
+                {
+                    trust.IsTransitive = false;
+                }
+                else
+                {
+                    trust.IsTransitive = true;
+                }
+
+                trusts.Add(trust);
+            }
+
+            obj.Trusts = trusts.ToArray();
         }
 
         /// <summary>

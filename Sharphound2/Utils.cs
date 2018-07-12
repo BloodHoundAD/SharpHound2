@@ -32,7 +32,7 @@ namespace Sharphound2
         private readonly List<string> _domainList;
         private readonly Cache _cache;
 
-        private static readonly List<CsvContainer> UsedFiles = new List<CsvContainer>();
+        private static readonly List<string> UsedFiles = new List<string>();
 
         public static void CreateInstance(Sharphound.Options cli)
         {
@@ -63,6 +63,20 @@ namespace Sharphound2
             _cache = Cache.Instance;
             _domainList = CreateDomainList();
             _pingTimeout = TimeSpan.FromMilliseconds(_options.PingTimeout);
+        }
+
+        public static bool IsMethodSet(ResolvedCollectionMethod method)
+        {
+            if (method.Equals(ResolvedCollectionMethod.SessionLoop) ||
+                method.Equals(ResolvedCollectionMethod.LoggedOnLoop))
+            {
+                return _options.SessionLoopRunning;
+            }
+
+            if (_options.SessionLoopRunning)
+                return false;
+            
+            return (_options.ResolvedCollMethods & method) != 0;
         }
 
         public static string ConvertDnToDomain(string dn)
@@ -108,57 +122,13 @@ namespace Sharphound2
             return dnsHostName;
         }
 
-        private class OrderedHashSet<T> : KeyedCollection<T, T>
-        {
-            protected override T GetKeyForItem(T item)
-            {
-                return item;
-            }
-        }
-
-        internal static void DeduplicateFiles()
-        {
-            var tempfile = GetCsvFileName("temp.csv");
-            foreach (var f in UsedFiles)
-            {
-                var n = f.FileName;
-                var removed = 0;
-                var seen = new HashSet<int>();
-
-                using (var reader = new StreamReader(n))
-                {
-                    using (var writer = new StreamWriter(tempfile))
-                    {
-                        string line;
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            var hash = line.GetHashCode();
-                            if (!seen.Contains(hash))
-                            {
-                                writer.WriteLine(line);
-                            }
-                            else
-                            {
-                                removed++;
-                            }
-                            seen.Add(hash);
-                        }
-                    }
-                }
-
-                File.Delete(n);
-                File.Move(tempfile, n);
-
-                if (removed > 0)
-                    Console.WriteLine($"Removed {removed} duplicate lines from {n}");
-            }
-        }
-
-        public static string GetComputerNetbiosName(string server)
+        public static string GetComputerNetbiosName(string server, out string domain)
         {
             var result = NetWkstaGetInfo(server, 100, out var buf);
+            domain = null;
             if (result != 0) return null;
             var marshalled = (WorkstationInfo100) Marshal.PtrToStructure(buf, typeof(WorkstationInfo100));
+            domain = marshalled.lan_group;
             return marshalled.computer_name;
         }
 
@@ -174,7 +144,7 @@ namespace Sharphound2
                 return false;
             }
 
-            if (_options.CurrentCollectionMethod.Equals(CollectionMethod.SessionLoop))
+            if (_options.SessionLoopRunning)
             {
                 return DoPing(hostName);
             }
@@ -190,7 +160,6 @@ namespace Sharphound2
 
         internal bool DoPing(string hostname)
         {
-            
             try
             {
                 using (var client = new TcpClient())
@@ -386,7 +355,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
+                if (IsMethodSet(ResolvedCollectionMethod.ACL))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
@@ -452,7 +421,7 @@ namespace Sharphound2
                 var prc = new PageResultRequestControl(500);
                 request.Controls.Add(prc);
 
-                if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
+                if (IsMethodSet(ResolvedCollectionMethod.ACL))
                 {
                     var sdfc =
                         new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
@@ -695,18 +664,29 @@ namespace Sharphound2
         }
         
 
-        public static string GetCsvFileName(string baseFileName)
+        public static string GetJsonFileName(string baseFileName)
         {
-            var f = _options.CSVPrefix.Equals("") ? baseFileName : $"{_options.CSVPrefix}_{baseFileName}";
+            var usedFName = baseFileName;
+            if (_options.RandomFilenames)
+            {
+                usedFName = Path.GetRandomFileName();
+            }
+            var f = _options.JsonPrefix.Equals("") ? $"{usedFName}_{DateTime.Now:yyyyMMddHHmmss}.json": $"{_options.JsonPrefix}_{baseFileName}_{DateTime.Now:yyyyMMddHHmmss}.json";
 
-            f = Path.Combine(_options.CSVFolder, f);
+            f = Path.Combine(_options.JsonFolder, f);
+            return f;
+        }
+
+        public static string GetZipFileName(string baseFile)
+        {
+            var f = Path.Combine(_options.JsonFolder, baseFile);
             return f;
         }
 
         public static bool CheckWritePrivs()
         {
             const string filename = "test.csv";
-            var f = Path.Combine(_options.CSVFolder, filename);
+            var f = Path.Combine(_options.JsonFolder, filename);
             try
             {
                 using (File.Create(f)){}
@@ -719,18 +699,33 @@ namespace Sharphound2
             }
         }
 
-        internal static void AddUsedFile(CsvContainer file)
+        internal static void AddUsedFile(string file)
         {
             UsedFiles.Add(file);
         }
 
         internal static void CompressFiles()
         {
-            var zipfilepath = $"BloodHound_{DateTime.Now:yyyyMMddHHmmssfff}.zip";
-            zipfilepath = GetCsvFileName(zipfilepath);
+            string usedname;
+            if (_options.ZipFileName != null)
+            {
+                usedname = _options.ZipFileName;
+            }
+            else
+            {
+                if (_options.RandomFilenames)
+                {
+                    usedname = Path.GetRandomFileName() + ".zip";
+                }
+                else
+                {
+                    usedname = $"BloodHound_{DateTime.Now:yyyyMMddHHmmssfff}.zip";
+                }
+            }
+            var zipfilepath = GetZipFileName(usedname);
 
-            Console.WriteLine(_options.RemoveCSV
-                ? $"Compressing data to {zipfilepath} and deleting CSVs"
+            Console.WriteLine(_options.RemoveJson
+                ? $"Compressing data to {zipfilepath} and deleting Json Files"
                 : $"Compressing data to {zipfilepath}");
 
             var buffer = new byte[4096];
@@ -739,10 +734,10 @@ namespace Sharphound2
                 s.SetLevel(9);
                 foreach (var file in UsedFiles)
                 {
-                    var entry = new ZipEntry(Path.GetFileName(file.FileName)) {DateTime = DateTime.Now};
+                    var entry = new ZipEntry(Path.GetFileName(file)) {DateTime = DateTime.Now};
                     s.PutNextEntry(entry);
 
-                    using (var fs = File.OpenRead(file.FileName))
+                    using (var fs = File.OpenRead(file))
                     {
                         int source;
                         do
@@ -752,9 +747,9 @@ namespace Sharphound2
                         } while (source > 0);
                     }
 
-                    if (_options.RemoveCSV)
+                    if (_options.RemoveJson)
                     {
-                        File.Delete(file.FileName);
+                        File.Delete(file);
                     }
                 }
 
