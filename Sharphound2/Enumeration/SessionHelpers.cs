@@ -212,6 +212,8 @@ namespace Sharphound2.Enumeration
                     }
                 }
             }
+
+            Utils.DoJitter();
         }
 
         internal static IEnumerable<Session> DoLoggedOnCollection(ResolvedEntry target, string domainName)
@@ -240,6 +242,8 @@ namespace Sharphound2.Enumeration
             {
                 yield return x;
             }
+
+            Utils.DoJitter();
         }
 
         //internal static void DoLoggedOnCollection(ResolvedEntry target, string domainName, ref Computer obj)

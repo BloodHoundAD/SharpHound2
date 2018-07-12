@@ -372,6 +372,8 @@ namespace Sharphound2.Enumeration
                     Name = resolvedName
                 };
             }
+
+            Utils.DoJitter();
         }
 
         #region hidden
