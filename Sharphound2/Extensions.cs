@@ -4,6 +4,7 @@ using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Security.Principal;
+using Newtonsoft.Json;
 using Sharphound2.Enumeration;
 
 namespace Sharphound2
@@ -69,6 +70,19 @@ namespace Sharphound2
             {
                 Console.WriteLine(property);
             }
+        }
+
+        internal static void CloseC(this JsonTextWriter writer, int count, string type)
+        {
+            writer.WriteEndArray();
+            writer.WritePropertyName("meta");
+            writer.WriteStartObject();
+            writer.WritePropertyName("count");
+            writer.WriteValue(count);
+            writer.WritePropertyName("type");
+            writer.WriteValue(type);
+            writer.WriteEndObject();
+            writer.Close();
         }
 
         internal static ResolvedEntry ResolveAdEntry(this SearchResultEntry result)

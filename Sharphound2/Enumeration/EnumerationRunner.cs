@@ -733,13 +733,15 @@ namespace Sharphound2.Enumeration
 
                     obj.Item = null;
                 }
-                groups?.Close();
-                sessions?.Close();
-                computers?.Close();
-                users?.Close();
-                ous?.Close();
-                domains?.Close();
-                gpos?.Close();
+
+                groups?.CloseC(groupCount,"groups");
+                sessions?.CloseC(sessionCount,"sessions");
+                computers?.CloseC(computerCount,"computers");
+                users?.CloseC(userCount,"users");
+                ous?.CloseC(ouCount, "ous");
+                domains?.CloseC(domainCount, "domains");
+                gpos?.CloseC(gpoCount, "gpos");
+                gpoadmin?.CloseC(gpoAdminCount,"gpoadmins");
             }, TaskCreationOptions.LongRunning);
         }
 
@@ -1065,6 +1067,5 @@ namespace Sharphound2.Enumeration
         
             return jw;
         }
-
     }
 }
