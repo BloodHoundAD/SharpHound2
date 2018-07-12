@@ -1,18 +1,14 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
 using Newtonsoft.Json;
 using Sharphound2.JsonObjects;
-using Sharphound2.OutputObjects;
 using static Sharphound2.Sharphound;
 using Session = Sharphound2.JsonObjects.Session;
 

@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.XPath;
 using Sharphound2.JsonObjects;
-using Sharphound2.OutputObjects;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
 namespace Sharphound2.Enumeration

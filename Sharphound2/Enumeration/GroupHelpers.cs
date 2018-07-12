@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Reflection;
 using Sharphound2.JsonObjects;
-using Sharphound2.OutputObjects;
-using Domain = System.DirectoryServices.ActiveDirectory.Domain;
 using GroupMember = Sharphound2.JsonObjects.GroupMember;
 
 namespace Sharphound2.Enumeration

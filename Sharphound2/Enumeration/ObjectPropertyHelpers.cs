@@ -3,7 +3,6 @@ using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Security.Principal;
 using Sharphound2.JsonObjects;
-using Sharphound2.OutputObjects;
 
 namespace Sharphound2.Enumeration
 {
@@ -128,96 +127,6 @@ namespace Sharphound2.Enumeration
 
             compObj.OperatingSystem = os;
             compObj.Description = entry.GetProp("description");
-        }
-
-        public static ComputerProp GetComputerProps(SearchResultEntry entry, ResolvedEntry resolved)
-        {
-            var uac = entry.GetProp("useraccountcontrol");
-            bool enabled;
-            bool unconstrained;
-            if (int.TryParse(uac, out var flag))
-            {
-                var flags = (UacFlags) flag;
-                enabled = (flags & UacFlags.AccountDisable) == 0;
-                unconstrained = (flags & UacFlags.TrustedForDelegation) == UacFlags.TrustedForDelegation;
-            }
-            else
-            {
-                unconstrained = false;
-                enabled = true;
-            }
-            var lastLogon = ConvertToUnixEpoch(entry.GetProp("lastlogon"));
-            var lastSet = ConvertToUnixEpoch(entry.GetProp("pwdlastset"));
-            var sid = entry.GetSid();
-            var os = entry.GetProp("operatingsystem");
-            var sp = entry.GetProp("operatingsystemservicepack");
-            var domainS = resolved.BloodHoundDisplay.Split('.');
-            domainS = domainS.Skip(1).ToArray();
-            var domain = string.Join(".", domainS).ToUpper();
-
-            if (sp != null)
-            {
-                os = $"{os} {sp}";
-            }
-
-            return new ComputerProp
-            {
-                ComputerName = resolved.BloodHoundDisplay,
-                Enabled = enabled,
-                LastLogon = lastLogon,
-                ObjectSid = sid,
-                OperatingSystem = os,
-                PwdLastSet = lastSet,
-                UnconstrainedDelegation = unconstrained,
-                Domain = domain
-            };
-        }
-
-        public static UserProp GetUserProps(SearchResultEntry entry, ResolvedEntry resolved)
-        {
-            var uac = entry.GetProp("useraccountcontrol");
-            bool enabled;
-            if (int.TryParse(uac, out var flag))
-            {
-                var flags = (UacFlags) flag;
-                enabled = (flags & UacFlags.AccountDisable) == 0;
-            }
-            else
-            {
-                enabled = true;
-            }
-            var history = entry.GetPropBytes("sidhistory");
-            var lastlogon = entry.GetProp("lastlogon");
-            var pwdlastset = entry.GetProp("pwdlastset");
-            var spn = entry.GetPropArray("serviceprincipalname");
-            var displayName = entry.GetProp("displayname");
-            var hasSpn = spn.Length != 0;
-            var spnString = string.Join("|", spn);
-            var convertedlogon = ConvertToUnixEpoch(lastlogon);
-            var convertedlastset = ConvertToUnixEpoch(pwdlastset);
-            var sid = entry.GetSid();
-            var sidhistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
-            var mail = entry.GetProp("mail");
-            var domain = resolved.BloodHoundDisplay.Split('@')[1].ToUpper();
-            var title = entry.GetProp("title");
-            var homedir = entry.GetProp("homeDirectory");
-
-            return new UserProp
-            {
-                AccountName = resolved.BloodHoundDisplay,
-                Enabled = enabled,
-                LastLogon = convertedlogon,
-                ObjectSid = sid,
-                PwdLastSet = convertedlastset,
-                SidHistory = sidhistory,
-                HasSpn = hasSpn,
-                ServicePrincipalNames = spnString,
-                DisplayName = displayName,
-                Email = mail,
-                Domain = domain,
-                Title = title,
-                HomeDirectory = homedir
-            };
         }
 
         private static long ConvertToUnixEpoch(string ldapTime)

@@ -5,7 +5,6 @@ using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Sharphound2.JsonObjects;
-using Sharphound2.OutputObjects;
 
 namespace Sharphound2.Enumeration
 {
@@ -99,89 +98,6 @@ namespace Sharphound2.Enumeration
             }
 
             obj.Trusts = trusts.ToArray();
-        }
-
-        /// <summary>
-        /// Enumerate all the trusts for the specified domain
-        /// </summary>
-        /// <param name="domain">Domain to enumerate</param>
-        /// <returns>A list of DomainTrust objects for the domain </returns>
-        public static IEnumerable<DomainTrust> DoTrustEnumeration(string domain)
-        {
-            if (domain == null || domain.Trim() == "")
-                yield break;
-            
-            Utils.Verbose($"Enumerating trusts for {domain}");
-
-            var dc = _utils
-                .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
-                    new[] {"dnshostname"}, domain).DefaultIfEmpty(null).FirstOrDefault();
-
-            if (dc == null)
-                yield break;
-            
-
-            const uint flags = 63;
-            var ddt = typeof(DsDomainTrusts);
-            var result = DsEnumerateDomainTrusts(dc.GetProp("dnshostname"), flags, out var ptr, out var domainCount);
-
-            if (result != 0)
-                yield break;
-                
-            var array = new DsDomainTrusts[domainCount];
-
-            var iter = ptr;
-                
-            //Loop over the data and store it in an array
-            for (var i = 0; i < domainCount; i++)
-            {
-                array[i] = (DsDomainTrusts) Marshal.PtrToStructure(iter, ddt);
-                iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(ddt));
-            }
-
-            NetApiBufferFree(ptr);
-
-            for (var i = 0; i < domainCount; i++)
-            {
-                var trust = new DomainTrust {SourceDomain = domain};
-                var data = array[i];
-                var trustType = (TrustType) data.Flags;
-                var trustAttribs = (TrustAttrib) data.TrustAttributes;
-
-                if ((trustType & TrustType.DsDomainTreeRoot) == TrustType.DsDomainTreeRoot)
-                    continue;
-
-                trust.TargetDomain = data.DnsDomainName;
-
-                var inbound = (trustType & TrustType.DsDomainDirectInbound) == TrustType.DsDomainDirectInbound;
-                var outbound = (trustType & TrustType.DsDomainDirectOutbound) == TrustType.DsDomainDirectOutbound;
-
-                if (inbound && outbound)
-                {
-                    trust.TrustDirection = "Bidirectional";
-                }else if (inbound)
-                {
-                    trust.TrustDirection = "Inbound";
-                }
-                else
-                {
-                    trust.TrustDirection = "Outbound";
-                }
-
-                trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
-
-                if ((trustAttribs & TrustAttrib.NonTransitive) == TrustAttrib.NonTransitive)
-                {
-                    trust.IsTransitive = false;
-                }
-                else
-                {
-                    trust.IsTransitive = true;
-                }
-                    
-                yield return trust;
-            }
-            
         }
 
         #region PINVOKE
