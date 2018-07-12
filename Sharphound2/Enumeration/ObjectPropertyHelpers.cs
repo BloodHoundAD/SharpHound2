@@ -9,12 +9,6 @@ namespace Sharphound2.Enumeration
     internal class ObjectPropertyHelpers
     {
         private static readonly DateTime Subt = new DateTime(1970,1,1);
-        private static Utils _utils;
-
-        public static void Init()
-        {
-            _utils = Utils.Instance;
-        }
 
         internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Domain obj)
         {

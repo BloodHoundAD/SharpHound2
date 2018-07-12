@@ -25,7 +25,7 @@ namespace Sharphound2.Enumeration
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.ACL))
                 return;
 
-            var aces = new List<JsonObjects.ACL>();
+            var aces = new List<ACL>();
             var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
             //If the ntsecuritydescriptor is null, no point in continuing
             //I'm still not entirely sure what causes this, but it can happen
@@ -62,7 +62,7 @@ namespace Sharphound2.Enumeration
                 //Filter out the Local System principal which pretty much every entry has
                 if (owner != null && !owner.PrincipalName.Contains("LOCAL SYSTEM") && !owner.PrincipalName.Contains("CREATOR OWNER"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         RightName = "Owner",
@@ -156,7 +156,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("GenericAll"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -169,7 +169,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteOwner"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -182,7 +182,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteDacl"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -197,7 +197,7 @@ namespace Sharphound2.Enumeration
                 {
                     if (guid.Equals("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2"))
                     {
-                        aces.Add(new JsonObjects.ACL
+                        aces.Add(new ACL
                         {
                             AceType = "GetChanges",
                             Inherited = qAce.IsInherited,
@@ -208,7 +208,7 @@ namespace Sharphound2.Enumeration
                         });
                     }else if (guid.Equals("1131f6ad-9c07-11d1-f79f-00c04fc2dcd2"))
                     {
-                        aces.Add(new JsonObjects.ACL
+                        aces.Add(new ACL
                         {
                             AceType = "GetChangesAll",
                             Inherited = qAce.IsInherited,
@@ -220,7 +220,7 @@ namespace Sharphound2.Enumeration
                     }
                     else
                     {
-                        aces.Add(new JsonObjects.ACL
+                        aces.Add(new ACL
                         {
                             AceType = "All",
                             Inherited = qAce.IsInherited,
@@ -242,7 +242,7 @@ namespace Sharphound2.Enumeration
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.ACL))
                 return;
 
-            var aces = new List<JsonObjects.ACL>();
+            var aces = new List<ACL>();
             var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
             //If the ntsecuritydescriptor is null, no point in continuing
             //I'm still not entirely sure what causes this, but it can happen
@@ -279,7 +279,7 @@ namespace Sharphound2.Enumeration
                 //Filter out the Local System principal which pretty much every entry has
                 if (owner != null && !owner.PrincipalName.Contains("LOCAL SYSTEM") && !owner.PrincipalName.Contains("CREATOR OWNER"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         RightName = "Owner",
@@ -370,7 +370,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("GenericAll"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -383,7 +383,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("GenericWrite"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -398,7 +398,7 @@ namespace Sharphound2.Enumeration
                 {
                     if (guid.Equals("bf9679c0-0de6-11d0-a285-00aa003049e2"))
                     {
-                        aces.Add(new JsonObjects.ACL
+                        aces.Add(new ACL
                         {
                             AceType = "Member",
                             Inherited = qAce.IsInherited,
@@ -410,7 +410,7 @@ namespace Sharphound2.Enumeration
                     }
                     else
                     {
-                        aces.Add(new JsonObjects.ACL
+                        aces.Add(new ACL
                         {
                             AceType = "",
                             Inherited = qAce.IsInherited,
@@ -424,7 +424,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteOwner"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -437,7 +437,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteDacl"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -457,7 +457,7 @@ namespace Sharphound2.Enumeration
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.ACL))
                 return;
 
-            var aces = new List<JsonObjects.ACL>();
+            var aces = new List<ACL>();
             var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
             //If the ntsecuritydescriptor is null, no point in continuing
             //I'm still not entirely sure what causes this, but it can happen
@@ -494,7 +494,7 @@ namespace Sharphound2.Enumeration
                 //Filter out the Local System principal which pretty much every entry has
                 if (owner != null && !owner.PrincipalName.Contains("LOCAL SYSTEM") && !owner.PrincipalName.Contains("CREATOR OWNER"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         RightName = "Owner",
@@ -591,7 +591,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("GenericAll"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -604,7 +604,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("GenericWrite") || adRightString.Contains("WriteProperty"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -617,7 +617,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteOwner"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -630,7 +630,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteDacl"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -645,7 +645,7 @@ namespace Sharphound2.Enumeration
                 {
                     if (guid.Equals("00299570-246d-11d0-a768-00aa006e0529"))
                     {
-                        aces.Add(new JsonObjects.ACL
+                        aces.Add(new ACL
                         {
                             AceType = "User-Force-Change-Password",
                             Inherited = qAce.IsInherited,
@@ -657,7 +657,7 @@ namespace Sharphound2.Enumeration
                     }
                     else if (guid.Equals("00000000-0000-0000-0000-000000000000"))
                     {
-                        aces.Add(new JsonObjects.ACL
+                        aces.Add(new ACL
                         {
                             AceType = "All",
                             Inherited = qAce.IsInherited,
@@ -678,7 +678,7 @@ namespace Sharphound2.Enumeration
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.ACL))
                 return;
 
-            var aces = new List<JsonObjects.ACL>();
+            var aces = new List<ACL>();
             var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
             //If the ntsecuritydescriptor is null, no point in continuing
             //I'm still not entirely sure what causes this, but it can happen
@@ -715,7 +715,7 @@ namespace Sharphound2.Enumeration
                 //Filter out the Local System principal which pretty much every entry has
                 if (owner != null && !owner.PrincipalName.Contains("LOCAL SYSTEM") && !owner.PrincipalName.Contains("CREATOR OWNER"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         RightName = "Owner",
@@ -799,7 +799,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("GenericAll"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -812,7 +812,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteOwner"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,
@@ -825,7 +825,7 @@ namespace Sharphound2.Enumeration
 
                 if (adRightString.Contains("WriteDacl"))
                 {
-                    aces.Add(new JsonObjects.ACL
+                    aces.Add(new ACL
                     {
                         AceType = "",
                         Inherited = qAce.IsInherited,

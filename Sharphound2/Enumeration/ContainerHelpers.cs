@@ -49,7 +49,7 @@ namespace Sharphound2.Enumeration
             obj.BlocksInheritance = opts != null && opts.Equals("1");
 
             //Resolve GPLinks on the ou
-            var links = new List<JsonObjects.GpLink>();
+            var links = new List<GpLink>();
 
             var gpLinks = entry.GetProp("gplink");
             if (gpLinks != null)
@@ -69,7 +69,7 @@ namespace Sharphound2.Enumeration
                     if (!_gpoCache.ContainsKey(name)) continue;
 
                     var dName = _gpoCache[name];
-                    links.Add(new JsonObjects.GpLink
+                    links.Add(new GpLink
                     {
                         IsEnforced = enforced,
                         Name = $"{dName}@{resolved.BloodHoundDisplay}"
@@ -127,7 +127,7 @@ namespace Sharphound2.Enumeration
             var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
 
             //Resolve GPLinks on the domain
-            var links = new List<JsonObjects.GpLink>();
+            var links = new List<GpLink>();
 
             var gpLinks = entry.GetProp("gplink");
             if (gpLinks != null)
@@ -147,7 +147,7 @@ namespace Sharphound2.Enumeration
                     if (!_gpoCache.ContainsKey(name)) continue;
 
                     var dName = _gpoCache[name];
-                    links.Add(new JsonObjects.GpLink
+                    links.Add(new GpLink
                     {
                         IsEnforced = enforced,
                         Name = $"{dName}@{resolved.BloodHoundDisplay}"

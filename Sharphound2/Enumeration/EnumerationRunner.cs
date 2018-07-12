@@ -25,11 +25,13 @@ namespace Sharphound2.Enumeration
 
         private int _noPing;
         private int _timeouts;
+        private readonly ConcurrentQueue<GroupMember> _entDcs;
 
         public EnumerationRunner(Options opts)
         {
             _options = opts;
             _utils = Utils.Instance;
+            _entDcs = new ConcurrentQueue<GroupMember>();
             _statusTimer = new System.Timers.Timer();
             _statusTimer.Elapsed += (sender, e) =>
             {
@@ -122,6 +124,15 @@ namespace Sharphound2.Enumeration
                             Domain = domain,
                             ObjectSid = entry.GetSid()
                         };
+
+                        if (entry.DistinguishedName.ToLower().Contains("domain controllers"))
+                        {
+                            _entDcs.Enqueue(new GroupMember
+                            {
+                                MemberType = "computer",
+                                MemberName = resolved.BloodHoundDisplay
+                            });
+                        }
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -216,6 +227,22 @@ namespace Sharphound2.Enumeration
                             _timeouts++;
                         }
                     }
+                }
+
+                if (_entDcs.Count > 0)
+                {
+                    var f = _utils.GetForest();
+                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name}";
+                    var obj = new Group
+                    {
+                        Name = n,
+                        Members = _entDcs.ToArray(),
+                        Domain = f.RootDomain.Name
+                    };
+                    output.Add(new Wrapper<JsonBase>
+                    {
+                        Item = obj
+                    });
                 }
 
                 output.CompleteAdding();
@@ -554,6 +581,22 @@ namespace Sharphound2.Enumeration
                 Utils.Verbose("Waiting for enumeration threads to finish");
                 Task.WaitAll(taskHandles);
 
+                if (_entDcs.Count > 0)
+                {
+                    var f = _utils.GetForest();
+                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name}";
+                    var obj = new Group
+                    {
+                        Name = n,
+                        Members = _entDcs.ToArray(),
+                        Domain = f.RootDomain.Name
+                    };
+                    output.Add(new Wrapper<JsonBase>
+                    {
+                        Item = obj
+                    });
+                }
+
                 _statusTimer.Stop();
                 PrintStatus();
                 output.CompleteAdding();
@@ -813,7 +856,7 @@ namespace Sharphound2.Enumeration
                     }
 
                     var sid = entry.GetSid();
-                    var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
+                    var domain = Utils.ConvertDnToDomain(entry.DistinguishedName).ToUpper();
                     var domainSid = _utils.GetDomainSid(domain);
 
                     if (resolved.ObjectType == "user")
@@ -859,6 +902,18 @@ namespace Sharphound2.Enumeration
                             Domain = domain
                         };
 
+                        if (Utils.IsMethodSet(ResolvedCollectionMethod.Group))
+                        {
+                            if (entry.DistinguishedName.ToLower().Contains("domain controllers"))
+                            {
+                                _entDcs.Enqueue(new GroupMember
+                                {
+                                    MemberName = resolved.BloodHoundDisplay,
+                                    MemberType = "computer"
+                                });
+                            }
+                        }
+                        
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
                         if (!_utils.PingHost(resolved.BloodHoundDisplay))
