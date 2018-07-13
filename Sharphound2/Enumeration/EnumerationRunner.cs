@@ -121,9 +121,10 @@ namespace Sharphound2.Enumeration
                         var obj = new Computer
                         {
                             Name = resolved.BloodHoundDisplay,
-                            Domain = domain,
-                            ObjectSid = entry.GetSid()
                         };
+
+                        obj.properties.Add("domain", domain);
+                        obj.properties.Add("objectsid", entry.GetSid());
 
                         if (entry.DistinguishedName.ToLower().Contains("domain controllers"))
                         {
@@ -358,14 +359,6 @@ namespace Sharphound2.Enumeration
                             catch (TimeoutException)
                             {
                                 _timeouts++;
-                            }
-
-                            foreach (var s in SessionHelpers.DoLoggedOnCollection(target, domain))
-                            {
-                                output.Add(new Wrapper<JsonBase>
-                                {
-                                    Item = s
-                                });
                             }
 
                             PrintStatus();
@@ -630,7 +623,7 @@ namespace Sharphound2.Enumeration
             {
                 var serializer = new JsonSerializer
                 {
-                    NullValueHandling = NullValueHandling.Ignore
+                    NullValueHandling = NullValueHandling.Include,
                 };
                 var computerCount = 0;
                 var userCount = 0;
@@ -812,12 +805,19 @@ namespace Sharphound2.Enumeration
                         timeout = true;
                     }
 
-                    foreach (var s in SessionHelpers.DoLoggedOnCollection(full, domain))
+                    try
                     {
-                        output.Add(new Wrapper<JsonBase>
+                        foreach (var s in SessionHelpers.DoLoggedOnCollection(full, domain))
                         {
-                            Item = s
-                        });
+                            output.Add(new Wrapper<JsonBase>
+                            {
+                                Item = s
+                            });
+                        }
+                    }
+                    catch (TimeoutException)
+                    {
+                        timeout = true;
                     }
 
                     if (timeout)
@@ -900,9 +900,13 @@ namespace Sharphound2.Enumeration
                         var obj = new Computer
                         {
                             Name = resolved.BloodHoundDisplay,
-                            ObjectSid = sid,
-                            Domain = domain
+                            LocalAdmins = new LocalMember[]{},
+                            RemoteDesktopUsers = new LocalMember[]{}
                         };
+
+                        obj.properties.Add("objectsid", sid);
+                        obj.properties.Add("domain", domain);
+
 
                         if (Utils.IsMethodSet(ResolvedCollectionMethod.Group))
                         {
@@ -961,23 +965,24 @@ namespace Sharphound2.Enumeration
                                 timeout = true;
                             }
 
-                            foreach (var s in SessionHelpers.DoLoggedOnCollection(resolved, domain))
+                            try
                             {
-                                output.Add(new Wrapper<JsonBase>
+                                foreach (var s in SessionHelpers.DoLoggedOnCollection(resolved, domain))
                                 {
-                                    Item = s
-                                });
+                                    output.Add(new Wrapper<JsonBase>
+                                    {
+                                        Item = s
+                                    });
+                                }
+                            }
+                            catch (TimeoutException)
+                            {
+                                timeout = true;
                             }
 
                             if (timeout)
                                 Interlocked.Increment(ref _timeouts);
                         }
-                        
-                        if (obj.LocalAdmins?.Length == 0)
-                            obj.LocalAdmins = null;
-
-                        if (obj.RemoteDesktopUsers?.Length == 0)
-                            obj.RemoteDesktopUsers = null;
 
                         if (!_options.SessionLoopRunning)
                         {

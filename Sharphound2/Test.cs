@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Runtime.InteropServices;
+using Newtonsoft.Json;
 using Sharphound2.Enumeration;
+using Sharphound2.JsonObjects;
 
 namespace Sharphound2
 {
@@ -9,9 +12,13 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            var nbt = Utils.GetComputerNetbiosName("192.168.52.20", out var domain);
-            Console.WriteLine(nbt);
-            Console.WriteLine(domain);
+            var c = new Computer
+            {
+                Name = "abc"
+            };
+            var dict = new Dictionary<string, object> {{"os", "test"}, {"log", 123}};
+            c.properties = dict;
+            Console.WriteLine(JsonConvert.SerializeObject(c));
         }
     }
 }

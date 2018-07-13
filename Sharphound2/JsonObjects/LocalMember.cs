@@ -7,7 +7,13 @@ namespace Sharphound2.JsonObjects
 {
     internal class LocalMember
     {
+        private string _type;
+
         public string Name { get; set; }
-        public string Type { get; set; }
+        public string Type
+        {
+            get => _type;
+            set => _type = value.ToTitleCase();
+        }
     }
 }

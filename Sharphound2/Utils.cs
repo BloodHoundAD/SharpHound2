@@ -675,9 +675,13 @@ namespace Sharphound2
             var usedFName = baseFileName;
             if (_options.RandomFilenames)
             {
-                usedFName = Path.GetRandomFileName();
+                usedFName = $"{Path.GetRandomFileName()}.json";
             }
-            var f = _options.JsonPrefix.Equals("") ? $"{usedFName}_{DateTime.Now:yyyyMMddHHmmss}.json": $"{_options.JsonPrefix}_{baseFileName}_{DateTime.Now:yyyyMMddHHmmss}.json";
+            else
+            {
+                usedFName = $"{usedFName}_{DateTime.Now:yyyyMMddHHmmss}.json";
+            }
+            var f = _options.JsonPrefix.Equals("") ? usedFName : $"{_options.JsonPrefix}_{usedFName}.json";
 
             f = Path.Combine(_options.JsonFolder, f);
             return f;

@@ -222,13 +222,25 @@ namespace Sharphound2.Enumeration
                 !Utils.IsMethodSet(ResolvedCollectionMethod.LoggedOnLoop))
                 yield break;
 
-            var users = new List<string>();
-            users.AddRange(GetRegistryLoggedOn(target));
-            users.AddRange(GetNetLoggedOn(target, domainName));
+            var t = Task<List<string>>.Factory.StartNew(() =>
+            {
+                var users = new List<string>();
+                users.AddRange(GetRegistryLoggedOn(target));
+                users.AddRange(GetNetLoggedOn(target, domainName));
+
+                return users;
+            });
+
+            var success = t.Wait(Timeout);
+
+            if (!success)
+            {
+                throw new TimeoutException();
+            }
 
             var sessions = new List<Session>();
 
-            foreach (var u in users.Distinct())
+            foreach (var u in t.Result.Distinct())
             {
                 sessions.Add(new Session
                 {
