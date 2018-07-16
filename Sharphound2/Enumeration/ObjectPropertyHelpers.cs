@@ -17,6 +17,63 @@ namespace Sharphound2.Enumeration
             }
 
             obj.Properties.Add("description",entry.GetProp("description"));
+            var level = int.Parse(entry.GetProp("msds-behavior-version"));
+            string func;
+            switch (level)
+            {
+                case 0:
+                    func = "2000 Mixed/Native";
+                    break;
+                case 1:
+                    func = "2003 Interim";
+                    break;
+                case 2:
+                    func = "2003";
+                    break;
+                case 3:
+                    func = "2008";
+                    break;
+                case 4:
+                    func = "2008 R2";
+                    break;
+                case 5:
+                    func = "2012";
+                    break;
+                case 6:
+                    func = "2012 R2";
+                    break;
+                case 7:
+                    func = "2016";
+                    break;
+                default:
+                    func = "Unknown";
+                    break;
+            }
+
+            obj.Properties.Add("functionallevel", func);
+        }
+
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Ou obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
+
+            obj.Properties.Add("description", entry.GetProp("description"));
+            var opts = entry.GetProp("gpoptions");
+            obj.Properties.Add("blocksinheritance", opts != null && opts.Equals("1"));
+        }
+
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Gpo obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
+
+            obj.Properties.Add("description", entry.GetProp("description"));
+            obj.Properties.Add("gpcpath", entry.GetProp("gpcfilesyspath"));
         }
 
         internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Group obj)

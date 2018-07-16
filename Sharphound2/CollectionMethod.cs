@@ -17,6 +17,7 @@ namespace Sharphound2
         ObjectProps,
         Container,
         RDP,
+        DCOM,
         DcOnly,
         All
     }
@@ -36,6 +37,7 @@ namespace Sharphound2
         RDP = 1 << 8,
         ObjectProps = 1 << 9,
         SessionLoop = 1 << 10,
-        LoggedOnLoop = 1 << 11
+        LoggedOnLoop = 1 << 11,
+        DCOM = 1 << 12
     }
 }

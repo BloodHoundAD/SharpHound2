@@ -825,6 +825,16 @@ namespace Sharphound2.Enumeration
 
                     try
                     {
+                        obj.DcomUsers = LocalGroupHelpers
+                            .GetGroupMembers(full, LocalGroupHelpers.LocalGroupRids.DcomUsers).ToArray();
+                    }
+                    catch (TimeoutException)
+                    {
+                        timeout = true;
+                    }
+
+                    try
+                    {
                         foreach (var s in SessionHelpers.DoLoggedOnCollection(full, domain))
                         {
                             output.Add(new Wrapper<JsonBase>
@@ -972,6 +982,16 @@ namespace Sharphound2.Enumeration
 
                             try
                             {
+                                obj.DcomUsers = LocalGroupHelpers.GetGroupMembers(resolved,
+                                    LocalGroupHelpers.LocalGroupRids.DcomUsers).ToArray();
+                            }
+                            catch (TimeoutException)
+                            {
+                                timeout = true;
+                            }
+
+                            try
+                            {
                                 foreach (var s in SessionHelpers.GetNetSessions(resolved, domain))
                                 {
                                     output.Add(new Wrapper<JsonBase>
@@ -1039,6 +1059,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
 
                         foreach (var a in LocalGroupHelpers.GetGpoAdmins(entry, domain))
                         {
@@ -1071,6 +1092,7 @@ namespace Sharphound2.Enumeration
                         obj.Properties.Add("name", resolved.BloodHoundDisplay);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
+                        ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
 
                         output.Add(new Wrapper<JsonBase>
                         {

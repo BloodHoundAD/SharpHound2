@@ -341,7 +341,8 @@ General Options
                             resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
                                        ResolvedCollectionMethod.Group | ResolvedCollectionMethod.LocalAdmin |
                                        ResolvedCollectionMethod.ObjectProps | ResolvedCollectionMethod.RDP |
-                                       ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts;
+                                       ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts |
+                                       ResolvedCollectionMethod.DCOM;
                             break;
                         case DcOnly:
                             resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
@@ -353,7 +354,8 @@ General Options
                             break;
                         case ComputerOnly:
                             resolved = resolved | ResolvedCollectionMethod.LocalAdmin |
-                                       ResolvedCollectionMethod.Session | ResolvedCollectionMethod.RDP;
+                                       ResolvedCollectionMethod.Session | ResolvedCollectionMethod.RDP |
+                                       ResolvedCollectionMethod.DCOM;
                             break;
                         case LocalAdmin:
                             resolved = resolved | ResolvedCollectionMethod.LocalAdmin;
@@ -387,6 +389,9 @@ General Options
                             break;
                         case RDP:
                             resolved = resolved | ResolvedCollectionMethod.RDP;
+                            break;
+                        case DCOM:
+                            resolved = resolved | ResolvedCollectionMethod.DCOM;
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();

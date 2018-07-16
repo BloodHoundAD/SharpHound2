@@ -24,7 +24,8 @@ namespace Sharphound2.Enumeration
                 (methods & ResolvedCollectionMethod.Session) != 0 ||
                 (methods & ResolvedCollectionMethod.LoggedOn) != 0 || 
                 (methods & ResolvedCollectionMethod.RDP) != 0 || 
-                (methods & ResolvedCollectionMethod.SessionLoop) != 0)
+                (methods & ResolvedCollectionMethod.SessionLoop) != 0 ||
+                (methods & ResolvedCollectionMethod.DCOM) != 0)
             {
                 filterparts.Add("(&(sAMAccountType=805306369)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))");
                 props.AddRange(new[]
@@ -59,7 +60,8 @@ namespace Sharphound2.Enumeration
                     "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "objectsid",
                     "sidhistory", "useraccountcontrol", "dnshostname", "operatingsystem",
                     "operatingsystemservicepack", "serviceprincipalname", "displayname", "mail", "title",
-                    "homedirectory","description","admincount","userpassword"
+                    "homedirectory","description","admincount","userpassword","gpcfilesyspath","objectclass",
+                    "msds-behavior-version","objectguid", "name", "gpoptions"
                 });
             }
 
@@ -82,14 +84,7 @@ namespace Sharphound2.Enumeration
             }
 
             var filter = string.Join("", filterparts.ToArray());
-            if (filterparts.Count == 1)
-            {
-                filter = filterparts[0];
-            }
-            else
-            {
-                filter = $"(|{filter})";
-            }
+            filter = filterparts.Count == 1 ? filterparts[0] : $"(|{filter})";
             
 
             if (excludeDc)

@@ -247,6 +247,9 @@ namespace Sharphound2.Enumeration
             if (rid.Equals(LocalGroupRids.RemoteDesktopUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.RDP))
                 yield break;
 
+            if (rid.Equals(LocalGroupRids.DcomUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.DCOM))
+                yield break;
+
             Utils.Debug("Starting GetSamAdmins");
             string machineSid = null;
             Utils.Debug("Starting Task");
@@ -741,7 +744,8 @@ namespace Sharphound2.Enumeration
         internal enum LocalGroupRids
         {
             Administrators = 544,
-            RemoteDesktopUsers = 555
+            RemoteDesktopUsers = 555,
+            DcomUsers = 562
         }
 
         #region LSA Imports
