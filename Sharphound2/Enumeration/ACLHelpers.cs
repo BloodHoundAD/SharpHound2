@@ -66,10 +66,8 @@ namespace Sharphound2.Enumeration
                     {
                         AceType = "",
                         RightName = "Owner",
-                        Inherited = false,
                         PrincipalName = owner.PrincipalName,
-                        PrincipalType = owner.ObjectType,
-                        Qualifier = "AccessAllowed"
+                        PrincipalType = owner.ObjectType
                     });
                 }
                 else
@@ -83,6 +81,9 @@ namespace Sharphound2.Enumeration
             {
                 var qAce = genericAce as QualifiedAce;
                 if (qAce == null)
+                    continue;
+
+                if (!qAce.AceQualifier.Equals(AceQualifier.AccessAllowed))
                     continue;
 
                 var objectSid = qAce.SecurityIdentifier.ToString();
@@ -159,10 +160,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "GenericAll"
                     });
                 }
@@ -172,10 +171,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteOwner"
                     });
                 }
@@ -185,10 +182,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteDacl"
                     });
                 }
@@ -200,10 +195,8 @@ namespace Sharphound2.Enumeration
                         aces.Add(new ACL
                         {
                             AceType = "GetChanges",
-                            Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
-                            Qualifier = qAce.AceQualifier.ToString(),
                             RightName = "ExtendedRight"
                         });
                     }else if (guid.Equals("1131f6ad-9c07-11d1-f79f-00c04fc2dcd2"))
@@ -211,10 +204,8 @@ namespace Sharphound2.Enumeration
                         aces.Add(new ACL
                         {
                             AceType = "GetChangesAll",
-                            Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
-                            Qualifier = qAce.AceQualifier.ToString(),
                             RightName = "ExtendedRight"
                         });
                     }
@@ -223,10 +214,8 @@ namespace Sharphound2.Enumeration
                         aces.Add(new ACL
                         {
                             AceType = "All",
-                            Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
-                            Qualifier = qAce.AceQualifier.ToString(),
                             RightName = "ExtendedRight"
                         });
                     }
@@ -283,10 +272,8 @@ namespace Sharphound2.Enumeration
                     {
                         AceType = "",
                         RightName = "Owner",
-                        Inherited = false,
                         PrincipalName = owner.PrincipalName,
-                        PrincipalType = owner.ObjectType,
-                        Qualifier = "AccessAllowed"
+                        PrincipalType = owner.ObjectType
                     });
                 }
                 else
@@ -373,10 +360,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "GenericAll"
                     });
                 }
@@ -386,10 +371,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "GenericWrite"
                     });
                 }
@@ -401,10 +384,8 @@ namespace Sharphound2.Enumeration
                         aces.Add(new ACL
                         {
                             AceType = "Member",
-                            Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
-                            Qualifier = qAce.AceQualifier.ToString(),
                             RightName = "WriteProperty"
                         });
                     }
@@ -413,10 +394,8 @@ namespace Sharphound2.Enumeration
                         aces.Add(new ACL
                         {
                             AceType = "",
-                            Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
-                            Qualifier = qAce.AceQualifier.ToString(),
                             RightName = "GenericWrite"
                         });
                     }
@@ -427,10 +406,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteOwner"
                     });
                 }
@@ -440,10 +417,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteDacl"
                     });
                 }
@@ -498,10 +473,8 @@ namespace Sharphound2.Enumeration
                     {
                         AceType = "",
                         RightName = "Owner",
-                        Inherited = false,
                         PrincipalName = owner.PrincipalName,
-                        PrincipalType = owner.ObjectType,
-                        Qualifier = "AccessAllowed"
+                        PrincipalType = owner.ObjectType
                     });
                 }
                 else
@@ -594,10 +567,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "GenericAll"
                     });
                 }
@@ -607,10 +578,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "GenericWrite"
                     });
                 }
@@ -620,10 +589,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteOwner"
                     });
                 }
@@ -633,10 +600,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteDacl"
                     });
                 }
@@ -648,10 +613,8 @@ namespace Sharphound2.Enumeration
                         aces.Add(new ACL
                         {
                             AceType = "User-Force-Change-Password",
-                            Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
-                            Qualifier = qAce.AceQualifier.ToString(),
                             RightName = "ExtendedRight"
                         });
                     }
@@ -660,10 +623,8 @@ namespace Sharphound2.Enumeration
                         aces.Add(new ACL
                         {
                             AceType = "All",
-                            Inherited = qAce.IsInherited,
                             PrincipalName = mappedPrincipal.PrincipalName,
                             PrincipalType = mappedPrincipal.ObjectType,
-                            Qualifier = qAce.AceQualifier.ToString(),
                             RightName = "ExtendedRight"
                         });
                     }
@@ -719,10 +680,8 @@ namespace Sharphound2.Enumeration
                     {
                         AceType = "",
                         RightName = "Owner",
-                        Inherited = false,
                         PrincipalName = owner.PrincipalName,
-                        PrincipalType = owner.ObjectType,
-                        Qualifier = "AccessAllowed"
+                        PrincipalType = owner.ObjectType
                     });
                 }
                 else
@@ -802,10 +761,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "GenericAll"
                     });
                 }
@@ -815,10 +772,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteOwner"
                     });
                 }
@@ -828,10 +783,8 @@ namespace Sharphound2.Enumeration
                     aces.Add(new ACL
                     {
                         AceType = "",
-                        Inherited = qAce.IsInherited,
                         PrincipalName = mappedPrincipal.PrincipalName,
                         PrincipalType = mappedPrincipal.ObjectType,
-                        Qualifier = qAce.AceQualifier.ToString(),
                         RightName = "WriteDacl"
                     });
                 }

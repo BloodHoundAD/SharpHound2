@@ -7,8 +7,8 @@ namespace Sharphound2.JsonObjects
 {
     internal class GpoAdmin : JsonBase
     {
-        public string Server { get; set; }
-        public string ObjectName { get; set; }
-        public string ObjectType { get; set; }
+        public string Computer { get; set; }
+        public string Name { get; set; }
+        public string Type { get; set; }
     }
 }

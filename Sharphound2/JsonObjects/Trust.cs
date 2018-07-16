@@ -7,9 +7,23 @@ namespace Sharphound2.JsonObjects
 {
     internal class Trust
     {
-        public string TargetName { get; set; }
+        private string _targetName;
+
+        public string TargetName
+        {
+            get => _targetName;
+            set => _targetName = value.ToUpper();
+        }
+
         public bool? IsTransitive { get; set; }
-        public string TrustDirection { get; set; }
+        public int TrustDirection { get; set; }
         public string TrustType { get; set; }
+    }
+
+    internal enum TrustDirection
+    {
+        Inbound = 0,
+        Outbound = 1,
+        Bidrectional = 2
     }
 }

@@ -490,7 +490,7 @@ General Options
             LocalGroupHelpers.Init();
             GroupHelpers.Init();
             AclHelpers.Init();
-            DomainTrustEnumeration.Init();
+            TrustHelpers.Init();
             ContainerHelpers.Init();
 
             if (options.Test != null)

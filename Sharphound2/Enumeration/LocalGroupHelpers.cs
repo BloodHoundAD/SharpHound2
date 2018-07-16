@@ -570,6 +570,9 @@ namespace Sharphound2.Enumeration
 
         public static IEnumerable<GpoAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
         {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup))
+                yield break;
+
             const string targetSid = "S-1-5-32-544__Members";
 
             var displayName = entry.GetProp("displayname");
@@ -717,9 +720,9 @@ namespace Sharphound2.Enumeration
                         {
                             yield return new GpoAdmin
                             {
-                                ObjectName = user.PrincipalName,
-                                ObjectType = user.ObjectType,
-                                Server = server
+                                Name = user.PrincipalName,
+                                Type = user.ObjectType,
+                                Computer = server
                             };
                         }
                     }

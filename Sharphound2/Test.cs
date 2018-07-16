@@ -17,7 +17,7 @@ namespace Sharphound2
                 Name = "abc"
             };
             var dict = new Dictionary<string, object> {{"os", "test"}, {"log", 123}};
-            c.properties = dict;
+            c.Properties = dict;
             Console.WriteLine(JsonConvert.SerializeObject(c));
         }
     }

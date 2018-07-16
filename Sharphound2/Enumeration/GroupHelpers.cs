@@ -13,11 +13,12 @@ namespace Sharphound2.Enumeration
         private static Utils _utils;
         private static Cache _cache;
         private static readonly string[] Props = { "samaccountname", "distinguishedname", "samaccounttype", "dnshostname" };
-        
+        private static Dictionary<string, List<string>> _primaryGroupDict;
         public static void Init()
         {
             _utils = Utils.Instance;
             _cache = Cache.Instance;
+            _primaryGroupDict = new Dictionary<string, List<string>>();
         }
 
         public static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref Group u)

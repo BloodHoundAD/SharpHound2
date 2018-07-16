@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 
 namespace Sharphound2.JsonObjects
 {
@@ -10,7 +7,7 @@ namespace Sharphound2.JsonObjects
         public string Name { get; set; }
         public string PrimaryGroup { get; set; }
 
-        public Dictionary<string, object> properties = new Dictionary<string, object>();
+        public Dictionary<string, object> Properties = new Dictionary<string, object>();
 
         public LocalMember[] LocalAdmins { get; set; }
         public LocalMember[] RemoteDesktopUsers { get; set; }

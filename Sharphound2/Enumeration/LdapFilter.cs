@@ -53,7 +53,7 @@ namespace Sharphound2.Enumeration
 
             if ((methods & ResolvedCollectionMethod.ObjectProps) != 0)
             {
-                filterparts.Add("(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913)(samaccounttype=805306368)(samaccounttype=805306369)(objectclass=domain))");
+                filterparts.Add("(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913)(samaccounttype=805306368)(samaccounttype=805306369)(objectclass=domain)(objectclass=organizationalUnit)(objectcategory=groupPolicyContainer))");
                 props.AddRange(new[]
                 {
                     "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "objectsid",
@@ -68,7 +68,7 @@ namespace Sharphound2.Enumeration
                 filterparts.Add("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))");
                 props.AddRange(new[]
                 {
-                    "displayname", "name", "gpcfilesyspath"
+                    "displayname", "name", "gpcfilesyspath", "objectclass"
                 });
             }
 

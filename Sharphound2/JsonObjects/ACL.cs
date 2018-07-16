@@ -11,7 +11,7 @@ namespace Sharphound2.JsonObjects
         public string PrincipalType { get; set; }
         public string RightName { get; set; }
         public string AceType { get; set; }
-        public string Qualifier { get; set; }
-        public bool Inherited { get; set; }
+        //public string Qualifier { get; set; }
+        //public bool Inherited { get; set; }
     }
 }

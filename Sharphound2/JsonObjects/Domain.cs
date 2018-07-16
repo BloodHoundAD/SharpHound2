@@ -8,8 +8,7 @@ namespace Sharphound2.JsonObjects
     internal class Domain : JsonBase
     {
         public string Name { get; set; }
-        public string ObjectSid { get; set; }
-        public string Description { get; set; }
+        public Dictionary<string, object> Properties = new Dictionary<string, object>();
 
         public GpLink[] Links { get; set; }
         public Trust[] Trusts { get; set; }

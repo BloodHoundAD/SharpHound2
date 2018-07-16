@@ -9,7 +9,7 @@ using Sharphound2.JsonObjects;
 namespace Sharphound2.Enumeration
 {
     [SuppressMessage("ReSharper", "UnusedMember.Local")]
-    internal static class DomainTrustEnumeration
+    internal static class TrustHelpers
     {
         private static Utils _utils;
 
@@ -72,15 +72,15 @@ namespace Sharphound2.Enumeration
 
                 if (inbound && outbound)
                 {
-                    trust.TrustDirection = "Bidirectional";
+                    trust.TrustDirection = (int)TrustDirection.Bidrectional;
                 }
                 else if (inbound)
                 {
-                    trust.TrustDirection = "Inbound";
+                    trust.TrustDirection = (int)TrustDirection.Inbound;
                 }
                 else
                 {
-                    trust.TrustDirection = "Outbound";
+                    trust.TrustDirection = (int)TrustDirection.Outbound;
                 }
 
                 trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
@@ -128,7 +128,8 @@ namespace Sharphound2.Enumeration
         [SuppressMessage("ReSharper", "FieldCanBeMadeReadOnly.Local")]
         private struct DsDomainTrusts
         {
-            [MarshalAs(UnmanagedType.LPTStr)] private string NetbiosDomainName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            private string NetbiosDomainName;
             [MarshalAs(UnmanagedType.LPTStr)]
             public string DnsDomainName;
             public uint Flags;

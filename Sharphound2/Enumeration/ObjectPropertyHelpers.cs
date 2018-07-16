@@ -1,6 +1,5 @@
 ﻿using System;
 using System.DirectoryServices.Protocols;
-using System.Linq;
 using System.Security.Principal;
 using Sharphound2.JsonObjects;
 
@@ -17,7 +16,7 @@ namespace Sharphound2.Enumeration
                 return;
             }
 
-            obj.Description = entry.GetProp("description");
+            obj.Properties.Add("description",entry.GetProp("description"));
         }
 
         internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Group obj)
@@ -30,14 +29,14 @@ namespace Sharphound2.Enumeration
             if (ac != null)
             {
                 var a = int.Parse(ac);
-                obj.AdminCount = a != 0;
+                obj.Properties.Add("admincount", a != 0);
             }
             else
             {
-                obj.AdminCount = false;
+                obj.Properties.Add("admincount", false);
             }
 
-            obj.Description = entry.GetProp("description");
+            obj.Properties.Add("description", entry.GetProp("description"));
         }
 
         internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref User obj)
@@ -58,28 +57,29 @@ namespace Sharphound2.Enumeration
                 enabled = true;
             }
 
-            obj.Enabled = enabled;
-            var history = entry.GetPropBytes("sidhistory");
-            obj.SidHistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
-            obj.LastLogon = ConvertToUnixEpoch(entry.GetProp("lastlogon"));
-            obj.PwdLastSet = ConvertToUnixEpoch(entry.GetProp("pwdlastset"));
-            obj.ServicePrincipalNames = entry.GetPropArray("serviceprincipalname");
-            obj.HasSpn = obj.ServicePrincipalNames.Length != 0;
-            obj.DisplayName = entry.GetProp("displayname");
-            obj.Email = entry.GetProp("mail");
-            obj.Title = entry.GetProp("title");
-            obj.HomeDirectory = entry.GetProp("homeDirectory");
-            obj.Description = entry.GetProp("description");
-            obj.UserPassword = entry.GetProp("userpassword");
+            obj.Properties.Add("enabled", enabled);
+            //var history = entry.GetPropBytes("sidhistory");
+            //obj.SidHistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
+            obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
+            obj.Properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
+            var spn = entry.GetPropArray("serviceprincipalname");
+            obj.Properties.Add("serviceprincipalnames", spn);
+            obj.Properties.Add("hasspn", spn.Length > 0);
+            obj.Properties.Add("displayname", entry.GetProp("displayname"));
+            obj.Properties.Add("email", entry.GetProp("mail"));
+            obj.Properties.Add("title", entry.GetProp("title"));
+            obj.Properties.Add("homedirectory", entry.GetProp("homedirectory"));
+            obj.Properties.Add("description", entry.GetProp("description"));
+            obj.Properties.Add("userpassword", entry.GetProp("userpassword"));
             var ac = entry.GetProp("admincount");
             if (ac != null)
             {
                 var a = int.Parse(ac);
-                obj.AdminCount = a != 0;
+                obj.Properties.Add("admincount", a != 0);
             }
             else
             {
-                obj.AdminCount = false;
+                obj.Properties.Add("admincount", false);
             }
         }
 
@@ -104,10 +104,10 @@ namespace Sharphound2.Enumeration
                 enabled = true;
             }
 
-            obj.properties.Add("enabled", enabled);
-            obj.properties.Add("unconstraineddelegation", unconstrained);
-            obj.properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
-            obj.properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
+            obj.Properties.Add("enabled", enabled);
+            obj.Properties.Add("unconstraineddelegation", unconstrained);
+            obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
+            obj.Properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
             var os = entry.GetProp("operatingsystem");
             var sp = entry.GetProp("operatingsystemservicepack");
 
@@ -116,8 +116,8 @@ namespace Sharphound2.Enumeration
                 os = $"{os} {sp}";
             }
 
-            obj.properties.Add("operatingsystem", os);
-            obj.properties.Add("description", entry.GetProp("description"));
+            obj.Properties.Add("operatingsystem", os);
+            obj.Properties.Add("description", entry.GetProp("description"));
         }
 
         private static long ConvertToUnixEpoch(string ldapTime)

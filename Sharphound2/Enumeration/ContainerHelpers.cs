@@ -46,7 +46,7 @@ namespace Sharphound2.Enumeration
             var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
 
             var opts = entry.GetProp("gpoptions");
-            obj.BlocksInheritance = opts != null && opts.Equals("1");
+            obj.Properties.Add("blocksinheritance", opts != null && opts.Equals("1"));
 
             //Resolve GPLinks on the ou
             var links = new List<GpLink>();
@@ -72,7 +72,7 @@ namespace Sharphound2.Enumeration
                     links.Add(new GpLink
                     {
                         IsEnforced = enforced,
-                        Name = $"{dName}@{resolved.BloodHoundDisplay}"
+                        Name = $"{dName}@{domain}"
                     });
                 }
 
@@ -109,14 +109,11 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            if (users.Count > 0)
-                obj.Users = users.ToArray();
+            obj.Users = users.ToArray();
 
-            if (computers.Count > 0)
-                obj.Computers = computers.ToArray();
+            obj.Computers = computers.ToArray();
 
-            if (ous.Count > 0)
-                obj.ChildOus = ous.ToArray();
+            obj.ChildOus = ous.ToArray();
         }
 
         internal static void ResolveContainer(SearchResultEntry entry, ResolvedEntry resolved, ref Domain obj)
@@ -150,7 +147,7 @@ namespace Sharphound2.Enumeration
                     links.Add(new GpLink
                     {
                         IsEnforced = enforced,
-                        Name = $"{dName}@{resolved.BloodHoundDisplay}"
+                        Name = $"{dName}@{domain}"
                     });
                 }
 
@@ -210,14 +207,11 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            if (users.Count > 0)
-                obj.Users = users.ToArray();
+            obj.Users = users.ToArray();
 
-            if (computers.Count > 0)
-                obj.Computers = computers.ToArray();
+            obj.Computers = computers.ToArray();
 
-            if (ous.Count > 0)
-                obj.ChildOus = ous.ToArray();
+            obj.ChildOus = ous.ToArray();
         }
     }
 }

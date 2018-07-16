@@ -79,16 +79,21 @@ namespace Sharphound2.Enumeration
                     _currentCount++;
                     if (resolved == null)
                         continue;
+
+                    Console.WriteLine(resolved.BloodHoundDisplay);
+                    Console.WriteLine(resolved.ObjectType);
                     var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
-                    
+                    var sid = entry.GetSid();
+
                     if (resolved.ObjectType == "user")
                     {
                         var obj = new User
                         {
-                            Name = resolved.BloodHoundDisplay,
-                            Domain = domain,
-                            ObjectSid = entry.GetSid()
+                            Name = resolved.BloodHoundDisplay
                         };
+
+                        obj.Properties.Add("domain", domain);
+                        obj.Properties.Add("objectsid", sid);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -102,10 +107,11 @@ namespace Sharphound2.Enumeration
                     {
                         var obj = new Group
                         {
-                            Name = resolved.BloodHoundDisplay,
-                            Domain = domain,
-                            ObjectSid = entry.GetSid()
+                            Name = resolved.BloodHoundDisplay
                         };
+                        
+                        obj.Properties.Add("domain", domain);
+                        obj.Properties.Add("objectsid", sid);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -123,8 +129,8 @@ namespace Sharphound2.Enumeration
                             Name = resolved.BloodHoundDisplay,
                         };
 
-                        obj.properties.Add("domain", domain);
-                        obj.properties.Add("objectsid", entry.GetSid());
+                        obj.Properties.Add("domain", domain);
+                        obj.Properties.Add("objectsid", sid);
 
                         if (entry.DistinguishedName.ToLower().Contains("domain controllers"))
                         {
@@ -148,13 +154,14 @@ namespace Sharphound2.Enumeration
                         var obj = new Domain
                         {
                             Name = resolved.BloodHoundDisplay,
-                            ObjectSid = entry.GetSid()
                         };
+
+                        obj.Properties.Add("objectsid", sid);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
-                        DomainTrustEnumeration.DoTrustEnumeration(resolved, ref obj);
+                        TrustHelpers.DoTrustEnumeration(resolved, ref obj);
 
                         output.Add(new Wrapper<JsonBase>
                         {
@@ -170,6 +177,14 @@ namespace Sharphound2.Enumeration
                         };
 
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
+
+                        foreach (var a in LocalGroupHelpers.GetGpoAdmins(entry, domain))
+                        {
+                            output.Add(new Wrapper<JsonBase>
+                            {
+                                Item = a
+                            });
+                        }
 
                         output.Add(new Wrapper<JsonBase>
                         {
@@ -189,9 +204,10 @@ namespace Sharphound2.Enumeration
                     {
                         var obj = new Ou
                         {
-                            Name = resolved.BloodHoundDisplay,
                             Guid = new Guid(entry.GetPropBytes("objectguid")).ToString().ToUpper()
                         };
+
+                        obj.Properties.Add("name", resolved.BloodHoundDisplay);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
 
@@ -233,13 +249,14 @@ namespace Sharphound2.Enumeration
                 if (_entDcs.Count > 0)
                 {
                     var f = _utils.GetForest();
-                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name}";
+                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name.ToUpper()}";
                     var obj = new Group
                     {
                         Name = n,
                         Members = _entDcs.ToArray(),
-                        Domain = f.RootDomain.Name
                     };
+
+                    obj.Properties.Add("domain", f.RootDomain.Name);
                     output.Add(new Wrapper<JsonBase>
                     {
                         Item = obj
@@ -577,13 +594,14 @@ namespace Sharphound2.Enumeration
                 if (_entDcs.Count > 0)
                 {
                     var f = _utils.GetForest();
-                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name}";
+                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name.ToUpper()}";
                     var obj = new Group
                     {
                         Name = n,
-                        Members = _entDcs.ToArray(),
-                        Domain = f.RootDomain.Name
+                        Members = _entDcs.ToArray()
                     };
+
+                    obj.Properties.Add("domain", f.RootDomain.Name);
                     output.Add(new Wrapper<JsonBase>
                     {
                         Item = obj
@@ -865,10 +883,11 @@ namespace Sharphound2.Enumeration
                     {
                         var obj = new User
                         {
-                            Name = resolved.BloodHoundDisplay,
-                            Domain = domain,
-                            ObjectSid = sid
+                            Name = resolved.BloodHoundDisplay
                         };
+
+                        obj.Properties.Add("domain", domain);
+                        obj.Properties.Add("objectsid", sid);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -882,10 +901,11 @@ namespace Sharphound2.Enumeration
                     {
                         var obj = new Group
                         {
-                            Name = resolved.BloodHoundDisplay,
-                            Domain = domain,
-                            ObjectSid = sid
+                            Name = resolved.BloodHoundDisplay
                         };
+
+                        obj.Properties.Add("domain", domain);
+                        obj.Properties.Add("objectsid", sid);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -904,8 +924,8 @@ namespace Sharphound2.Enumeration
                             RemoteDesktopUsers = new LocalMember[]{}
                         };
 
-                        obj.properties.Add("objectsid", sid);
-                        obj.properties.Add("domain", domain);
+                        obj.Properties.Add("objectsid", sid);
+                        obj.Properties.Add("domain", domain);
 
 
                         if (Utils.IsMethodSet(ResolvedCollectionMethod.Group))
@@ -996,14 +1016,15 @@ namespace Sharphound2.Enumeration
                     {
                         var obj = new Domain
                         {
-                            Name = resolved.BloodHoundDisplay,
-                            ObjectSid = entry.GetSid()
+                            Name = resolved.BloodHoundDisplay
                         };
+
+                        obj.Properties.Add("objectsid", sid);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
-                        DomainTrustEnumeration.DoTrustEnumeration(resolved, ref obj);
+                        TrustHelpers.DoTrustEnumeration(resolved, ref obj);
 
                         output.Add(new Wrapper<JsonBase>
                         {
@@ -1018,6 +1039,14 @@ namespace Sharphound2.Enumeration
                         };
 
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
+
+                        foreach (var a in LocalGroupHelpers.GetGpoAdmins(entry, domain))
+                        {
+                            output.Add(new Wrapper<JsonBase>
+                            {
+                                Item = a
+                            });
+                        }
 
                         output.Add(new Wrapper<JsonBase>
                         {
@@ -1036,9 +1065,10 @@ namespace Sharphound2.Enumeration
                     {
                         var obj = new Ou
                         {
-                            Name = resolved.BloodHoundDisplay,
                             Guid = new Guid(entry.GetPropBytes("objectguid")).ToString().ToUpper()
                         };
+
+                        obj.Properties.Add("name", resolved.BloodHoundDisplay);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
 

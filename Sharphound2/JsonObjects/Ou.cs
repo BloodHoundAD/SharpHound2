@@ -7,9 +7,9 @@ namespace Sharphound2.JsonObjects
 {
     internal class Ou : JsonBase
     {
-        public string Name { get; set; }
         public string Guid { get; set; }
-        public bool? BlocksInheritance { get; set; }
+
+        public Dictionary<string, object> Properties = new Dictionary<string, object>();
 
         public string[] ChildOus { get; set; }
         public string[] Computers { get; set; }

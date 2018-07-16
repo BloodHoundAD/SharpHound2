@@ -74,7 +74,7 @@
     <Compile Include="DnsManager.cs" />
     <Compile Include="Enumeration\ACLHelpers.cs" />
     <Compile Include="Enumeration\ContainerHelpers.cs" />
-    <Compile Include="Enumeration\DomainTrustEnumeration.cs" />
+    <Compile Include="Enumeration\TrustHelpers.cs" />
     <Compile Include="Enumeration\EnumerationRunner.cs" />
     <Compile Include="Enumeration\GroupHelpers.cs" />
     <Compile Include="Enumeration\LdapFilter.cs" />
