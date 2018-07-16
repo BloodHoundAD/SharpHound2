@@ -108,6 +108,7 @@ namespace Sharphound2.Enumeration
             obj.Properties.Add("unconstraineddelegation", unconstrained);
             obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
             obj.Properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
+            obj.Properties.Add("serviceprincipalnames", entry.GetPropArray("serviceprincipalname"));
             var os = entry.GetProp("operatingsystem");
             var sp = entry.GetProp("operatingsystemservicepack");
 
