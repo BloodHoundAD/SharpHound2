@@ -493,6 +493,13 @@ namespace Sharphound2
             var connection = new LdapConnection(identifier) {Timeout = new TimeSpan(0,0,5,0)};
 
 
+            if (_options.LdapPass != null && _options.LdapUser != null)
+            {
+                Verbose("Adding Network Credential to connection");
+                var cred = new NetworkCredential(_options.LdapUser, _options.LdapPass, targetDomain.Name);
+                connection.Credential = cred;
+            }
+
             //Add LdapSessionOptions
             var lso = connection.SessionOptions;
             if (!_options.DisableKerbSigning)
@@ -734,9 +741,8 @@ namespace Sharphound2
             }
             var zipfilepath = GetZipFileName(usedname);
 
-            Console.WriteLine(_options.RemoveJson
-                ? $"Compressing data to {zipfilepath} and deleting Json Files"
-                : $"Compressing data to {zipfilepath}");
+            Console.WriteLine($"Compressing data to {zipfilepath}.");
+            Console.WriteLine("You can upload this file directly to the UI.");
 
             var buffer = new byte[4096];
             using (var s = new ZipOutputStream(File.Create(zipfilepath)))
@@ -757,10 +763,9 @@ namespace Sharphound2
                         } while (source > 0);
                     }
 
-                    if (_options.RemoveJson)
-                    {
-                        File.Delete(file);
-                    }
+                    
+                    File.Delete(file);
+                    
                 }
 
                 s.Finish();

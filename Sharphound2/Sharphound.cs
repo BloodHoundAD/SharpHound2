@@ -39,10 +39,10 @@ namespace Sharphound2
             [Option('t',"Threads",HelpText ="Number of Threads to use", DefaultValue =10)]
             public int Threads { get; set; }
 
-            [Option(HelpText = "Folder to drop CSV files", DefaultValue = ".")]
+            [Option(HelpText = "Folder to drop Json files", DefaultValue = ".")]
             public string JsonFolder { get; set; }
 
-            [Option(HelpText = "Prefix for CSV file names", DefaultValue = "")]
+            [Option(HelpText = "Prefix for Json file names", DefaultValue = "")]
             public string JsonPrefix { get; set; }
 
             [Option(DefaultValue = 0)]
@@ -103,7 +103,7 @@ namespace Sharphound2
             public bool DisableKerbSigning { get; set; }
 
             [Option(DefaultValue = false)]
-            public bool CompressData { get; set; }
+            public bool NoZip { get; set; }
 
             [Option(DefaultValue = null)]
             public string Test { get; set; }
@@ -114,14 +114,17 @@ namespace Sharphound2
             [Option(DefaultValue = false)]
             public bool Debug { get; set; }
 
-            [Option(DefaultValue = false)]
-            public bool RemoveJson { get; set; }
-
             [Option(DefaultValue = 0)]
             public int Throttle { get; set; }
 
             [Option(DefaultValue = 0)]
             public int Jitter { get; set; }
+
+            [Option(DefaultValue = null)]
+            public string LdapUser { get; set; }
+
+            [Option(DefaultValue = null)]
+            public string LdapPass { get; set; }
 
             [ParserState]
             public IParserState LastParserState { get; set; }
@@ -515,6 +518,10 @@ General Options
             catch (LdapException)
             {
                 Console.WriteLine("Ldap Connection Failure.");
+                if (options.LdapPass != null)
+                {
+                    Console.WriteLine("Check credentials supplied to SharpHound");
+                }
                 Console.WriteLine("Try again with the IgnoreLdapCert option if using SecureLDAP or check your DomainController/LdapPort option");
                 return;
             }
@@ -551,12 +558,6 @@ General Options
             //        }
             //    }
             //}
-
-            if (options.RemoveJson && !options.CompressData)
-            {
-                Console.WriteLine("Ignoring RemoveJson as CompressData is not set");
-                options.RemoveJson = false;
-            }
 
             if (options.Stealth)
             {
@@ -658,7 +659,7 @@ General Options
 
             Cache.Instance.SaveCache();
 
-            if (options.CompressData)
+            if (!options.NoZip)
             {
                 Utils.CompressFiles();
             }
