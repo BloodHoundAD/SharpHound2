@@ -61,8 +61,6 @@ namespace Sharphound2.Enumeration
             }
 
             obj.Properties.Add("description", entry.GetProp("description"));
-            var opts = entry.GetProp("gpoptions");
-            obj.Properties.Add("blocksinheritance", opts != null && opts.Equals("1"));
         }
 
         internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Gpo obj)
