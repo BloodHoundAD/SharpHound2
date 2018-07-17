@@ -105,7 +105,7 @@ namespace Sharphound2.Enumeration
                         else
                         {
                             var resolvedObj = objEntry.ResolveAdEntry();
-                            if (resolvedObj == null)
+                            if (resolvedObj == null || resolvedObj.ObjectType == "domain")
                                 principal = null;
                             else
                             {

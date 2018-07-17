@@ -686,7 +686,7 @@ namespace Sharphound2
             }
             else
             {
-                usedFName = $"{usedFName}_{DateTime.Now:yyyyMMddHHmmss}.json";
+                usedFName = $"{DateTime.Now:yyyyMMddHHmmss}_{usedFName}.json";
             }
             var f = _options.JsonPrefix.Equals("") ? usedFName : $"{_options.JsonPrefix}_{usedFName}.json";
 
@@ -736,7 +736,7 @@ namespace Sharphound2
                 }
                 else
                 {
-                    usedname = $"BloodHound_{DateTime.Now:yyyyMMddHHmmssfff}.zip";
+                    usedname = $"{DateTime.Now:yyyyMMddHHmmssfff}_BloodHound.zip";
                 }
             }
             var zipfilepath = GetZipFileName(usedname);
@@ -771,6 +771,8 @@ namespace Sharphound2
                 s.Finish();
                 s.Close();
             }
+
+            Console.WriteLine("Finished compressing files!");
         }
 
         internal static void DoJitter()

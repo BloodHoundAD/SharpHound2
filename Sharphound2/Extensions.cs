@@ -22,46 +22,9 @@ namespace Sharphound2
         {
         }
 
-        public static void Init()
-        {
-            _primaryDomain = Utils.Instance.GetDomain().Name;
-        }
-
         public static string ToTitleCase(this string str)
         {
             return str.Substring(0, 1).ToUpper() + str.Substring(1).ToLower();
-        }
-
-        public static string GetObjectType(this SearchResultEntry result)
-        {
-            var accountType = result.GetProp("samaccounttype");
-
-            if (Groups.Contains(accountType))
-            {
-                return "group";
-            }
-            
-            if (Users.Contains(accountType))
-            {
-                return "user";
-            }
-
-            if (Computers.Contains(accountType))
-            {
-                return "computer";
-            }
-
-            if (TrustAccount.Contains(accountType))
-            {
-                return "trustaccount";
-            }
-
-            if (result.DistinguishedName.Contains("ForeignSecurityPrincipals"))
-            {
-                return "foreignsecurityprincipal";
-            }
-
-            return "domain";
         }
 
         internal static void PrintEntry(this SearchResultEntry result)
@@ -179,34 +142,6 @@ namespace Sharphound2
             return entry;
         }
 
-        public static string ResolveBloodhoundDisplay(this SearchResultEntry result)
-        {
-            var accountName = result.GetProp("samaccountname");
-            var distinguishedName = result.DistinguishedName;
-            var accountType = result.GetProp("samaccounttype");
-
-            //I have no idea if this is a thing
-            if (distinguishedName == null)
-                return null;
-
-            var domain = Utils.ConvertDnToDomain(distinguishedName);
-
-            if (Groups.Contains(accountType) || Users.Contains(accountType))
-            {
-                return $"{accountName.ToUpper()}@{domain}";
-            }
-
-            if (Computers.Contains(accountType))
-            {
-                var dnsHostName = result.GetProp("dnshostname") ?? $"{accountName.TrimEnd('$')}.{domain}";
-                
-                return dnsHostName.ToUpper();
-            }
-            
-            //If we got here, we have a domain ACL object
-            return Utils.ConvertDnToDomain(distinguishedName);
-        }
-
         public static string GetProp(this SearchResultEntry result, string prop)
         {
             if (!result.Attributes.Contains(prop))
@@ -221,11 +156,6 @@ namespace Sharphound2
                 return null;
 
             return result.Attributes[prop][0] as byte[];
-        }
-
-        public static byte[] GetSid(this DirectoryEntry result)
-        {
-            return result.Properties["objectsid"][0] as byte[];
         }
 
         public static string[] GetPropArray(this SearchResultEntry result, string prop)
