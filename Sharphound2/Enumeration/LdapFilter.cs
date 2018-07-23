@@ -61,7 +61,7 @@ namespace Sharphound2.Enumeration
                     "sidhistory", "useraccountcontrol", "dnshostname", "operatingsystem",
                     "operatingsystemservicepack", "serviceprincipalname", "displayname", "mail", "title",
                     "homedirectory","description","admincount","userpassword","gpcfilesyspath","objectclass",
-                    "msds-behavior-version","objectguid", "name", "gpoptions"
+                    "msds-behavior-version","objectguid", "name", "gpoptions", "msds-allowedToDelegateTo"
                 });
             }
 

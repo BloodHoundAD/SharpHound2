@@ -13,5 +13,6 @@ namespace Sharphound2.JsonObjects
         public Dictionary<string, object> Properties = new Dictionary<string, object>();
         
         public ACL[] Aces { get; set; }
+        public string[] AllowedToDelegate { get; set; }
     }
 }

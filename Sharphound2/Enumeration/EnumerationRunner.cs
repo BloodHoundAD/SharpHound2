@@ -94,6 +94,7 @@ namespace Sharphound2.Enumeration
 
                         obj.Properties.Add("domain", domain);
                         obj.Properties.Add("objectsid", sid);
+                        obj.Properties.Add("highvalue", false);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -113,6 +114,17 @@ namespace Sharphound2.Enumeration
                         obj.Properties.Add("domain", domain);
                         obj.Properties.Add("objectsid", sid);
 
+                        if (sid.EndsWith("-512") || sid.EndsWith("-516") || sid.EndsWith("-519") ||
+                            sid.EndsWith("-520") || sid.Equals("S-1-5-32-544") || sid.Equals("S-1-5-32-550") ||
+                            sid.Equals("S-1-5-32-549") || sid.Equals("S-1-5-32-551") || sid.Equals("S-1-5-32-548"))
+                        {
+                            obj.Properties.Add("highvalue", true);  
+                        }
+                        else
+                        {
+                            obj.Properties.Add("highvalue", false);
+                        }
+
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
@@ -131,6 +143,7 @@ namespace Sharphound2.Enumeration
 
                         obj.Properties.Add("domain", domain);
                         obj.Properties.Add("objectsid", sid);
+                        obj.Properties.Add("highvalue", false);
 
                         if (entry.DistinguishedName.ToLower().Contains("domain controllers"))
                         {
@@ -157,6 +170,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("objectsid", sid);
+                        obj.Properties.Add("highvalue", true);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
@@ -175,6 +189,8 @@ namespace Sharphound2.Enumeration
                             Name = resolved.BloodHoundDisplay,
                             Guid = entry.GetProp("name").Replace("{", "").Replace("}", "")
                         };
+
+                        obj.Properties.Add("highvalue", false);
 
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
 
@@ -208,6 +224,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("name", resolved.BloodHoundDisplay);
+                        obj.Properties.Add("highvalue", false);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
 
@@ -635,7 +652,7 @@ namespace Sharphound2.Enumeration
             StartSessionLoopEnumeration();
         }
 
-        private static Task StartOutputWriter(BlockingCollection<Wrapper<JsonBase>> outputQueue)
+        private Task StartOutputWriter(BlockingCollection<Wrapper<JsonBase>> outputQueue)
         {
             return Task.Factory.StartNew(() =>
             {
@@ -786,6 +803,8 @@ namespace Sharphound2.Enumeration
                     {
                         Name = resolved
                     };
+
+                    obj.Properties.Add("highvalue", false);
                     var timeout = false;
 
                     try
@@ -898,6 +917,7 @@ namespace Sharphound2.Enumeration
 
                         obj.Properties.Add("domain", domain);
                         obj.Properties.Add("objectsid", sid);
+                        obj.Properties.Add("highvalue", false);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -913,6 +933,17 @@ namespace Sharphound2.Enumeration
                         {
                             Name = resolved.BloodHoundDisplay
                         };
+
+                        if (sid.EndsWith("-512") || sid.EndsWith("-516") || sid.EndsWith("-519") ||
+                            sid.EndsWith("-520") || sid.Equals("S-1-5-32-544") || sid.Equals("S-1-5-32-550") ||
+                            sid.Equals("S-1-5-32-549") || sid.Equals("S-1-5-32-551") || sid.Equals("S-1-5-32-548"))
+                        {
+                            obj.Properties.Add("highvalue", true);
+                        }
+                        else
+                        {
+                            obj.Properties.Add("highvalue", false);
+                        }
 
                         obj.Properties.Add("domain", domain);
                         obj.Properties.Add("objectsid", sid);
@@ -935,6 +966,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("objectsid", sid);
+                        obj.Properties.Add("highvalue", false);
                         obj.Properties.Add("domain", domain);
 
 
@@ -1040,6 +1072,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("objectsid", sid);
+                        obj.Properties.Add("highvalue", true);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
@@ -1057,6 +1090,8 @@ namespace Sharphound2.Enumeration
                             Name = resolved.BloodHoundDisplay,
                             Guid = entry.GetProp("name").Replace("{", "").Replace("}", "")
                         };
+
+                        obj.Properties.Add("highvalue", false);
 
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
@@ -1090,6 +1125,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("name", resolved.BloodHoundDisplay);
+                        obj.Properties.Add("highvalue", false);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
@@ -1106,7 +1142,7 @@ namespace Sharphound2.Enumeration
             }, TaskCreationOptions.LongRunning);
         }
 
-        private static JsonTextWriter CreateFileStream(string baseName)
+        private JsonTextWriter CreateFileStream(string baseName)
         {
             var fileName = Utils.GetJsonFileName(baseName);
             Utils.AddUsedFile(fileName);
@@ -1116,7 +1152,8 @@ namespace Sharphound2.Enumeration
                 throw new Exception($"File {fileName} already exists, throwing exception!");
             }
             var writer = new StreamWriter(fileName, false, Encoding.UTF8);
-            var jw = new JsonTextWriter(writer) {Formatting = Formatting.Indented};
+            var format = _options.PrettyJson ? Formatting.Indented : Formatting.None;
+            var jw = new JsonTextWriter(writer) {Formatting = format};
 
             jw.WriteStartObject();
             jw.WritePropertyName(baseName);

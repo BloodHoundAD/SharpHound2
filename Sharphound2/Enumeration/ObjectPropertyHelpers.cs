@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
+using System.Linq;
 using System.Security.Principal;
 using Sharphound2.JsonObjects;
 
@@ -101,16 +103,38 @@ namespace Sharphound2.Enumeration
                 return;
             }
             var uac = entry.GetProp("useraccountcontrol");
-            bool enabled;
+            bool enabled, trustedToAuth;
             if (int.TryParse(uac, out var flag))
             {
                 var flags = (UacFlags)flag;
                 enabled = (flags & UacFlags.AccountDisable) == 0;
+                trustedToAuth = (flags & UacFlags.TrustedToAuthForDelegation) != 0;
             }
             else
             {
+                trustedToAuth = false;
                 enabled = true;
             }
+
+            var comps = new List<string>();
+
+            if (trustedToAuth)
+            {
+                var delegates = entry.GetPropArray("msds-allowedToDelegateTo");
+                obj.Properties.Add("allowedtodelegate", delegates);
+
+                foreach (var d in delegates)
+                {
+                    var hname = d.Contains("/") ? d.Split('/')[1] : d;
+                    hname = hname.Split(':')[0];
+                    var resolvedHost = Utils.Instance.ResolveHost(hname);
+                    if (resolvedHost.Contains("."))
+                    {
+                        comps.Add(resolvedHost.ToUpper());
+                    }
+                }
+            }
+            obj.AllowedToDelegate = comps.Distinct().ToArray();
 
             obj.Properties.Add("enabled", enabled);
             //var history = entry.GetPropBytes("sidhistory");
@@ -145,19 +169,40 @@ namespace Sharphound2.Enumeration
                 return;
             }
             var uac = entry.GetProp("useraccountcontrol");
-            bool enabled;
-            bool unconstrained;
+            bool enabled, unconstrained, trustedToAuth;
             if (int.TryParse(uac, out var flag))
             {
                 var flags = (UacFlags)flag;
                 enabled = (flags & UacFlags.AccountDisable) == 0;
                 unconstrained = (flags & UacFlags.TrustedForDelegation) == UacFlags.TrustedForDelegation;
+                trustedToAuth = (flags & UacFlags.TrustedToAuthForDelegation) != 0;
             }
             else
             {
                 unconstrained = false;
                 enabled = true;
+                trustedToAuth = false;
             }
+
+            var comps = new List<string>();
+
+            if (trustedToAuth)
+            {
+                var delegates = entry.GetPropArray("msds-allowedToDelegateTo");
+                obj.Properties.Add("allowedtodelegate", delegates);
+
+                foreach (var d in delegates)
+                {
+                    var hname = d.Contains("/") ? d.Split('/')[1] : d;
+                    hname = hname.Split(':')[0];
+                    var resolvedHost = Utils.Instance.ResolveHost(hname);
+                    if (resolvedHost.Contains("."))
+                    {
+                        comps.Add(resolvedHost.ToUpper());
+                    }
+                }
+            }
+            obj.AllowedToDelegate = comps.Distinct().ToArray();
 
             obj.Properties.Add("enabled", enabled);
             obj.Properties.Add("unconstraineddelegation", unconstrained);

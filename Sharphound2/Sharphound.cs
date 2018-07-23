@@ -45,6 +45,9 @@ namespace Sharphound2
             [Option(HelpText = "Prefix for Json file names", DefaultValue = "")]
             public string JsonPrefix { get; set; }
 
+            [Option(DefaultValue = false)]
+            public bool PrettyJson { get; set; }
+
             [Option(DefaultValue = 0)]
             public int LdapPort { get; set; }
 

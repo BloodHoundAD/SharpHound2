@@ -4,6 +4,7 @@ using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Security.Principal;
+using System.Text;
 using Newtonsoft.Json;
 using Sharphound2.Enumeration;
 
@@ -179,10 +180,15 @@ namespace Sharphound2
                 return null;
 
             var s = result.Attributes["objectsid"][0];
-            if (!(s is byte[]))
-                return null;
+            switch (s)
+            {
+                case byte[] b:
+                    return new SecurityIdentifier(b, 0).ToString();
+                case string st:
+                    return new SecurityIdentifier(Encoding.ASCII.GetBytes(st), 0).ToString();
+            }
 
-            return new SecurityIdentifier(s as byte[], 0).ToString();
+            return null;
         }
     }
 }

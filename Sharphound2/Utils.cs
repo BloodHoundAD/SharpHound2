@@ -31,12 +31,14 @@ namespace Sharphound2
         private static readonly Random Rnd = new Random();
         private readonly List<string> _domainList;
         private readonly Cache _cache;
+        private static string _fileTimeStamp;
 
         private static readonly List<string> UsedFiles = new List<string>();
 
         public static void CreateInstance(Sharphound.Options cli)
         {
             Instance = new Utils(cli);
+            _fileTimeStamp = $"{DateTime.Now:yyyyMMddHHmmss}";
         }
 
         public static Utils Instance { get; private set; }
@@ -686,7 +688,7 @@ namespace Sharphound2
             }
             else
             {
-                usedFName = $"{DateTime.Now:yyyyMMddHHmmss}_{usedFName}.json";
+                usedFName = $"{_fileTimeStamp}_{usedFName}.json";
             }
             var f = _options.JsonPrefix.Equals("") ? usedFName : $"{_options.JsonPrefix}_{usedFName}.json";
 
@@ -736,7 +738,7 @@ namespace Sharphound2
                 }
                 else
                 {
-                    usedname = $"{DateTime.Now:yyyyMMddHHmmssfff}_BloodHound.zip";
+                    usedname = $"{_fileTimeStamp}_BloodHound.zip";
                 }
             }
             var zipfilepath = GetZipFileName(usedname);
