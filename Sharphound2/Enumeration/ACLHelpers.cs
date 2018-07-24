@@ -903,7 +903,6 @@ namespace Sharphound2.Enumeration
 
                 //Convert our right to an ActiveDirectoryRight enum object, and then to a string
                 var adRight = (ActiveDirectoryRights)Enum.ToObject(typeof(ActiveDirectoryRights), qAce.AccessMask);
-                var adRightString = adRight.ToString();
 
                 //Get the ACE for our right
                 var ace = qAce as ObjectAce;
