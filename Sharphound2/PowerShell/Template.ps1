@@ -257,7 +257,7 @@ function Invoke-BloodHound{
 
         [ValidatePattern('[0-9]+[smdh]')]
         [string]
-        $LoopEndTime,
+        $MaxLoopTime,
 
         [Switch]
         $CompressData,

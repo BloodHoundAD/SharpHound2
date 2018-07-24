@@ -12,13 +12,12 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            var c = new Computer
+            var forest = Utils.Instance.GetForest().Schema.Name;
+            foreach (var s in Utils.Instance.DoSearch("(schemaIDGUID=*)", SearchScope.Subtree, new []{"schemaidguid", "name"},adsPath:forest))
             {
-                Name = "abc"
-            };
-            var dict = new Dictionary<string, object> {{"os", "test"}, {"log", 123}};
-            c.Properties = dict;
-            Console.WriteLine(JsonConvert.SerializeObject(c));
+                Console.WriteLine(s.GetProp("schemaidguid"));
+                Console.WriteLine(s.GetProp("name"));
+            }
         }
     }
 }

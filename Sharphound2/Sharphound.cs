@@ -629,6 +629,7 @@ General Options
                 resolved = resolved | ResolvedCollectionMethod.LoggedOnLoop;
             }
 
+
             if ((resolved & ResolvedCollectionMethod.SessionLoop) != 0)
             {
                 Console.WriteLine(options.MaxLoopTime == null
@@ -645,7 +646,14 @@ General Options
 
             Console.WriteLine($"Resolved Collection Methods to {resolved}");
 
+            if ((resolved & ResolvedCollectionMethod.ACL) != 0)
+            {
+                Utils.Verbose("Building GUID Cache");
+                AclHelpers.BuildGuidCache();
+            }
+
             options.ResolvedCollMethods = resolved;
+
             var runner = new EnumerationRunner(options);
 
             if (options.Stealth)

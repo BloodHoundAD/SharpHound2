@@ -773,6 +773,26 @@ namespace Sharphound2.Enumeration
             }, TaskCreationOptions.LongRunning);
         }
 
+        private JsonTextWriter CreateFileStream(string baseName)
+        {
+            var fileName = Utils.GetJsonFileName(baseName);
+            Utils.AddUsedFile(fileName);
+            var e = File.Exists(fileName);
+            if (e)
+            {
+                throw new Exception($"File {fileName} already exists, throwing exception!");
+            }
+            var writer = new StreamWriter(fileName, false, Encoding.UTF8);
+            var format = _options.PrettyJson ? Formatting.Indented : Formatting.None;
+            var jw = new JsonTextWriter(writer) { Formatting = format };
+
+            jw.WriteStartObject();
+            jw.WritePropertyName(baseName);
+            jw.WriteStartArray();
+
+            return jw;
+        }
+
         private Task StartListRunner(BlockingCollection<Wrapper<string>> input, BlockingCollection<Wrapper<JsonBase>> output)
         {
             return Task.Factory.StartNew(() =>
@@ -1140,26 +1160,6 @@ namespace Sharphound2.Enumeration
                     wrapper.Item = null;
                 }
             }, TaskCreationOptions.LongRunning);
-        }
-
-        private JsonTextWriter CreateFileStream(string baseName)
-        {
-            var fileName = Utils.GetJsonFileName(baseName);
-            Utils.AddUsedFile(fileName);
-            var e = File.Exists(fileName);
-            if (e)
-            {
-                throw new Exception($"File {fileName} already exists, throwing exception!");
-            }
-            var writer = new StreamWriter(fileName, false, Encoding.UTF8);
-            var format = _options.PrettyJson ? Formatting.Indented : Formatting.None;
-            var jw = new JsonTextWriter(writer) {Formatting = format};
-
-            jw.WriteStartObject();
-            jw.WritePropertyName(baseName);
-            jw.WriteStartArray();
-        
-            return jw;
         }
     }
 }

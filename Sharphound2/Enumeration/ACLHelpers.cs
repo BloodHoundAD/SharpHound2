@@ -5,6 +5,7 @@ using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Security.AccessControl;
 using Sharphound2.JsonObjects;
+using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
 namespace Sharphound2.Enumeration
 {
@@ -13,11 +14,24 @@ namespace Sharphound2.Enumeration
         private static Utils _utils;
         private static ConcurrentDictionary<string, byte> _nullSids;
         private static readonly string[] Props = { "distinguishedname", "samaccounttype", "samaccountname", "dnshostname" };
+        private static ConcurrentDictionary<string, string> _guidMap;
 
         public static void Init()
         {
             _utils = Utils.Instance;
             _nullSids = new ConcurrentDictionary<string, byte>();
+            _guidMap = new ConcurrentDictionary<string, string>();
+        }
+
+        internal static void BuildGuidCache()
+        {
+            var schema = _utils.GetForest().Schema.Name;
+            foreach (var entry in _utils.DoSearch("(schemaIDGUID=*)", SearchScope.Subtree, new[] { "schemaidguid", "name" }, adsPath: schema))
+            {
+                var name = entry.GetProp("name");
+                var guid = new Guid(entry.GetPropBytes("schemaidguid")).ToString();
+                _guidMap.TryAdd(guid, name);
+            }
         }
 
         public static void GetObjectAces(SearchResultEntry entry, ResolvedEntry resolved, ref Domain u)
@@ -787,6 +801,219 @@ namespace Sharphound2.Enumeration
                         PrincipalType = mappedPrincipal.ObjectType,
                         RightName = "WriteDacl"
                     });
+                }
+            }
+
+            g.Aces = aces.ToArray();
+        }
+
+        public static void GetObjectAces(SearchResultEntry entry, ResolvedEntry resolved, ref Computer g)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ACL))
+                return;
+
+            //We only care about computers if they have LAPS installed
+            if (entry.GetProp("ms-mcs-admpwdexpirationtime") == null)
+                return;
+            
+
+            var aces = new List<ACL>();
+            var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
+            //If the ntsecuritydescriptor is null, no point in continuing
+            //I'm still not entirely sure what causes this, but it can happen
+            if (ntSecurityDescriptor == null)
+            {
+                return;
+            }
+
+            var domainName = Utils.ConvertDnToDomain(entry.DistinguishedName);
+
+            //Convert the ntsecuritydescriptor bytes to a .net object
+            var descriptor = new RawSecurityDescriptor(ntSecurityDescriptor, 0);
+
+            //Grab the DACL
+            var rawAcl = descriptor.DiscretionaryAcl;
+            //Grab the Owner
+            var ownerSid = descriptor.Owner.ToString();
+
+            //Determine the owner of the object. Start by checking if we've already determined this is null
+            if (!_nullSids.TryGetValue(ownerSid, out _))
+            {
+                //Check if its a common SID
+                if (!MappedPrincipal.GetCommon(ownerSid, out var owner))
+                {
+                    //Resolve the sid manually if we still dont have it
+                    var ownerDomain = _utils.SidToDomainName(ownerSid) ?? domainName;
+                    owner = _utils.UnknownSidTypeToDisplay(ownerSid, ownerDomain, Props);
+                }
+                else
+                {
+                    owner.PrincipalName = $"{owner.PrincipalName}@{domainName}";
+                }
+
+                //Filter out the Local System principal which pretty much every entry has
+                if (owner != null && !owner.PrincipalName.Contains("LOCAL SYSTEM") && !owner.PrincipalName.Contains("CREATOR OWNER"))
+                {
+                    aces.Add(new ACL
+                    {
+                        AceType = "",
+                        RightName = "Owner",
+                        PrincipalName = owner.PrincipalName,
+                        PrincipalType = owner.ObjectType
+                    });
+                }
+                else
+                {
+                    //We'll cache SIDs we've failed to resolve previously so we dont keep trying
+                    _nullSids.TryAdd(ownerSid, new byte());
+                }
+            }
+
+            foreach (var genericAce in rawAcl)
+            {
+                var qAce = genericAce as QualifiedAce;
+                if (qAce == null)
+                    continue;
+
+                var objectSid = qAce.SecurityIdentifier.ToString();
+                if (_nullSids.TryGetValue(objectSid, out _))
+                    continue;
+
+                //Check if its a common sid
+                if (!MappedPrincipal.GetCommon(objectSid, out var mappedPrincipal))
+                {
+                    //If not common, lets resolve it normally
+                    var objectDomain =
+                        _utils.SidToDomainName(objectSid) ??
+                        domainName;
+                    mappedPrincipal = _utils.UnknownSidTypeToDisplay(objectSid, objectDomain, Props);
+                    if (mappedPrincipal == null)
+                    {
+                        _nullSids.TryAdd(objectSid, new byte());
+                        continue;
+                    }
+                }
+                else
+                {
+                    mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
+                }
+
+                if (mappedPrincipal.PrincipalName.Contains("LOCAL SYSTEM") || mappedPrincipal.PrincipalName.Contains("CREATOR OWNER"))
+                    continue;
+
+                //Convert our right to an ActiveDirectoryRight enum object, and then to a string
+                var adRight = (ActiveDirectoryRights)Enum.ToObject(typeof(ActiveDirectoryRights), qAce.AccessMask);
+                var adRightString = adRight.ToString();
+
+                //Get the ACE for our right
+                var ace = qAce as ObjectAce;
+                var guid = ace != null ? ace.ObjectAceType.ToString() : "";
+
+                var inheritedObjectType = ace != null ? ace.InheritedObjectAceType.ToString() : "00000000-0000-0000-0000-000000000000";
+
+                var isInherited = inheritedObjectType == "00000000-0000-0000-0000-000000000000" ||
+                                  inheritedObjectType == "bf967a86-0de6-11d0-a285-00aa003049e2";
+
+                if (!isInherited && !((ace.AceFlags & AceFlags.InheritOnly) == AceFlags.InheritOnly) && (ace.AceFlags & AceFlags.Inherited) != AceFlags.Inherited)
+                {
+                    //If these conditions hold the ACE applies to this object anyway
+                    isInherited = true;
+                }
+
+                if (!isInherited)
+                    continue;
+
+                var toContinue = false;
+
+                _guidMap.TryGetValue(guid, out var mappedGuid);
+
+                //Interesting Computer ACEs - GenericAll, WriteDacl, WriteOwner, ExtendedRight
+                toContinue |= (adRight & ActiveDirectoryRights.WriteDacl) != 0 ||
+                              (adRight & ActiveDirectoryRights.WriteOwner) != 0;
+
+                if ((adRight & ActiveDirectoryRights.GenericAll) != ActiveDirectoryRights.GenericAll)
+                {
+                    toContinue |= "00000000-0000-0000-0000-000000000000".Equals(guid) || guid.Equals("") || toContinue;
+                    toContinue |= mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd" || toContinue;
+                }
+
+                if ((adRight & ActiveDirectoryRights.ExtendedRight) != 0)
+                {
+                    toContinue |= guid.Equals("00000000-0000-0000-0000-000000000000") || guid.Equals("") || toContinue;
+                    toContinue |= mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd" || toContinue;
+                }
+
+                if (!toContinue)
+                    continue;
+
+                if ((adRight & ActiveDirectoryRights.GenericAll) != ActiveDirectoryRights.GenericAll)
+                {
+                    if (mappedGuid == "ms-Mcs-AdmPwd")
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "",
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType,
+                            RightName = "ReadLAPSPassword"
+                        });
+                    }
+                    else
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "",
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType,
+                            RightName = "GenericAll"
+                        });
+                    }
+                }
+
+                if ((adRight & ActiveDirectoryRights.WriteOwner) != 0)
+                {
+                    aces.Add(new ACL
+                    {
+                        AceType = "",
+                        PrincipalName = mappedPrincipal.PrincipalName,
+                        PrincipalType = mappedPrincipal.ObjectType,
+                        RightName = "WriteOwner"
+                    });
+                }
+
+                if ((adRight & ActiveDirectoryRights.WriteDacl) != 0)
+                {
+                    aces.Add(new ACL
+                    {
+                        AceType = "",
+                        PrincipalName = mappedPrincipal.PrincipalName,
+                        PrincipalType = mappedPrincipal.ObjectType,
+                        RightName = "WriteDacl"
+                    });
+                }
+
+                if ((adRight & ActiveDirectoryRights.ExtendedRight) != 0)
+                {
+                    if (mappedGuid == "ms-Mcs-AdmPwd")
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "",
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType,
+                            RightName = "ReadLAPSPassword"
+                        });
+                    }
+                    else
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "All",
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType,
+                            RightName = "ExtendedRight"
+                        });
+                    }
                 }
             }
 
