@@ -816,7 +816,6 @@ namespace Sharphound2.Enumeration
             if (entry.GetProp("ms-mcs-admpwdexpirationtime") == null)
                 return;
             
-
             var aces = new List<ACL>();
             var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
             //If the ntsecuritydescriptor is null, no point in continuing
@@ -903,6 +902,7 @@ namespace Sharphound2.Enumeration
 
                 //Convert our right to an ActiveDirectoryRight enum object, and then to a string
                 var adRight = (ActiveDirectoryRights)Enum.ToObject(typeof(ActiveDirectoryRights), qAce.AccessMask);
+                var adRightString = adRight.ToString();
 
                 //Get the ACE for our right
                 var ace = qAce as ObjectAce;
@@ -924,19 +924,20 @@ namespace Sharphound2.Enumeration
 
                 var toContinue = false;
 
+
                 _guidMap.TryGetValue(guid, out var mappedGuid);
 
                 //Interesting Computer ACEs - GenericAll, WriteDacl, WriteOwner, ExtendedRight
-                toContinue |= (adRight & ActiveDirectoryRights.WriteDacl) != 0 ||
-                              (adRight & ActiveDirectoryRights.WriteOwner) != 0;
+                toContinue |= adRightString.Contains("WriteDacl") ||
+                               adRightString.Contains("WriteOwner");
 
-                if ((adRight & ActiveDirectoryRights.GenericAll) != ActiveDirectoryRights.GenericAll)
+                if (adRightString.Contains("GenericAll"))
                 {
                     toContinue |= "00000000-0000-0000-0000-000000000000".Equals(guid) || guid.Equals("") || toContinue;
                     toContinue |= mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd" || toContinue;
                 }
 
-                if ((adRight & ActiveDirectoryRights.ExtendedRight) != 0)
+                if (adRightString.Contains("ExtendedRight"))
                 {
                     toContinue |= guid.Equals("00000000-0000-0000-0000-000000000000") || guid.Equals("") || toContinue;
                     toContinue |= mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd" || toContinue;

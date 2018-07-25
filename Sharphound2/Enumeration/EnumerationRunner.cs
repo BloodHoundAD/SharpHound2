@@ -156,6 +156,7 @@ namespace Sharphound2.Enumeration
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
 
                         output.Add(new Wrapper<JsonBase>
                         {
@@ -1004,6 +1005,8 @@ namespace Sharphound2.Enumeration
                         
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
+                        AclHelpers.GetObjectAces(entry, resolved, ref obj);
+
                         if (!_utils.PingHost(resolved.BloodHoundDisplay))
                         {
                             Interlocked.Increment(ref _noPing);
