@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
+using System.Linq;
 using System.Security.AccessControl;
 using Sharphound2.JsonObjects;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
@@ -1017,7 +1018,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            g.Aces = aces.ToArray();
+            g.Aces = aces.Distinct().ToArray();
         }
     }
 }
