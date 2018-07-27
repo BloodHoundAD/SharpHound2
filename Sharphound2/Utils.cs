@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -31,6 +31,8 @@ namespace Sharphound2
         private static readonly Random Rnd = new Random();
         private readonly List<string> _domainList;
         private readonly Cache _cache;
+
+        private LdapConnection ldapConncetion = null;
 
         private static readonly List<CsvContainer> UsedFiles = new List<CsvContainer>();
 
@@ -368,8 +370,9 @@ namespace Sharphound2
         public IEnumerable<Wrapper<SearchResultEntry>> DoWrappedSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
-            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
-            {
+            var conn = GetLdapConnection(domainName);
+            //using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
+            //{
                 if (conn == null)
                 {
                     Verbose("Unable to contact LDAP");
@@ -424,15 +427,16 @@ namespace Sharphound2
 
                     prc.Cookie = pageResponse.Cookie;
                 }
-            }
+            //}
         }
 
         public IEnumerable<SearchResultEntry> DoSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
             Debug("Creating connection");
-            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
-            {
+            //using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
+            //{
+            var conn = GetLdapConnection(domainName);
                 if (conn == null)
                 {
                     Debug("Connection null");
@@ -491,12 +495,16 @@ namespace Sharphound2
 
                     prc.Cookie = pageResponse.Cookie;
                 }
-            }
+            //}
         }
 
 
         public LdapConnection GetLdapConnection(string domainName = null)
         {
+            if (ldapConncetion != null)
+            {
+                return ldapConncetion;
+            }
             Domain targetDomain;
             try
             {
@@ -541,6 +549,7 @@ namespace Sharphound2
             }
 
             lso.ReferralChasing = ReferralChasingOptions.None;
+            ldapConncetion = connection;
             return connection;
         }
 
@@ -1089,3 +1098,4 @@ namespace Sharphound2
         #endregion
     }
 }
+
