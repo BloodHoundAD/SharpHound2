@@ -33,6 +33,9 @@ namespace Sharphound2
         private readonly Cache _cache;
         private static string _fileTimeStamp;
 
+        private readonly Dictionary<string, LdapConnection> _ldapConnectionCache;
+        private readonly Dictionary<string, LdapConnection> _gcConnectionCache;
+
         private static readonly List<string> UsedFiles = new List<string>();
 
         public static void CreateInstance(Sharphound.Options cli)
@@ -65,6 +68,8 @@ namespace Sharphound2
             _cache = Cache.Instance;
             _domainList = CreateDomainList();
             _pingTimeout = TimeSpan.FromMilliseconds(_options.PingTimeout);
+            _ldapConnectionCache = new Dictionary<string, LdapConnection>();
+            _gcConnectionCache = new Dictionary<string, LdapConnection>();
         }
 
         public static bool IsMethodSet(ResolvedCollectionMethod method)
@@ -339,62 +344,61 @@ namespace Sharphound2
         public IEnumerable<Wrapper<SearchResultEntry>> DoWrappedSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
-            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
+            var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName);
+            
+            if (conn == null)
             {
-                if (conn == null)
+                Verbose("Unable to contact LDAP");
+                yield break;
+            }
+            var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
+
+            if (request == null)
+            {
+                Verbose($"Unable to contact domain {domainName}");
+                yield break;
+            }
+
+            var prc = new PageResultRequestControl(500);
+            request.Controls.Add(prc);
+
+            if (IsMethodSet(ResolvedCollectionMethod.ACL))
+            {
+                var sdfc =
+                    new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
+                request.Controls.Add(sdfc);
+            }
+
+            PageResultResponseControl pageResponse = null;
+            while (true)
+            {
+                SearchResponse response;
+                try
                 {
-                    Verbose("Unable to contact LDAP");
+                    response = (SearchResponse) conn.SendRequest(request);
+                    if (response != null)
+                    {
+                        pageResponse = (PageResultResponseControl) response.Controls[0];
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug("Exception in Domain Searcher.");
+                    Debug(e.Message);
                     yield break;
                 }
-                var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
-
-                if (request == null)
+                if (response == null || pageResponse == null) continue;
+                foreach (SearchResultEntry entry in response.Entries)
                 {
-                    Verbose($"Unable to contact domain {domainName}");
-                    yield break;
+                    yield return new Wrapper<SearchResultEntry>{Item = entry};
                 }
 
-                var prc = new PageResultRequestControl(500);
-                request.Controls.Add(prc);
-
-                if (IsMethodSet(ResolvedCollectionMethod.ACL))
+                if (pageResponse.Cookie.Length == 0)
                 {
-                    var sdfc =
-                        new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
-                    request.Controls.Add(sdfc);
+                    break;
                 }
 
-                PageResultResponseControl pageResponse = null;
-                while (true)
-                {
-                    SearchResponse response;
-                    try
-                    {
-                        response = (SearchResponse) conn.SendRequest(request);
-                        if (response != null)
-                        {
-                            pageResponse = (PageResultResponseControl) response.Controls[0];
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Debug("Exception in Domain Searcher.");
-                        Debug(e.Message);
-                        yield break;
-                    }
-                    if (response == null || pageResponse == null) continue;
-                    foreach (SearchResultEntry entry in response.Entries)
-                    {
-                        yield return new Wrapper<SearchResultEntry>{Item = entry};
-                    }
-
-                    if (pageResponse.Cookie.Length == 0)
-                    {
-                        break;
-                    }
-
-                    prc.Cookie = pageResponse.Cookie;
-                }
+                prc.Cookie = pageResponse.Cookie;
             }
         }
 
@@ -402,66 +406,65 @@ namespace Sharphound2
             string domainName = null, string adsPath = null, bool useGc = false)
         {
             Debug("Creating connection");
-            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
+            var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName);
+            
+            if (conn == null)
             {
-                if (conn == null)
+                Debug("Connection null");
+                yield break;
+            }
+            Debug("Getting search request");
+            var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
+
+            if (request == null)
+            {
+                Debug($"Unable to contact domain {domainName}");
+                Verbose($"Unable to contact domain {domainName}");
+                yield break;
+            }
+
+            Debug("Creating page control");
+            var prc = new PageResultRequestControl(500);
+            request.Controls.Add(prc);
+
+            if (IsMethodSet(ResolvedCollectionMethod.ACL))
+            {
+                var sdfc =
+                    new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
+                request.Controls.Add(sdfc);
+            }
+
+            PageResultResponseControl pageResponse = null;
+            Debug("Starting loop");
+            while (true)
+            {
+                SearchResponse response;
+                try
                 {
-                    Debug("Connection null");
+                    response = (SearchResponse)conn.SendRequest(request);
+                    if (response != null)
+                    {
+                        pageResponse = (PageResultResponseControl)response.Controls[0];
+                    }
+                }
+                catch
+                {
+                    Debug("Error in loop");
                     yield break;
                 }
-                Debug("Getting search request");
-                var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
-
-                if (request == null)
+                if (response == null || pageResponse == null) continue;
+                foreach (SearchResultEntry entry in response.Entries)
                 {
-                    Debug($"Unable to contact domain {domainName}");
-                    Verbose($"Unable to contact domain {domainName}");
+                    yield return entry;
+                }
+
+                if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
+                {
+                    Debug("Loop finished");
                     yield break;
                 }
 
-                Debug("Creating page control");
-                var prc = new PageResultRequestControl(500);
-                request.Controls.Add(prc);
-
-                if (IsMethodSet(ResolvedCollectionMethod.ACL))
-                {
-                    var sdfc =
-                        new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
-                    request.Controls.Add(sdfc);
-                }
-
-                PageResultResponseControl pageResponse = null;
-                Debug("Starting loop");
-                while (true)
-                {
-                    SearchResponse response;
-                    try
-                    {
-                        response = (SearchResponse)conn.SendRequest(request);
-                        if (response != null)
-                        {
-                            pageResponse = (PageResultResponseControl)response.Controls[0];
-                        }
-                    }
-                    catch
-                    {
-                        Debug("Error in loop");
-                        yield break;
-                    }
-                    if (response == null || pageResponse == null) continue;
-                    foreach (SearchResultEntry entry in response.Entries)
-                    {
-                        yield return entry;
-                    }
-
-                    if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
-                    {
-                        Debug("Loop finished");
-                        yield break;
-                    }
-
-                    prc.Cookie = pageResponse.Cookie;
-                }
+                prc.Cookie = pageResponse.Cookie;
             }
         }
 
@@ -487,13 +490,17 @@ namespace Sharphound2
 
             var domainController = _options.DomainController ?? targetDomain.Name;
 
+            if (_ldapConnectionCache.TryGetValue(domainController, out var conn))
+            {
+                return conn;
+            }
+
             var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
 
             var identifier =
                 new LdapDirectoryIdentifier(domainController, port, false, false);
 
             var connection = new LdapConnection(identifier) {Timeout = new TimeSpan(0,0,5,0)};
-
 
             if (_options.LdapPass != null && _options.LdapUser != null)
             {
@@ -519,7 +526,16 @@ namespace Sharphound2
             }
 
             lso.ReferralChasing = ReferralChasingOptions.None;
+            _ldapConnectionCache.Add(domainController, connection);
             return connection;
+        }
+
+        internal void KillConnections()
+        {
+            foreach (var d in _ldapConnectionCache)
+            {
+                d.Value.Dispose();
+            }
         }
 
         public LdapConnection GetGcConnection(string domainName = null)
@@ -534,13 +550,19 @@ namespace Sharphound2
                 Verbose($"Unable to contact domain {domainName}");
                 return null;
             }
-            var connection = new LdapConnection(new LdapDirectoryIdentifier(targetDomain.Name, 3268));
+            var name = targetDomain.Name;
+            if (_gcConnectionCache.TryGetValue(name, out var conn))
+            {
+                return conn;
+            }
+            var connection = new LdapConnection(new LdapDirectoryIdentifier(name, 3268));
 
             var lso = connection.SessionOptions;
             if (_options.DisableKerbSigning) return connection;
             lso.Signing = true;
             lso.Sealing = true;
 
+            _gcConnectionCache.Add(name, connection);
             return connection;
         }
 

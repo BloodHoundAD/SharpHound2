@@ -513,15 +513,13 @@ General Options
             //Lets test our connection to LDAP before we do anything else
             try
             {
-                using (var conn = Utils.Instance.GetLdapConnection(options.Domain))
+                var conn = Utils.Instance.GetLdapConnection(options.Domain);
+                if (conn == null)
                 {
-                    if (conn == null)
-                    {
-                        Console.WriteLine("LDAP connection test failed, probably can't contact domain");
-                        return;
-                    }
-                    conn.Bind();
+                    Console.WriteLine("LDAP connection test failed, probably can't contact domain");
+                    return;
                 }
+                conn.Bind();
             }
             catch (LdapException)
             {
@@ -674,6 +672,7 @@ General Options
             Console.WriteLine();
 
             Cache.Instance.SaveCache();
+            Utils.Instance.KillConnections();
 
             if (!options.NoZip)
             {
