@@ -745,6 +745,19 @@ namespace Sharphound2
             UsedFiles.Add(file);
         }
 
+        //Sample code from https://stackoverflow.com/questions/54991/generating-random-passwords
+        private static string GenerateZipPass()
+        {
+            const string space = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+            var builder = new StringBuilder();
+            var random = new Random();
+            for (var i = 0; i < 10; i++)
+            {
+                builder.Append(space[random.Next(space.Length)]);
+            }
+            return builder.ToString();
+        }
+
         internal static void CompressFiles()
         {
             string usedname;
@@ -766,12 +779,26 @@ namespace Sharphound2
             var zipfilepath = GetZipFileName(usedname);
 
             Console.WriteLine($"Compressing data to {zipfilepath}.");
-            Console.WriteLine("You can upload this file directly to the UI.");
+            var password = GenerateZipPass();
+            if (_options.EncryptZip)
+            {
+                Console.WriteLine($"Password for zip file is {password}");
+                Console.WriteLine("Unzip the files manually to upload to the interface");
+            }
+            else
+            {
+                Console.WriteLine("You can upload this file directly to the UI.");
+            }
 
             var buffer = new byte[4096];
+            
             using (var s = new ZipOutputStream(File.Create(zipfilepath)))
             {
                 s.SetLevel(9);
+                if (_options.EncryptZip)
+                {
+                    s.Password = password;
+                }
                 foreach (var file in UsedFiles)
                 {
                     var entry = new ZipEntry(Path.GetFileName(file)) {DateTime = DateTime.Now};
@@ -1013,25 +1040,6 @@ namespace Sharphound2
                     break;
             }
             return result;
-        }
-
-        //Thanks to Ed Bayiates on Stack Overflow for this. https://stackoverflow.com/questions/6377454/escaping-tricky-string-to-csv-format
-        internal static string StringToCsvCell(string str)
-        {
-            if (str == null)
-                return null;
-            var mustQuote = (str.Contains(",") || str.Contains("\"") || str.Contains("\r") || str.Contains("\n"));
-            if (!mustQuote) return str;
-            var sb = new StringBuilder();
-            sb.Append("\"");
-            foreach (var nextChar in str)
-            {
-                sb.Append(nextChar);
-                if (nextChar == '"')
-                    sb.Append("\"");
-            }
-            sb.Append("\"");
-            return sb.ToString();
         }
 
         #region PINVOKE

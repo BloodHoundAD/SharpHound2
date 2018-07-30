@@ -51,12 +51,6 @@ namespace Sharphound2
             [Option(DefaultValue = 0)]
             public int LdapPort { get; set; }
 
-            //[Option(DefaultValue = null)]
-            //public string Uri { get; set; }
-
-            //[Option(DefaultValue = null)]
-            //public string UserPass { get; set; }
-
             [Option(HelpText ="Interval to display progress in milliseconds", DefaultValue =30000)]
             public int StatusInterval { get; set; }
 
@@ -107,6 +101,9 @@ namespace Sharphound2
 
             [Option(DefaultValue = false)]
             public bool NoZip { get; set; }
+
+            [Option(DefaultValue = false)]
+            public bool EncryptZip { get; set; }
 
             [Option(DefaultValue = null)]
             public string Test { get; set; }
