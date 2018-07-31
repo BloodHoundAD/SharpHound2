@@ -128,7 +128,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            u.Members = fMembers.ToArray();
+            u.Members = fMembers.Distinct().ToArray();
         }
 
         internal static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref User u)

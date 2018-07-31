@@ -238,7 +238,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            u.Aces = aces.ToArray();
+            u.Aces = aces.Distinct().ToArray();
         }
 
         public static void GetObjectAces(SearchResultEntry entry, ResolvedEntry resolved, ref Group u)
@@ -439,7 +439,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            u.Aces = aces.ToArray();
+            u.Aces = aces.Distinct().ToArray();
         }
 
         public static void GetObjectAces(SearchResultEntry entry, ResolvedEntry resolved, ref User u)
@@ -646,7 +646,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            u.Aces = aces.ToArray();
+            u.Aces = aces.Distinct().ToArray();
         }
 
         public static void GetObjectAces(SearchResultEntry entry, ResolvedEntry resolved, ref Gpo g)
@@ -805,7 +805,7 @@ namespace Sharphound2.Enumeration
                 }
             }
 
-            g.Aces = aces.ToArray();
+            g.Aces = aces.Distinct().ToArray();
         }
 
         public static void GetObjectAces(SearchResultEntry entry, ResolvedEntry resolved, ref Computer g)

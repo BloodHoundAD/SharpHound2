@@ -33,8 +33,8 @@ namespace Sharphound2
         private readonly Cache _cache;
         private static string _fileTimeStamp;
 
-        private readonly Dictionary<string, LdapConnection> _ldapConnectionCache;
-        private readonly Dictionary<string, LdapConnection> _gcConnectionCache;
+        private readonly ConcurrentDictionary<string, LdapConnection> _ldapConnectionCache;
+        private readonly ConcurrentDictionary<string, LdapConnection> _gcConnectionCache;
 
         private static readonly List<string> UsedFiles = new List<string>();
 
@@ -68,8 +68,8 @@ namespace Sharphound2
             _cache = Cache.Instance;
             _domainList = CreateDomainList();
             _pingTimeout = TimeSpan.FromMilliseconds(_options.PingTimeout);
-            _ldapConnectionCache = new Dictionary<string, LdapConnection>();
-            _gcConnectionCache = new Dictionary<string, LdapConnection>();
+            _ldapConnectionCache = new ConcurrentDictionary<string, LdapConnection>();
+            _gcConnectionCache = new ConcurrentDictionary<string, LdapConnection>();
         }
 
         public static bool IsMethodSet(ResolvedCollectionMethod method)
@@ -526,7 +526,7 @@ namespace Sharphound2
             }
 
             lso.ReferralChasing = ReferralChasingOptions.None;
-            _ldapConnectionCache.Add(domainController, connection);
+            _ldapConnectionCache.TryAdd(domainController, connection);
             return connection;
         }
 
@@ -562,7 +562,7 @@ namespace Sharphound2
             lso.Signing = true;
             lso.Sealing = true;
 
-            _gcConnectionCache.Add(name, connection);
+            _gcConnectionCache.TryAdd(name, connection);
             return connection;
         }
 
