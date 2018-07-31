@@ -132,14 +132,16 @@ namespace Sharphound2
             [HelpOption]
             public string GetUsage()
             {
-                var text = @"SharpHound v1.0.0
+                var text = @"SharpHound v2.0.0
 Usage: SharpHound.exe <options>
 
 Enumeration Options:
     -c , --CollectionMethod (Default: Default)
         Default - Enumerate Trusts, Sessions, Local Admin, and Group Membership
         Group - Enumerate Group Membership
-        LocalAdmin - Enumerate Local Admin
+        LocalAdmin - Enumerate the Administrators Group
+        DCOM - Enumerate the Distributed COM Users Group
+        RDP - Enumerate the Remote Desktop Users Group
         Session - Enumerate Sessions
         SessionLoop - Continuously Enumerate Sessions
         LoggedOn - Enumerate Sessions using Elevation
@@ -148,6 +150,7 @@ Enumeration Options:
         ACL - Enumerate ACLs
         ObjectProps - Enumerate Object Properties for Users/Computers
         Container - Collects GPO/OU Structure
+        DCOnly - Enumerate Group Membership, Trusts, ACLs, ObjectProps, Containers, and GPO Local Admins
         All - Performs all enumeration methods
 
         This can be a list of comma seperated valued as well to run multiple collection methods!
@@ -172,9 +175,6 @@ Enumeration Options:
         A file containing a list of computers to enumerate. This option can only be used with the following Collection Methods:
         Session, SessionLoop, LocalAdmin, ComputerOnly, LoggedOn
 
-    --DomainController (Default: null)
-        Specify which Domain Controller to request data from. Defaults to closest DC using Site Names
-
     --ExcludeDC
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
    
@@ -190,6 +190,15 @@ Connection Options:
 
     --DisableKerbSigning
         Disables Kerberos signing on LDAP requests
+
+    --DomainController (Default: null)
+        Specify which Domain Controller to request data from. Defaults to closest DC using Site Names
+
+    --LdapUser (Default: null)
+        User to connect to LDAP with
+
+    --LdapPassword (Default: null)
+        Password for the user to connect to LDAP with
 
 Performance Tuning:
     -t , --Threads (Default: 10)
@@ -224,19 +233,20 @@ Output Options
     --JsonPrefix (Default: """")
         The prefix to add to your CSV files
 
-    --URI (Default: """")
-        The URI for the Neo4j REST API
-        Setting this option will disable CSV output
-        Format is http(s)://SERVER:PORT
+    --NoZip
+        Don't compress and remove JSON files
 
-    --UserPass (Default: """")
-        username:password for the Neo4j REST API
+    --EncryptZip
+        Add a random password to the zip files
 
-    --CompressData
-        Compress CSVs into a zip file after run
+    --ZipFileName
+        Specify the filename for the zip file
 
-    --RemoveJson
-        Removes CSVs after running. Only usable with the CompressData flag
+    -- RandomFilenames
+        Randomize output filenames
+
+    --PrettyJson
+        Output pretty JSON
 
 Cache Options
     --NoSaveCache
@@ -254,8 +264,6 @@ General Options
 
     -v , --Verbose
         Display Verbose Output
-
-
 ";
 
                 if (LastParserState?.Errors.Any() != true) return text;
