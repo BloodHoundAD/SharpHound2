@@ -12,11 +12,12 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            var forest = Utils.Instance.GetForest().Schema.Name;
-            foreach (var s in Utils.Instance.DoSearch("(schemaIDGUID=*)", SearchScope.Subtree, new []{"schemaidguid", "name"},adsPath:forest))
+            foreach (var s in Utils.Instance.DoSearch("(objectclass=*)", SearchScope.Base, new []{"ntsecuritydescriptor", "name", "samaccounttype"}, adsPath: host))
             {
-                Console.WriteLine(s.GetProp("schemaidguid"));
                 Console.WriteLine(s.GetProp("name"));
+                var a = new Group();
+                
+                AclHelpers.GetObjectAces(s, s.ResolveAdEntry(), ref a);
             }
         }
     }

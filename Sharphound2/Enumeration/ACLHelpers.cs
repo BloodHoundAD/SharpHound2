@@ -140,9 +140,15 @@ namespace Sharphound2.Enumeration
                 var isInherited = inheritedObjectType == "00000000-0000-0000-0000-000000000000" ||
                                   inheritedObjectType == "19195a5a-6da0-11d0-afd3-00c04fd930c9";
 
+                var flags = ace == null ? AceFlags.None : ace.AceFlags;
+                if ((flags & AceFlags.InheritOnly) != 0)
+                {
+                    isInherited = false;
+                }
+
                 //Special case used for example by Exchange: the ACE is inherited but also applies to the object it is set on
                 // this is verified by looking if this ACE is not inherited, and is not an inherit-only ACE
-                if (!isInherited && !((ace.AceFlags & AceFlags.InheritOnly) == AceFlags.InheritOnly) && (ace.AceFlags & AceFlags.Inherited) != AceFlags.Inherited)
+                if (!isInherited && (flags & AceFlags.InheritOnly) != AceFlags.InheritOnly && (flags & AceFlags.Inherited) != AceFlags.Inherited)
                 {
                     //If these conditions hold the ACE applies to this object anyway
                     isInherited = true;
@@ -343,9 +349,15 @@ namespace Sharphound2.Enumeration
                 var isInherited = inheritedObjectType == "00000000-0000-0000-0000-000000000000" ||
                                   inheritedObjectType == "bf967a9c-0de6-11d0-a285-00aa003049e2";
 
+                var flags = ace == null ? AceFlags.None : ace.AceFlags;
+                if ((flags & AceFlags.InheritOnly) != 0)
+                {
+                    isInherited = false;
+                }
+                
                 //Special case used for example by Exchange: the ACE is inherited but also applies to the object it is set on
                 // this is verified by looking if this ACE is not inherited, and is not an inherit-only ACE
-                if (!isInherited && !((ace.AceFlags & AceFlags.InheritOnly) == AceFlags.InheritOnly) && (ace.AceFlags & AceFlags.Inherited) != AceFlags.Inherited)
+                if (!isInherited && (flags & AceFlags.InheritOnly) != AceFlags.InheritOnly && (flags & AceFlags.Inherited) != AceFlags.Inherited)
                 {
                     //If these conditions hold the ACE applies to this object anyway
                     isInherited = true;
@@ -368,8 +380,7 @@ namespace Sharphound2.Enumeration
 
                 if (!toContinue)
                     continue;
-
-
+                
                 if (adRightString.Contains("GenericAll"))
                 {
                     aces.Add(new ACL
@@ -544,10 +555,15 @@ namespace Sharphound2.Enumeration
                 var isInherited = inheritedObjectType == "00000000-0000-0000-0000-000000000000" ||
                                   inheritedObjectType == "bf967aba-0de6-11d0-a285-00aa003049e2";
 
+                var flags = ace == null ? AceFlags.None : ace.AceFlags;
+                if ((flags & AceFlags.InheritOnly) != 0)
+                {
+                    isInherited = false;
+                }
 
                 //Special case used for example by Exchange: the ACE is inherited but also applies to the object it is set on
                 // this is verified by looking if this ACE is not inherited, and is not an inherit-only ACE
-                if (!isInherited && !((ace.AceFlags & AceFlags.InheritOnly) == AceFlags.InheritOnly) && (ace.AceFlags & AceFlags.Inherited) != AceFlags.Inherited)
+                if (!isInherited && (flags & AceFlags.InheritOnly) != AceFlags.InheritOnly && (flags & AceFlags.Inherited) != AceFlags.Inherited)
                 {
                     //If these conditions hold the ACE applies to this object anyway
                     isInherited = true;
@@ -751,7 +767,13 @@ namespace Sharphound2.Enumeration
                 var isInherited = inheritedObjectType == "00000000-0000-0000-0000-000000000000" ||
                                   inheritedObjectType == "f30e3bc2-9ff0-11d1-b603-0000f80367c1";
 
-                if (!isInherited && !((ace.AceFlags & AceFlags.InheritOnly) == AceFlags.InheritOnly) && (ace.AceFlags & AceFlags.Inherited) != AceFlags.Inherited)
+                var flags = ace == null ? AceFlags.None : ace.AceFlags;
+                if ((flags & AceFlags.InheritOnly) != 0)
+                {
+                    isInherited = false;
+                }
+
+                if (!isInherited && (flags & AceFlags.InheritOnly) != AceFlags.InheritOnly && (flags & AceFlags.Inherited) != AceFlags.Inherited)
                 {
                     //If these conditions hold the ACE applies to this object anyway
                     isInherited = true;
