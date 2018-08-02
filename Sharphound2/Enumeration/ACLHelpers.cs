@@ -121,7 +121,15 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
+                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    {
+                        var d = _utils.GetForest().RootDomain.Name;
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
+                    }
+                    else
+                    {
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}".ToUpper();
+                    }
                 }
 
                 if (mappedPrincipal.PrincipalName.Contains("LOCAL SYSTEM") || mappedPrincipal.PrincipalName.Contains("CREATOR OWNER"))
@@ -330,7 +338,15 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
+                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    {
+                        var d = _utils.GetForest().RootDomain.Name;
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
+                    }
+                    else
+                    {
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}".ToUpper();
+                    }
                 }
 
                 if (mappedPrincipal.PrincipalName.Contains("LOCAL SYSTEM") || mappedPrincipal.PrincipalName.Contains("CREATOR OWNER"))
@@ -536,7 +552,15 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
+                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    {
+                        var d = _utils.GetForest().RootDomain.Name;
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
+                    }
+                    else
+                    {
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}".ToUpper();
+                    }
                 }
 
                 if (mappedPrincipal.PrincipalName.Contains("LOCAL SYSTEM") || mappedPrincipal.PrincipalName.Contains("CREATOR OWNER"))
@@ -748,7 +772,15 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
+                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    {
+                        var d = _utils.GetForest().RootDomain.Name;
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
+                    }
+                    else
+                    {
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}".ToUpper();
+                    }
                 }
 
                 if (mappedPrincipal.PrincipalName.Contains("LOCAL SYSTEM") || mappedPrincipal.PrincipalName.Contains("CREATOR OWNER"))
@@ -917,7 +949,15 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}";
+                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    {
+                        var d = _utils.GetForest().RootDomain.Name;
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
+                    }
+                    else
+                    {
+                        mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{domainName}".ToUpper();
+                    }
                 }
 
                 if (mappedPrincipal.PrincipalName.Contains("LOCAL SYSTEM") || mappedPrincipal.PrincipalName.Contains("CREATOR OWNER"))

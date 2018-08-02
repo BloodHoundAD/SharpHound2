@@ -271,10 +271,13 @@ namespace Sharphound2.Enumeration
                     var obj = new Group
                     {
                         Name = n,
-                        Members = _entDcs.ToArray(),
+                        Members = _entDcs.ToArray()
                     };
 
                     obj.Properties.Add("domain", f.RootDomain.Name);
+                    obj.Properties.Add("objectsid", "S-1-5-9");
+                    obj.Properties.Add("highvalue", true);
+
                     output.Add(new Wrapper<JsonBase>
                     {
                         Item = obj
@@ -620,6 +623,8 @@ namespace Sharphound2.Enumeration
                     };
 
                     obj.Properties.Add("domain", f.RootDomain.Name);
+                    obj.Properties.Add("objectsid", "S-1-5-9");
+                    obj.Properties.Add("highvalue", true);
                     output.Add(new Wrapper<JsonBase>
                     {
                         Item = obj
