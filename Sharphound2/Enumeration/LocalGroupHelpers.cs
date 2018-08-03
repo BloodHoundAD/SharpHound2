@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.Protocols;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
@@ -358,6 +359,29 @@ namespace Sharphound2.Enumeration
                     Utils.Debug($"Got Object: {mp.PrincipalName}");
                     resolvedName = mp.PrincipalName;
                     type = mp.ObjectType;
+                }else if (type == "wellknown")
+                {
+                    if (MappedPrincipal.GetCommon(sid, out var result))
+                    {
+                        string domain;
+                        try
+                        {
+                            var split = string.Join(".", entry.BloodHoundDisplay.Split('.').Skip(1).ToArray());
+                            domain = split;
+                        }
+                        catch
+                        {
+                            domain = _utils.GetDomain().Name;
+                        }
+
+                        type = result.ObjectType;
+                        resolvedName = $"{result.PrincipalName}@{domain}".ToUpper();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
                 }
                 else
                 {
