@@ -503,7 +503,7 @@ General Options
             }
 
             SessionHelpers.Init(options);
-            LocalGroupHelpers.Init();
+            LocalGroupHelpers.Init(options);
             GroupHelpers.Init();
             AclHelpers.Init();
             TrustHelpers.Init();

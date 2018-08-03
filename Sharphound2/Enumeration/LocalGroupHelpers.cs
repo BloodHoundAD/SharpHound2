@@ -22,6 +22,7 @@ namespace Sharphound2.Enumeration
     internal static class LocalGroupHelpers
     {
         private static Utils _utils;
+        private static Sharphound.Options _options;
         private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
         private static readonly Regex KeyRegex = new Regex(@"(.+?)\s*=(.*)", RegexOptions.Compiled);
 
@@ -39,9 +40,10 @@ namespace Sharphound2.Enumeration
 
         private static byte[] _sidbytes;
 
-        public static void Init()
+        public static void Init(Sharphound.Options options)
         {
             _utils = Utils.Instance;
+            _options = options;
             var sid = new SecurityIdentifier("S-1-5-32");
             _sidbytes = new byte[sid.BinaryLength];
             sid.GetBinaryForm(_sidbytes, 0);
@@ -371,7 +373,7 @@ namespace Sharphound2.Enumeration
                         }
                         catch
                         {
-                            domain = _utils.GetDomain().Name;
+                            domain = _utils.GetDomain(_options.Domain).Name;
                         }
 
                         type = result.ObjectType;
