@@ -365,6 +365,11 @@ namespace Sharphound2.Enumeration
                 {
                     if (MappedPrincipal.GetCommon(sid, out var result))
                     {
+                        if (result.PrincipalName.Equals("Local System"))
+                        {
+                            continue;
+                        }
+
                         string domain;
                         try
                         {
