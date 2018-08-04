@@ -712,7 +712,7 @@ namespace Sharphound2
             {
                 usedFName = $"{_fileTimeStamp}_{usedFName}.json";
             }
-            var f = _options.JsonPrefix.Equals("") ? usedFName : $"{_options.JsonPrefix}_{usedFName}.json";
+            var f = _options.JsonPrefix.Equals("") ? usedFName : $"{_options.JsonPrefix}_{usedFName}";
 
             f = Path.Combine(_options.JsonFolder, f);
             return f;
