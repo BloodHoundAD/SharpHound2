@@ -1,13 +1,10 @@
 ﻿using CommandLine;
 using Sharphound2.Enumeration;
 using System;
-using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Security.Principal;
-using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine.Text;
 using static Sharphound2.CollectionMethod;

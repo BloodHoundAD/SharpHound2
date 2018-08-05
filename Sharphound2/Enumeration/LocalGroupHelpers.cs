@@ -837,8 +837,11 @@ namespace Sharphound2.Enumeration
 
         private struct LsaReferencedDomainList
         {
+        #pragma warning disable 649
             internal uint count;
+
             internal IntPtr domains;
+        #pragma warning restore 649
         }
 
         private enum SidNameUse

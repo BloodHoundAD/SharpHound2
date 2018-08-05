@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
-using System.Security.Principal;
 using Sharphound2.JsonObjects;
 
 namespace Sharphound2.Enumeration

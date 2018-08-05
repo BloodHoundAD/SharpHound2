@@ -46,7 +46,8 @@ namespace Sharphound2.Enumeration
         {
             var l = _lastCount;
             var c = _currentCount;
-            var progressStr = $"Status: {c} objects enumerated (+{c - l} {(float)c / (_watch.ElapsedMilliseconds / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024 } MB RAM )";
+            var progressStr =
+                $"Status: {c} objects enumerated (+{c - l} {(float) c / (_watch.ElapsedMilliseconds / 1000)}/s --- Using {Process.GetCurrentProcess().PrivateMemorySize64 / 1024 / 1024} MB RAM )";
             Console.WriteLine(progressStr);
             _lastCount = _currentCount;
             _statusTimer.Start();
@@ -56,6 +57,7 @@ namespace Sharphound2.Enumeration
         {
             foreach (var domainName in _utils.GetDomainList())
             {
+                Extensions.SetPrimaryDomain(domainName);
                 var output = new BlockingCollection<Wrapper<JsonBase>>();
                 var writer = StartOutputWriter(output);
 
@@ -367,6 +369,7 @@ namespace Sharphound2.Enumeration
             {
                 foreach (var domain in _utils.GetDomainList())
                 {
+                    Extensions.SetPrimaryDomain(domain);
                     _noPing = 0;
                     _timeouts = 0;
                     _currentCount = 0;
@@ -491,6 +494,7 @@ namespace Sharphound2.Enumeration
             {
                 foreach (var domain in _utils.GetDomainList())
                 {
+                    Extensions.SetPrimaryDomain(domain);
                     _noPing = 0;
                     _timeouts = 0;
                     _currentCount = 0;
@@ -580,6 +584,7 @@ namespace Sharphound2.Enumeration
         {
             foreach (var domain in _utils.GetDomainList())
             {
+                Extensions.SetPrimaryDomain(domain);
                 _noPing = 0;
                 _timeouts = 0;
                 _currentCount = 0;

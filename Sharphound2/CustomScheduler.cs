@@ -16,7 +16,7 @@ namespace Sharphound2
         /// <summary>The maximum concurrency level allowed by this scheduler.</summary>
         readonly int _maxDegreeOfParallelism;
         /// <summary>Whether the scheduler is currently processing work items.</summary>
-        int _delegatesQueuedOrRunning = 0; // protected by lock(_tasks)
+        int _delegatesQueuedOrRunning; // protected by lock(_tasks)
 
         /// <summary>
         /// Initializes an instance of the LimitedConcurrencyLevelTaskScheduler class with the
@@ -78,7 +78,7 @@ namespace Sharphound2
                         }
 
                         // Execute the task we pulled out of the queue
-                        base.TryExecuteTask(item);
+                        TryExecuteTask(item);
                     }
                 }
                 // We're done processing items on the current thread
@@ -99,7 +99,7 @@ namespace Sharphound2
             if (taskWasPreviouslyQueued) TryDequeue(task);
 
             // Try to run the task.
-            return base.TryExecuteTask(task);
+            return TryExecuteTask(task);
         }
 
         /// <summary>Attempts to remove a previously scheduled task from the scheduler.</summary>
@@ -111,7 +111,7 @@ namespace Sharphound2
         }
 
         /// <summary>Gets the maximum concurrency level supported by this scheduler.</summary>
-        public sealed override int MaximumConcurrencyLevel { get { return _maxDegreeOfParallelism; } }
+        public sealed override int MaximumConcurrencyLevel => _maxDegreeOfParallelism;
 
         /// <summary>Gets an enumerable of the tasks currently scheduled on this scheduler.</summary>
         /// <returns>An enumerable of the tasks currently scheduled.</returns>
