@@ -55,12 +55,12 @@ namespace Sharphound2.Enumeration
 
         internal void StartStealthEnumeration()
         {
+            var output = new BlockingCollection<Wrapper<JsonBase>>();
+            var writer = StartOutputWriter(output);
             foreach (var domainName in _utils.GetDomainList())
             {
                 Extensions.SetPrimaryDomain(domainName);
-                var output = new BlockingCollection<Wrapper<JsonBase>>();
-                var writer = StartOutputWriter(output);
-
+                
                 _currentCount = 0;
                 _timeouts = 0;
                 _noPing = 0;
@@ -268,7 +268,7 @@ namespace Sharphound2.Enumeration
 
                 if (_entDcs.Count > 0)
                 {
-                    var f = _utils.GetForest();
+                    var f = _utils.GetForest(domainName);
                     var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name.ToUpper()}";
                     var obj = new Group
                     {
@@ -286,15 +286,16 @@ namespace Sharphound2.Enumeration
                     });
                 }
 
-                output.CompleteAdding();
+                
                 PrintStatus();
-                Utils.Verbose("Waiting for writer thread to finish");
-                writer.Wait();
                 _statusTimer.Stop();
 
                 Console.WriteLine($"Finished stealth enumeration for {domainName} in {_watch.Elapsed}");
                 Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
             }
+            output.CompleteAdding();
+            Utils.Verbose("Waiting for writer thread to finish");
+            writer.Wait();
         }
 
         internal void StartCompFileEnumeration()
@@ -582,6 +583,8 @@ namespace Sharphound2.Enumeration
 
         internal void StartEnumeration()
         {
+            var output = new BlockingCollection<Wrapper<JsonBase>>();
+            var writer = StartOutputWriter(output);
             foreach (var domain in _utils.GetDomainList())
             {
                 Extensions.SetPrimaryDomain(domain);
@@ -592,10 +595,9 @@ namespace Sharphound2.Enumeration
 
                 _watch = Stopwatch.StartNew();
                 
-                var output = new BlockingCollection<Wrapper<JsonBase>>();
+                
                 var input = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
                 var taskHandles = new Task[_options.Threads];
-                var writer = StartOutputWriter(output);
                 var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC);
 
                 ContainerHelpers.BuildGpoCache(domain);
@@ -619,7 +621,7 @@ namespace Sharphound2.Enumeration
 
                 if (_entDcs.Count > 0)
                 {
-                    var f = _utils.GetForest();
+                    var f = _utils.GetForest(domain);
                     var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name.ToUpper()}";
                     var obj = new Group
                     {
@@ -638,14 +640,15 @@ namespace Sharphound2.Enumeration
 
                 _statusTimer.Stop();
                 PrintStatus();
-                output.CompleteAdding();
-                Utils.Verbose("Waiting for writer thread to finish");
-                writer.Wait();
                 _watch.Stop();
                 Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
                 Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
                 _watch = null;
             }
+
+            output.CompleteAdding();
+            Utils.Verbose("Waiting for writer thread to finish");
+            writer.Wait();
 
             if ((_options.ResolvedCollMethods & ResolvedCollectionMethod.SessionLoop) == 0)
             {

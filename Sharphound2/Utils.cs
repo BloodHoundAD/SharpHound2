@@ -625,10 +625,15 @@ namespace Sharphound2
             return domains;
         }
 
-        public Forest GetForest()
+        public Forest GetForest(string domain=null)
         {
-            var f = Forest.GetCurrentForest();
-            return f;
+            if (domain == null)
+            {
+                return Forest.GetCurrentForest();
+            }
+
+            var d = GetDomain(domain);
+            return d.Forest;
         }
 
         public Domain GetDomain(string domainName = null)
