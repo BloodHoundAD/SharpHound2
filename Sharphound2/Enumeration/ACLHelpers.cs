@@ -121,7 +121,7 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    if (mappedPrincipal.PrincipalName == "ENTERPRISE DOMAIN CONTROLLERS")
                     {
                         var d = _utils.GetForest().RootDomain.Name;
                         mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
@@ -338,7 +338,7 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    if (mappedPrincipal.PrincipalName == "ENTERPRISE DOMAIN CONTROLLERS")
                     {
                         var d = _utils.GetForest().RootDomain.Name;
                         mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
@@ -552,7 +552,7 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    if (mappedPrincipal.PrincipalName == "ENTERPRISE DOMAIN CONTROLLERS")
                     {
                         var d = _utils.GetForest().RootDomain.Name;
                         mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
@@ -772,7 +772,7 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    if (mappedPrincipal.PrincipalName == "ENTERPRISE DOMAIN CONTROLLERS")
                     {
                         var d = _utils.GetForest().RootDomain.Name;
                         mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
@@ -949,7 +949,7 @@ namespace Sharphound2.Enumeration
                 }
                 else
                 {
-                    if (mappedPrincipal.PrincipalName == "Enterprise Domain Controllers")
+                    if (mappedPrincipal.PrincipalName == "ENTERPRISE DOMAIN CONTROLLERS")
                     {
                         var d = _utils.GetForest().RootDomain.Name;
                         mappedPrincipal.PrincipalName = $"{mappedPrincipal.PrincipalName}@{d}".ToUpper();
