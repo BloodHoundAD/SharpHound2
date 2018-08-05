@@ -69,7 +69,6 @@
   <ItemGroup>
     <Compile Include="Cache.cs" />
     <Compile Include="CollectionMethod.cs" />
-    <Compile Include="CustomScheduler.cs" />
     <Compile Include="DnsManager.cs" />
     <Compile Include="Enumeration\ACLHelpers.cs" />
     <Compile Include="Enumeration\ContainerHelpers.cs" />
