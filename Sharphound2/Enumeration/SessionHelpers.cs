@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Win32;
-using Sharphound2.OutputObjects;
+using Sharphound2.JsonObjects;
 
 namespace Sharphound2.Enumeration
 {
@@ -36,7 +36,7 @@ namespace Sharphound2.Enumeration
             Parallel.ForEach(_utils.DoSearch(
                 "(&(samAccountType=805306368)(!(userAccountControl:1.2.840.113556.1.4.803:=2))(|(homedirectory=*)(scriptpath=*)(profilepath=*)))",
                 SearchScope.Subtree, new[] { "homedirectory", "scriptpath", "profilepath" },
-                domainName), (x) =>
+                domainName), x =>
             {
                 var result = x;
                 var poss = new[]
@@ -87,16 +87,19 @@ namespace Sharphound2.Enumeration
 
         public static IEnumerable<Session> GetNetSessions(ResolvedEntry target, string computerDomain)
         {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Session) &&
+                !Utils.IsMethodSet(ResolvedCollectionMethod.SessionLoop))
+                yield break;
+            
             var resumeHandle = IntPtr.Zero;
             var si10 = typeof(SESSION_INFO_10);
-
 
             var entriesRead = 0;
             var ptrInfo = IntPtr.Zero;
 
             var t = Task<int>.Factory.StartNew(() => NetSessionEnum(target.BloodHoundDisplay, null, null, 10,
                 out ptrInfo, -1, out entriesRead,
-                out int _, ref resumeHandle));
+                out _, ref resumeHandle));
 
             var success = t.Wait(Timeout);
 
@@ -106,6 +109,9 @@ namespace Sharphound2.Enumeration
             }
 
             var returnValue = t.Result;
+            
+            Utils.Debug($"EntriesRead from NetSessionEnum: {entriesRead}");
+            Utils.Debug($"ReturnValue from NetSessionEnum: {returnValue}");
 
             //If we don't get a success, just break
             if (returnValue != (int)NERR.NERR_Success) yield break;
@@ -127,6 +133,8 @@ namespace Sharphound2.Enumeration
             {
                 var username = result.sesi10_username;
                 var cname = result.sesi10_cname;
+                Utils.Debug($"Result Username: {username}");
+                Utils.Debug($"Result cname: {cname}");
 
                 if (cname == null || username.EndsWith("$") || username.Trim() == "" || username == "$" ||
                     username == _options.CurrentUser)
@@ -139,6 +147,7 @@ namespace Sharphound2.Enumeration
                     cname = target.BloodHoundDisplay;
 
                 var dnsHostName = _utils.ResolveHost(cname);
+                Utils.Debug($"Result cname: {dnsHostName}");
                 if (dnsHostName == null)
                     continue;
 
@@ -195,7 +204,7 @@ namespace Sharphound2.Enumeration
                                 yield return new Session
                                 {
                                     Weight = weight,
-                                    ComputerName = dnsHostName,
+                                    ComputerName = dnsHostName.ToUpper(),
                                     UserName = $"{username}@{possibility}"
                                 };
                             }
@@ -203,11 +212,80 @@ namespace Sharphound2.Enumeration
                     }
                 }
             }
+
+            Utils.DoJitter();
         }
 
-        public static IEnumerable<Session> GetRegistryLoggedOn(ResolvedEntry target)
+        internal static IEnumerable<Session> DoLoggedOnCollection(ResolvedEntry target, string domainName)
         {
-            var temp = new List<Session>();
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.LoggedOn) &&
+                !Utils.IsMethodSet(ResolvedCollectionMethod.LoggedOnLoop))
+                yield break;
+
+            var t = Task<List<string>>.Factory.StartNew(() =>
+            {
+                var users = new List<string>();
+                users.AddRange(GetRegistryLoggedOn(target));
+                users.AddRange(GetNetLoggedOn(target, domainName));
+
+                return users;
+            });
+
+            var success = t.Wait(Timeout);
+
+            if (!success)
+            {
+                throw new TimeoutException();
+            }
+
+            var sessions = new List<Session>();
+
+            foreach (var u in t.Result.Distinct())
+            {
+                sessions.Add(new Session
+                {
+                    ComputerName = target.BloodHoundDisplay,
+                    UserName = u,
+                    Weight = 1
+                });
+            }
+
+            foreach (var x in sessions)
+            {
+                yield return x;
+            }
+
+            Utils.DoJitter();
+        }
+
+        //internal static void DoLoggedOnCollection(ResolvedEntry target, string domainName, ref Computer obj)
+        //{
+        //    if (!Utils.IsMethodSet(ResolvedCollectionMethod.LoggedOn))
+        //        return;
+
+        //    var users = new List<string>();
+        //    users.AddRange(GetRegistryLoggedOn(target));
+        //    users.AddRange(GetNetLoggedOn(target, domainName));
+
+        //    var sessions = new List<Session>();
+
+        //    foreach (var u in users.Distinct())
+        //    {
+        //        sessions.Add(new Session
+        //        {
+        //            ComputerName = target.BloodHoundDisplay,
+        //            UserName = u,
+        //            Weight = 1
+        //        });
+        //    }
+
+        //    if (sessions.Count > 0)
+        //        obj.Sessions = sessions.ToArray();
+        //}
+
+        private static IEnumerable<string> GetRegistryLoggedOn(ResolvedEntry target)
+        {
+            var users = new List<string>();
             try
             {
                 //Remotely open the registry hive if its not our current one
@@ -227,7 +305,7 @@ namespace Sharphound2.Enumeration
                         RegistryProps, "user");
 
                     if (user == null) continue;
-                    temp.Add(new Session { ComputerName = target.BloodHoundDisplay, UserName = user, Weight = 1 });
+                    users.Add(user.ToUpper());
                 }
             }
             catch (Exception)
@@ -235,15 +313,15 @@ namespace Sharphound2.Enumeration
                 yield break;
             }
 
-            foreach (var sess in temp.Distinct())
+            foreach (var user in users.Distinct())
             {
-                yield return sess;
+                yield return user;
             }
         }
 
-        public static IEnumerable<Session> GetNetLoggedOn(ResolvedEntry entry, string computerDomain)
+        private static IEnumerable<string> GetNetLoggedOn(ResolvedEntry entry, string computerDomain)
         {
-            var toReturn = new List<Session>();
+            var users = new List<string>();
 
             const int queryLevel = 1;
             var resumeHandle = 0;
@@ -272,17 +350,13 @@ namespace Sharphound2.Enumeration
 
                 //Try to convert the domain part to a FQDN, if it doesn't work just use the computer's domain
                 var domainName = _utils.DomainNetbiosToFqdn(domain) ?? computerDomain;
-                toReturn.Add(new Session
-                {
-                    ComputerName = entry.BloodHoundDisplay,
-                    UserName = $"{username}@{domainName}",
-                    Weight = 1
-                });
+                users.Add($"{username}@{domainName}".ToUpper());
             }
 
-            foreach (var sess in  toReturn.Distinct())
+            foreach (var user in  users.Distinct())
             {
-                yield return sess;
+                yield return user;
+                
             }
         }
 

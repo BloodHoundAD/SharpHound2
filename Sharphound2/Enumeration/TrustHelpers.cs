@@ -4,12 +4,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Sharphound2.OutputObjects;
+using Sharphound2.JsonObjects;
 
 namespace Sharphound2.Enumeration
 {
     [SuppressMessage("ReSharper", "UnusedMember.Local")]
-    internal static class DomainTrustEnumeration
+    internal static class TrustHelpers
     {
         private static Utils _utils;
 
@@ -18,71 +18,69 @@ namespace Sharphound2.Enumeration
             _utils = Utils.Instance;
         }
 
-        /// <summary>
-        /// Enumerate all the trusts for the specified domain
-        /// </summary>
-        /// <param name="domain">Domain to enumerate</param>
-        /// <returns>A list of DomainTrust objects for the domain </returns>
-        public static IEnumerable<DomainTrust> DoTrustEnumeration(string domain)
+        internal static void DoTrustEnumeration(ResolvedEntry resolved, ref Domain obj)
         {
-            if (domain == null || domain.Trim() == "")
-                yield break;
-            
-            Utils.Verbose($"Enumerating trusts for {domain}");
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Trusts))
+                return;
 
+            if (resolved == null)
+                return;
+
+            var trusts = new List<Trust>();
             var dc = _utils
                 .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
-                    new[] {"dnshostname"}, domain).DefaultIfEmpty(null).FirstOrDefault();
+                    new[] { "dnshostname" }, resolved.BloodHoundDisplay).DefaultIfEmpty(null).FirstOrDefault();
 
             if (dc == null)
-                yield break;
-            
+                return;
+
 
             const uint flags = 63;
             var ddt = typeof(DsDomainTrusts);
             var result = DsEnumerateDomainTrusts(dc.GetProp("dnshostname"), flags, out var ptr, out var domainCount);
 
             if (result != 0)
-                yield break;
-                
+                return;
+
             var array = new DsDomainTrusts[domainCount];
 
             var iter = ptr;
-                
+
             //Loop over the data and store it in an array
             for (var i = 0; i < domainCount; i++)
             {
-                array[i] = (DsDomainTrusts) Marshal.PtrToStructure(iter, ddt);
-                iter = (IntPtr) (iter.ToInt64() + Marshal.SizeOf(ddt));
+                array[i] = (DsDomainTrusts)Marshal.PtrToStructure(iter, ddt);
+                iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(ddt));
             }
 
             NetApiBufferFree(ptr);
 
             for (var i = 0; i < domainCount; i++)
             {
-                var trust = new DomainTrust {SourceDomain = domain};
+                var trust = new Trust();
+
                 var data = array[i];
-                var trustType = (TrustType) data.Flags;
-                var trustAttribs = (TrustAttrib) data.TrustAttributes;
+                var trustType = (TrustType)data.Flags;
+                var trustAttribs = (TrustAttrib)data.TrustAttributes;
 
                 if ((trustType & TrustType.DsDomainTreeRoot) == TrustType.DsDomainTreeRoot)
                     continue;
 
-                trust.TargetDomain = data.DnsDomainName;
-
+                trust.TargetName = data.DnsDomainName;
                 var inbound = (trustType & TrustType.DsDomainDirectInbound) == TrustType.DsDomainDirectInbound;
                 var outbound = (trustType & TrustType.DsDomainDirectOutbound) == TrustType.DsDomainDirectOutbound;
 
                 if (inbound && outbound)
                 {
-                    trust.TrustDirection = "Bidirectional";
-                }else if (inbound)
+                    trust.TrustDirection = (int)TrustDirection.Bidrectional;
+                }
+                else if (inbound)
                 {
-                    trust.TrustDirection = "Inbound";
+                    trust.TrustDirection = (int)TrustDirection.Inbound;
                 }
                 else
                 {
-                    trust.TrustDirection = "Outbound";
+                    trust.TrustDirection = (int)TrustDirection.Outbound;
                 }
 
                 trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
@@ -95,10 +93,11 @@ namespace Sharphound2.Enumeration
                 {
                     trust.IsTransitive = true;
                 }
-                    
-                yield return trust;
+
+                trusts.Add(trust);
             }
-            
+
+            obj.Trusts = trusts.ToArray();
         }
 
         #region PINVOKE
@@ -129,7 +128,8 @@ namespace Sharphound2.Enumeration
         [SuppressMessage("ReSharper", "FieldCanBeMadeReadOnly.Local")]
         private struct DsDomainTrusts
         {
-            [MarshalAs(UnmanagedType.LPTStr)] private string NetbiosDomainName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            private string NetbiosDomainName;
             [MarshalAs(UnmanagedType.LPTStr)]
             public string DnsDomainName;
             public uint Flags;

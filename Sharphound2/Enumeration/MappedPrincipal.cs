@@ -2,8 +2,20 @@
 {
     internal class MappedPrincipal
     {
-        public string PrincipalName { get; set; }
-        public string ObjectType { get; set; }
+        private string _principalName;
+        private string _objectType;
+
+        public string PrincipalName
+        {
+            get => _principalName.ToUpper();
+            set => _principalName = value;
+        }
+
+        public string ObjectType
+        {
+            get => _objectType.ToLower();
+            set => _objectType = value;
+        }
 
         public MappedPrincipal(string name, string type)
         {

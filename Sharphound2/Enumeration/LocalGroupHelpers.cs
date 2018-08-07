@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.Protocols;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.XPath;
-using Sharphound2.OutputObjects;
+using Sharphound2.JsonObjects;
 using SearchScope = System.DirectoryServices.Protocols.SearchScope;
 
 namespace Sharphound2.Enumeration
@@ -18,9 +19,10 @@ namespace Sharphound2.Enumeration
     internal class SystemDownException : Exception { }
 
     [SuppressMessage("ReSharper", "FieldCanBeMadeReadOnly.Local")]
-    internal static class LocalAdminHelpers
+    internal static class LocalGroupHelpers
     {
         private static Utils _utils;
+        private static Sharphound.Options _options;
         private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
         private static readonly Regex KeyRegex = new Regex(@"(.+?)\s*=(.*)", RegexOptions.Compiled);
 
@@ -38,22 +40,23 @@ namespace Sharphound2.Enumeration
 
         private static byte[] _sidbytes;
 
-        public static void Init()
+        public static void Init(Sharphound.Options options)
         {
             _utils = Utils.Instance;
+            _options = options;
             var sid = new SecurityIdentifier("S-1-5-32");
             _sidbytes = new byte[sid.BinaryLength];
             sid.GetBinaryForm(_sidbytes, 0);
         }
 
-        private static SamEnumerationObject[] NetLocalGroupGetMembers(ResolvedEntry entry, out string machineSid)
+        private static SamEnumerationObject[] NetLocalGroupGetMembers(ResolvedEntry entry, int rid, out string machineSid)
         {
             Utils.Debug("Starting NetLocalGroupGetMembers");
             var server = new UNICODE_STRING(entry.BloodHoundDisplay);
             //Connect to the server with the proper access maskes. This gives us our server handle
             var obj = default(OBJECT_ATTRIBUTES);
 
-            Utils.Debug($"Starting SamConnect");
+            Utils.Debug("Starting SamConnect");
             var status = SamConnect(ref server, out var serverHandle,
                 SamAccessMasks.SamServerLookupDomain |
                 SamAccessMasks.SamServerConnect, ref obj);
@@ -69,7 +72,7 @@ namespace Sharphound2.Enumeration
                     throw new ApiFailedException();
             }
 
-            Utils.Debug($"Starting SamLookupDomainInSamServer");
+            Utils.Debug("Starting SamLookupDomainInSamServer");
 
             //Use SamLookupDomainInServer with the hostname to find the machine sid if possible
             try
@@ -87,7 +90,7 @@ namespace Sharphound2.Enumeration
 
             Utils.Debug($"Resolved Machine Sid {machineSid}");
 
-            Utils.Debug($"Starting SamOpenDomain");
+            Utils.Debug("Starting SamOpenDomain");
             //Open the domain for the S-1-5-32 (BUILTIN) alias
             status = SamOpenDomain(serverHandle, DomainAccessMask.Lookup, _sidbytes, out var domainHandle);
             Utils.Debug($"SamOpenDomain returned {status}");
@@ -97,9 +100,9 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
-            Utils.Debug($"Starting SamOpenAlias");
+            Utils.Debug("Starting SamOpenAlias");
             //Open the alias for Local Administrators (always RID 544)
-            status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, 544, out var aliasHandle);
+            status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, rid, out var aliasHandle);
             Utils.Debug($"SamOpenAlias returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess))
             {
@@ -108,7 +111,7 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
-            Utils.Debug($"Starting SamGetMembersInAlias");
+            Utils.Debug("Starting SamGetMembersInAlias");
             //Get the members in the alias. This returns a list of SIDs
             status = SamGetMembersInAlias(aliasHandle, out var members, out var count);
             Utils.Debug($"SamGetMembersInAlias returned {status}");
@@ -120,7 +123,7 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
-            Utils.Debug($"Cleaning up handles");
+            Utils.Debug("Cleaning up handles");
             SamCloseHandle(aliasHandle);
             SamCloseHandle(domainHandle);
             SamCloseHandle(serverHandle);
@@ -131,7 +134,7 @@ namespace Sharphound2.Enumeration
                 return new SamEnumerationObject[0];
             }
 
-            Utils.Debug($"Copying data");
+            Utils.Debug("Copying data");
             //Copy the data of our sids to a new array so it doesn't get eaten
             var grabbedSids = new IntPtr[count];
             Marshal.Copy(members, grabbedSids, 0, count);
@@ -153,7 +156,7 @@ namespace Sharphound2.Enumeration
 
             
 
-            Utils.Debug($"Starting LsaOpenPolicy");
+            Utils.Debug("Starting LsaOpenPolicy");
             //Open the LSA policy on the target machine
             var obja = default(OBJECT_ATTRIBUTES);
             status = LsaOpenPolicy(ref server, ref obja,
@@ -166,7 +169,7 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
-            Utils.Debug($"Starting LSALookupSids");
+            Utils.Debug("Starting LSALookupSids");
             var nameList = IntPtr.Zero;
             var domainList = IntPtr.Zero;
 
@@ -183,18 +186,18 @@ namespace Sharphound2.Enumeration
                 throw new ApiFailedException();
             }
 
-            Utils.Debug($"Finished API calls");
+            Utils.Debug("Finished API calls");
             //Convert the returned names into structures
             var iter = nameList;
             var translatedNames = new LsaTranslatedNames[count];
-            Utils.Debug($"Resolving names");
+            Utils.Debug("Resolving names");
             for (var i = 0; i < count; i++)
             {
                 translatedNames[i] = (LsaTranslatedNames)Marshal.PtrToStructure(iter, typeof(LsaTranslatedNames));
                 iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LsaTranslatedNames)));
             }
 
-            Utils.Debug($"Resolving domains");
+            Utils.Debug("Resolving domains");
             //Convert the returned domain list to a structure
             var lsaDomainList =
                 (LsaReferencedDomainList)(Marshal.PtrToStructure(domainList, typeof(LsaReferencedDomainList)));
@@ -208,7 +211,7 @@ namespace Sharphound2.Enumeration
                 iter = (IntPtr)(iter.ToInt64() + Marshal.SizeOf(typeof(LsaTrustInformation)));
             }
 
-            Utils.Debug($"Matching up data");
+            Utils.Debug("Matching up data");
             var resolvedObjects = new SamEnumerationObject[translatedNames.Length];
 
             //Match up sids, domain names, and account names
@@ -229,18 +232,27 @@ namespace Sharphound2.Enumeration
                     };
             }
 
-            Utils.Debug($"Cleaning up");
+            Utils.Debug("Cleaning up");
             //Cleanup
             SamFreeMemory(members);
             LsaFreeMemory(domainList);
             LsaFreeMemory(nameList);
             LsaClose(policyHandle);
-            Utils.Debug($"Done NetLocalGroupGetMembers");
+            Utils.Debug("Done NetLocalGroupGetMembers");
             return resolvedObjects;
         }
 
-        public static IEnumerable<LocalAdmin> GetSamAdmins(ResolvedEntry entry)
+        public static IEnumerable<LocalMember> GetGroupMembers(ResolvedEntry entry, LocalGroupRids rid)
         {
+            if (rid.Equals(LocalGroupRids.Administrators) && !Utils.IsMethodSet(ResolvedCollectionMethod.LocalAdmin))
+                yield break;
+
+            if (rid.Equals(LocalGroupRids.RemoteDesktopUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.RDP))
+                yield break;
+
+            if (rid.Equals(LocalGroupRids.DcomUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.DCOM))
+                yield break;
+
             Utils.Debug("Starting GetSamAdmins");
             string machineSid = null;
             Utils.Debug("Starting Task");
@@ -248,7 +260,7 @@ namespace Sharphound2.Enumeration
             {
                 try
                 {
-                    return NetLocalGroupGetMembers(entry, out machineSid);
+                    return NetLocalGroupGetMembers(entry, (int)rid, out machineSid);
                 }
                 catch (ApiFailedException)
                 {
@@ -349,6 +361,34 @@ namespace Sharphound2.Enumeration
                     Utils.Debug($"Got Object: {mp.PrincipalName}");
                     resolvedName = mp.PrincipalName;
                     type = mp.ObjectType;
+                }else if (type == "wellknown")
+                {
+                    if (MappedPrincipal.GetCommon(sid, out var result))
+                    {
+                        if (result.PrincipalName.Equals("Local System"))
+                        {
+                            continue;
+                        }
+
+                        string domain;
+                        try
+                        {
+                            var split = string.Join(".", entry.BloodHoundDisplay.Split('.').Skip(1).ToArray());
+                            domain = split;
+                        }
+                        catch
+                        {
+                            domain = _utils.GetDomain(_options.Domain).Name;
+                        }
+
+                        type = result.ObjectType;
+                        resolvedName = $"{result.PrincipalName}@{domain}".ToUpper();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
                 }
                 else
                 {
@@ -359,13 +399,14 @@ namespace Sharphound2.Enumeration
                     Utils.Debug($"Got Object: {resolvedName}");
                 }
 
-                yield return new LocalAdmin
+                yield return new LocalMember
                 {
-                    ObjectType = type,
-                    ObjectName = resolvedName,
-                    Server = entry.BloodHoundDisplay
+                    Type = type,
+                    Name = resolvedName
                 };
             }
+
+            Utils.DoJitter();
         }
 
         #region hidden
@@ -561,8 +602,11 @@ namespace Sharphound2.Enumeration
         //}
         #endregion
 
-        public static IEnumerable<LocalAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
+        public static IEnumerable<GpoAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
         {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup))
+                yield break;
+
             const string targetSid = "S-1-5-32-544__Members";
 
             var displayName = entry.GetProp("displayname");
@@ -708,11 +752,11 @@ namespace Sharphound2.Enumeration
 
                         foreach (var user in resolvedList)
                         {
-                            yield return new LocalAdmin
+                            yield return new GpoAdmin
                             {
-                                ObjectName = user.PrincipalName,
-                                ObjectType = user.ObjectType,
-                                Server = server
+                                Name = user.PrincipalName,
+                                Type = user.ObjectType,
+                                Computer = server
                             };
                         }
                     }
@@ -726,6 +770,13 @@ namespace Sharphound2.Enumeration
             internal string AccountDomain { get; set; }
             internal string AccountSid { get; set; }
             internal SidNameUse SidUsage { get; set; }
+        }
+
+        internal enum LocalGroupRids
+        {
+            Administrators = 544,
+            RemoteDesktopUsers = 555,
+            DcomUsers = 562
         }
 
         #region LSA Imports
@@ -786,8 +837,11 @@ namespace Sharphound2.Enumeration
 
         private struct LsaReferencedDomainList
         {
+        #pragma warning disable 649
             internal uint count;
+
             internal IntPtr domains;
+        #pragma warning restore 649
         }
 
         private enum SidNameUse
@@ -1020,41 +1074,5 @@ namespace Sharphound2.Enumeration
             StatusRpcServerUnavailable = unchecked((int)0xC0020017)
         }
         #endregion
-
-        //#region pinvoke-imports
-        //[DllImport("NetAPI32.dll", CharSet = CharSet.Unicode)]
-        //private static extern int NetLocalGroupGetMembers(
-        //    [MarshalAs(UnmanagedType.LPWStr)] string servername,
-        //    [MarshalAs(UnmanagedType.LPWStr)] string localgroupname,
-        //    int level,
-        //    out IntPtr bufptr,
-        //    int prefmaxlen,
-        //    out int entriesread,
-        //    out int totalentries,
-        //    IntPtr resume_handle);
-
-        //[DllImport("Netapi32.dll", SetLastError = true)]
-        //private static extern int NetApiBufferFree(IntPtr buff);
-
-        //[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        //public struct LOCALGROUP_MEMBERS_INFO_2
-        //{
-        //    public IntPtr lgrmi2_sid;
-        //    public SidNameUse lgrmi2_sidusage;
-        //    [MarshalAs(UnmanagedType.LPWStr)]
-        //    public string lgrmi2_domainandname;
-        //}
-
-        //public class API_Encapsulator
-        //{
-        //    public LOCALGROUP_MEMBERS_INFO_2 Lgmi2 { get; set; }
-        //    public string sid;
-        //}
-
-        
-
-        //[DllImport("advapi32", CharSet = CharSet.Auto, SetLastError = true)]
-        //private static extern bool ConvertSidToStringSid(IntPtr pSid, out string strSid);
-        //#endregion 
     }
 }

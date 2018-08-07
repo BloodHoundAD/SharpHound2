@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.IO;
@@ -31,12 +30,17 @@ namespace Sharphound2
         private static readonly Random Rnd = new Random();
         private readonly List<string> _domainList;
         private readonly Cache _cache;
+        private static string _fileTimeStamp;
 
-        private static readonly List<CsvContainer> UsedFiles = new List<CsvContainer>();
+        private readonly ConcurrentDictionary<string, LdapConnection> _ldapConnectionCache;
+        private readonly ConcurrentDictionary<string, LdapConnection> _gcConnectionCache;
+
+        private static readonly List<string> UsedFiles = new List<string>();
 
         public static void CreateInstance(Sharphound.Options cli)
         {
             Instance = new Utils(cli);
+            _fileTimeStamp = $"{DateTime.Now:yyyyMMddHHmmss}";
         }
 
         public static Utils Instance { get; private set; }
@@ -63,6 +67,22 @@ namespace Sharphound2
             _cache = Cache.Instance;
             _domainList = CreateDomainList();
             _pingTimeout = TimeSpan.FromMilliseconds(_options.PingTimeout);
+            _ldapConnectionCache = new ConcurrentDictionary<string, LdapConnection>();
+            _gcConnectionCache = new ConcurrentDictionary<string, LdapConnection>();
+        }
+
+        public static bool IsMethodSet(ResolvedCollectionMethod method)
+        {
+            if (method.Equals(ResolvedCollectionMethod.SessionLoop) ||
+                method.Equals(ResolvedCollectionMethod.LoggedOnLoop))
+            {
+                return _options.SessionLoopRunning;
+            }
+
+            if (_options.SessionLoopRunning)
+                return false;
+            
+            return (_options.ResolvedCollMethods & method) != 0;
         }
 
         public static string ConvertDnToDomain(string dn)
@@ -108,57 +128,13 @@ namespace Sharphound2
             return dnsHostName;
         }
 
-        private class OrderedHashSet<T> : KeyedCollection<T, T>
-        {
-            protected override T GetKeyForItem(T item)
-            {
-                return item;
-            }
-        }
-
-        internal static void DeduplicateFiles()
-        {
-            var tempfile = GetCsvFileName("temp.csv");
-            foreach (var f in UsedFiles)
-            {
-                var n = f.FileName;
-                var removed = 0;
-                var seen = new HashSet<int>();
-
-                using (var reader = new StreamReader(n))
-                {
-                    using (var writer = new StreamWriter(tempfile))
-                    {
-                        string line;
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            var hash = line.GetHashCode();
-                            if (!seen.Contains(hash))
-                            {
-                                writer.WriteLine(line);
-                            }
-                            else
-                            {
-                                removed++;
-                            }
-                            seen.Add(hash);
-                        }
-                    }
-                }
-
-                File.Delete(n);
-                File.Move(tempfile, n);
-
-                if (removed > 0)
-                    Console.WriteLine($"Removed {removed} duplicate lines from {n}");
-            }
-        }
-
-        public static string GetComputerNetbiosName(string server)
+        public static string GetComputerNetbiosName(string server, out string domain)
         {
             var result = NetWkstaGetInfo(server, 100, out var buf);
+            domain = null;
             if (result != 0) return null;
             var marshalled = (WorkstationInfo100) Marshal.PtrToStructure(buf, typeof(WorkstationInfo100));
+            domain = marshalled.lan_group;
             return marshalled.computer_name;
         }
 
@@ -174,7 +150,7 @@ namespace Sharphound2
                 return false;
             }
 
-            if (_options.CurrentCollectionMethod.Equals(CollectionMethod.SessionLoop))
+            if (_options.SessionLoopRunning)
             {
                 return DoPing(hostName);
             }
@@ -190,7 +166,6 @@ namespace Sharphound2
 
         internal bool DoPing(string hostname)
         {
-            
             try
             {
                 using (var client = new TcpClient())
@@ -368,62 +343,61 @@ namespace Sharphound2
         public IEnumerable<Wrapper<SearchResultEntry>> DoWrappedSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
-            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
+            var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName);
+            
+            if (conn == null)
             {
-                if (conn == null)
+                Verbose("Unable to contact LDAP");
+                yield break;
+            }
+            var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
+
+            if (request == null)
+            {
+                Verbose($"Unable to contact domain {domainName}");
+                yield break;
+            }
+
+            var prc = new PageResultRequestControl(500);
+            request.Controls.Add(prc);
+
+            if (IsMethodSet(ResolvedCollectionMethod.ACL))
+            {
+                var sdfc =
+                    new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
+                request.Controls.Add(sdfc);
+            }
+
+            PageResultResponseControl pageResponse = null;
+            while (true)
+            {
+                SearchResponse response;
+                try
                 {
-                    Verbose("Unable to contact LDAP");
+                    response = (SearchResponse) conn.SendRequest(request);
+                    if (response != null)
+                    {
+                        pageResponse = (PageResultResponseControl) response.Controls[0];
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug("Exception in Domain Searcher.");
+                    Debug(e.Message);
                     yield break;
                 }
-                var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
-
-                if (request == null)
+                if (response == null || pageResponse == null) continue;
+                foreach (SearchResultEntry entry in response.Entries)
                 {
-                    Verbose($"Unable to contact domain {domainName}");
-                    yield break;
+                    yield return new Wrapper<SearchResultEntry>{Item = entry};
                 }
 
-                var prc = new PageResultRequestControl(500);
-                request.Controls.Add(prc);
-
-                if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
+                if (pageResponse.Cookie.Length == 0)
                 {
-                    var sdfc =
-                        new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
-                    request.Controls.Add(sdfc);
+                    break;
                 }
 
-                PageResultResponseControl pageResponse = null;
-                while (true)
-                {
-                    SearchResponse response;
-                    try
-                    {
-                        response = (SearchResponse) conn.SendRequest(request);
-                        if (response != null)
-                        {
-                            pageResponse = (PageResultResponseControl) response.Controls[0];
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Debug("Exception in Domain Searcher.");
-                        Debug(e.Message);
-                        yield break;
-                    }
-                    if (response == null || pageResponse == null) continue;
-                    foreach (SearchResultEntry entry in response.Entries)
-                    {
-                        yield return new Wrapper<SearchResultEntry>{Item = entry};
-                    }
-
-                    if (pageResponse.Cookie.Length == 0)
-                    {
-                        break;
-                    }
-
-                    prc.Cookie = pageResponse.Cookie;
-                }
+                prc.Cookie = pageResponse.Cookie;
             }
         }
 
@@ -431,66 +405,65 @@ namespace Sharphound2
             string domainName = null, string adsPath = null, bool useGc = false)
         {
             Debug("Creating connection");
-            using (var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName))
+            var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName);
+            
+            if (conn == null)
             {
-                if (conn == null)
+                Debug("Connection null");
+                yield break;
+            }
+            Debug("Getting search request");
+            var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
+
+            if (request == null)
+            {
+                Debug($"Unable to contact domain {domainName}");
+                Verbose($"Unable to contact domain {domainName}");
+                yield break;
+            }
+
+            Debug("Creating page control");
+            var prc = new PageResultRequestControl(500);
+            request.Controls.Add(prc);
+
+            if (IsMethodSet(ResolvedCollectionMethod.ACL))
+            {
+                var sdfc =
+                    new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
+                request.Controls.Add(sdfc);
+            }
+
+            PageResultResponseControl pageResponse = null;
+            Debug("Starting loop");
+            while (true)
+            {
+                SearchResponse response;
+                try
                 {
-                    Debug("Connection null");
+                    response = (SearchResponse)conn.SendRequest(request);
+                    if (response != null)
+                    {
+                        pageResponse = (PageResultResponseControl)response.Controls[0];
+                    }
+                }
+                catch
+                {
+                    Debug("Error in loop");
                     yield break;
                 }
-                Debug("Getting search request");
-                var request = GetSearchRequest(filter, scope, props, domainName, adsPath);
-
-                if (request == null)
+                if (response == null || pageResponse == null) continue;
+                foreach (SearchResultEntry entry in response.Entries)
                 {
-                    Debug($"Unable to contact domain {domainName}");
-                    Verbose($"Unable to contact domain {domainName}");
+                    yield return entry;
+                }
+
+                if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
+                {
+                    Debug("Loop finished");
                     yield break;
                 }
 
-                Debug("Creating page control");
-                var prc = new PageResultRequestControl(500);
-                request.Controls.Add(prc);
-
-                if (_options.CurrentCollectionMethod.Equals(CollectionMethod.ACL))
-                {
-                    var sdfc =
-                        new SecurityDescriptorFlagControl { SecurityMasks = SecurityMasks.Dacl | SecurityMasks.Owner };
-                    request.Controls.Add(sdfc);
-                }
-
-                PageResultResponseControl pageResponse = null;
-                Debug("Starting loop");
-                while (true)
-                {
-                    SearchResponse response;
-                    try
-                    {
-                        response = (SearchResponse)conn.SendRequest(request);
-                        if (response != null)
-                        {
-                            pageResponse = (PageResultResponseControl)response.Controls[0];
-                        }
-                    }
-                    catch
-                    {
-                        Debug("Error in loop");
-                        yield break;
-                    }
-                    if (response == null || pageResponse == null) continue;
-                    foreach (SearchResultEntry entry in response.Entries)
-                    {
-                        yield return entry;
-                    }
-
-                    if (pageResponse.Cookie.Length == 0 || response.Entries.Count == 0)
-                    {
-                        Debug("Loop finished");
-                        yield break;
-                    }
-
-                    prc.Cookie = pageResponse.Cookie;
-                }
+                prc.Cookie = pageResponse.Cookie;
             }
         }
 
@@ -516,6 +489,11 @@ namespace Sharphound2
 
             var domainController = _options.DomainController ?? targetDomain.Name;
 
+            if (_ldapConnectionCache.TryGetValue(domainController, out var conn))
+            {
+                return conn;
+            }
+
             var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
 
             var identifier =
@@ -523,6 +501,12 @@ namespace Sharphound2
 
             var connection = new LdapConnection(identifier) {Timeout = new TimeSpan(0,0,5,0)};
 
+            if (_options.LdapPass != null && _options.LdapUser != null)
+            {
+                Verbose("Adding Network Credential to connection");
+                var cred = new NetworkCredential(_options.LdapUser, _options.LdapPass, targetDomain.Name);
+                connection.Credential = cred;
+            }
 
             //Add LdapSessionOptions
             var lso = connection.SessionOptions;
@@ -541,7 +525,16 @@ namespace Sharphound2
             }
 
             lso.ReferralChasing = ReferralChasingOptions.None;
+            _ldapConnectionCache.TryAdd(domainController, connection);
             return connection;
+        }
+
+        internal void KillConnections()
+        {
+            foreach (var d in _ldapConnectionCache)
+            {
+                d.Value.Dispose();
+            }
         }
 
         public LdapConnection GetGcConnection(string domainName = null)
@@ -556,13 +549,19 @@ namespace Sharphound2
                 Verbose($"Unable to contact domain {domainName}");
                 return null;
             }
-            var connection = new LdapConnection(new LdapDirectoryIdentifier(targetDomain.Name, 3268));
+            var name = targetDomain.Name;
+            if (_gcConnectionCache.TryGetValue(name, out var conn))
+            {
+                return conn;
+            }
+            var connection = new LdapConnection(new LdapDirectoryIdentifier(name, 3268));
 
             var lso = connection.SessionOptions;
             if (_options.DisableKerbSigning) return connection;
             lso.Signing = true;
             lso.Sealing = true;
 
+            _gcConnectionCache.TryAdd(name, connection);
             return connection;
         }
 
@@ -624,6 +623,17 @@ namespace Sharphound2
             }
 
             return domains;
+        }
+
+        public Forest GetForest(string domain=null)
+        {
+            if (domain == null)
+            {
+                return Forest.GetCurrentForest();
+            }
+
+            var d = GetDomain(domain);
+            return d.Forest;
         }
 
         public Domain GetDomain(string domainName = null)
@@ -695,18 +705,33 @@ namespace Sharphound2
         }
         
 
-        public static string GetCsvFileName(string baseFileName)
+        public static string GetJsonFileName(string baseFileName)
         {
-            var f = _options.CSVPrefix.Equals("") ? baseFileName : $"{_options.CSVPrefix}_{baseFileName}";
+            var usedFName = baseFileName;
+            if (_options.RandomFilenames)
+            {
+                usedFName = $"{Path.GetRandomFileName()}.json";
+            }
+            else
+            {
+                usedFName = $"{_fileTimeStamp}_{usedFName}.json";
+            }
+            var f = _options.JsonPrefix.Equals("") ? usedFName : $"{_options.JsonPrefix}_{usedFName}";
 
-            f = Path.Combine(_options.CSVFolder, f);
+            f = Path.Combine(_options.JsonFolder, f);
+            return f;
+        }
+
+        public static string GetZipFileName(string baseFile)
+        {
+            var f = Path.Combine(_options.JsonFolder, baseFile);
             return f;
         }
 
         public static bool CheckWritePrivs()
         {
             const string filename = "test.csv";
-            var f = Path.Combine(_options.CSVFolder, filename);
+            var f = Path.Combine(_options.JsonFolder, filename);
             try
             {
                 using (File.Create(f)){}
@@ -719,30 +744,71 @@ namespace Sharphound2
             }
         }
 
-        internal static void AddUsedFile(CsvContainer file)
+        internal static void AddUsedFile(string file)
         {
             UsedFiles.Add(file);
         }
 
+        //Sample code from https://stackoverflow.com/questions/54991/generating-random-passwords
+        private static string GenerateZipPass()
+        {
+            const string space = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+            var builder = new StringBuilder();
+            var random = new Random();
+            for (var i = 0; i < 10; i++)
+            {
+                builder.Append(space[random.Next(space.Length)]);
+            }
+            return builder.ToString();
+        }
+
         internal static void CompressFiles()
         {
-            var zipfilepath = $"BloodHound_{DateTime.Now:yyyyMMddHHmmssfff}.zip";
-            zipfilepath = GetCsvFileName(zipfilepath);
+            string usedname;
+            if (_options.ZipFileName != null)
+            {
+                usedname = _options.ZipFileName;
+            }
+            else
+            {
+                if (_options.RandomFilenames)
+                {
+                    usedname = Path.GetRandomFileName() + ".zip";
+                }
+                else
+                {
+                    usedname = $"{_fileTimeStamp}_BloodHound.zip";
+                }
+            }
+            var zipfilepath = GetZipFileName(usedname);
 
-            Console.WriteLine(_options.RemoveCSV
-                ? $"Compressing data to {zipfilepath} and deleting CSVs"
-                : $"Compressing data to {zipfilepath}");
+            Console.WriteLine($"Compressing data to {zipfilepath}.");
+            var password = GenerateZipPass();
+            if (_options.EncryptZip)
+            {
+                Console.WriteLine($"Password for zip file is {password}");
+                Console.WriteLine("Unzip the files manually to upload to the interface");
+            }
+            else
+            {
+                Console.WriteLine("You can upload this file directly to the UI.");
+            }
 
             var buffer = new byte[4096];
+            
             using (var s = new ZipOutputStream(File.Create(zipfilepath)))
             {
                 s.SetLevel(9);
+                if (_options.EncryptZip)
+                {
+                    s.Password = password;
+                }
                 foreach (var file in UsedFiles)
                 {
-                    var entry = new ZipEntry(Path.GetFileName(file.FileName)) {DateTime = DateTime.Now};
+                    var entry = new ZipEntry(Path.GetFileName(file)) {DateTime = DateTime.Now};
                     s.PutNextEntry(entry);
 
-                    using (var fs = File.OpenRead(file.FileName))
+                    using (var fs = File.OpenRead(file))
                     {
                         int source;
                         do
@@ -752,15 +818,16 @@ namespace Sharphound2
                         } while (source > 0);
                     }
 
-                    if (_options.RemoveCSV)
-                    {
-                        File.Delete(file.FileName);
-                    }
+                    
+                    File.Delete(file);
+                    
                 }
 
                 s.Finish();
                 s.Close();
             }
+
+            Console.WriteLine("Finished compressing files!");
         }
 
         internal static void DoJitter()
@@ -977,25 +1044,6 @@ namespace Sharphound2
                     break;
             }
             return result;
-        }
-
-        //Thanks to Ed Bayiates on Stack Overflow for this. https://stackoverflow.com/questions/6377454/escaping-tricky-string-to-csv-format
-        internal static string StringToCsvCell(string str)
-        {
-            if (str == null)
-                return null;
-            var mustQuote = (str.Contains(",") || str.Contains("\"") || str.Contains("\r") || str.Contains("\n"));
-            if (!mustQuote) return str;
-            var sb = new StringBuilder();
-            sb.Append("\"");
-            foreach (var nextChar in str)
-            {
-                sb.Append(nextChar);
-                if (nextChar == '"')
-                    sb.Append("\"");
-            }
-            sb.Append("\"");
-            return sb.ToString();
         }
 
         #region PINVOKE

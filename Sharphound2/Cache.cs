@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Diagnostics;
+﻿using System.Collections.Concurrent;
 using System.IO;
 using ProtoBuf;
 using Sharphound2.Enumeration;
@@ -29,7 +27,7 @@ namespace Sharphound2
         private Cache(Sharphound.Options opts)
         {
             _options = opts;
-            _fileName = Path.Combine(_options.CSVFolder, _options.CacheFile);
+            _fileName = Path.Combine(_options.JsonFolder, _options.CacheFile);
             LoadCache();
         }
 

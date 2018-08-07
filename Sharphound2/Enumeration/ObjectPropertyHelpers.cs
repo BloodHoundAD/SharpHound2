@@ -1,107 +1,223 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
-using System.Security.Principal;
-using Sharphound2.OutputObjects;
+using Sharphound2.JsonObjects;
 
 namespace Sharphound2.Enumeration
 {
     internal class ObjectPropertyHelpers
     {
         private static readonly DateTime Subt = new DateTime(1970,1,1);
-        public void Init()
+
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Domain obj)
         {
-            
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
+
+            obj.Properties.Add("description",entry.GetProp("description"));
+            var level = int.Parse(entry.GetProp("msds-behavior-version"));
+            string func;
+            switch (level)
+            {
+                case 0:
+                    func = "2000 Mixed/Native";
+                    break;
+                case 1:
+                    func = "2003 Interim";
+                    break;
+                case 2:
+                    func = "2003";
+                    break;
+                case 3:
+                    func = "2008";
+                    break;
+                case 4:
+                    func = "2008 R2";
+                    break;
+                case 5:
+                    func = "2012";
+                    break;
+                case 6:
+                    func = "2012 R2";
+                    break;
+                case 7:
+                    func = "2016";
+                    break;
+                default:
+                    func = "Unknown";
+                    break;
+            }
+
+            obj.Properties.Add("functionallevel", func);
         }
 
-        public static ComputerProp GetComputerProps(SearchResultEntry entry, ResolvedEntry resolved)
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Ou obj)
         {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
+
+            obj.Properties.Add("description", entry.GetProp("description"));
+        }
+
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Gpo obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
+
+            obj.Properties.Add("description", entry.GetProp("description"));
+            obj.Properties.Add("gpcpath", entry.GetProp("gpcfilesyspath"));
+        }
+
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Group obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
+            var ac = entry.GetProp("admincount");
+            if (ac != null)
+            {
+                var a = int.Parse(ac);
+                obj.Properties.Add("admincount", a != 0);
+            }
+            else
+            {
+                obj.Properties.Add("admincount", false);
+            }
+
+            obj.Properties.Add("description", entry.GetProp("description"));
+        }
+
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref User obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
             var uac = entry.GetProp("useraccountcontrol");
-            bool enabled;
-            bool unconstrained;
+            bool enabled, trustedToAuth;
             if (int.TryParse(uac, out var flag))
             {
-                var flags = (UacFlags) flag;
+                var flags = (UacFlags)flag;
+                enabled = (flags & UacFlags.AccountDisable) == 0;
+                trustedToAuth = (flags & UacFlags.TrustedToAuthForDelegation) != 0;
+            }
+            else
+            {
+                trustedToAuth = false;
+                enabled = true;
+            }
+
+            var comps = new List<string>();
+
+            if (trustedToAuth)
+            {
+                var delegates = entry.GetPropArray("msds-allowedToDelegateTo");
+                obj.Properties.Add("allowedtodelegate", delegates);
+
+                foreach (var d in delegates)
+                {
+                    var hname = d.Contains("/") ? d.Split('/')[1] : d;
+                    hname = hname.Split(':')[0];
+                    var resolvedHost = Utils.Instance.ResolveHost(hname);
+                    if (resolvedHost.Contains("."))
+                    {
+                        comps.Add(resolvedHost.ToUpper());
+                    }
+                }
+            }
+            obj.AllowedToDelegate = comps.Distinct().ToArray();
+
+            obj.Properties.Add("enabled", enabled);
+            //var history = entry.GetPropBytes("sidhistory");
+            //obj.SidHistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
+            obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
+            obj.Properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
+            var spn = entry.GetPropArray("serviceprincipalname");
+            obj.Properties.Add("serviceprincipalnames", spn);
+            obj.Properties.Add("hasspn", spn.Length > 0);
+            obj.Properties.Add("displayname", entry.GetProp("displayname"));
+            obj.Properties.Add("email", entry.GetProp("mail"));
+            obj.Properties.Add("title", entry.GetProp("title"));
+            obj.Properties.Add("homedirectory", entry.GetProp("homedirectory"));
+            obj.Properties.Add("description", entry.GetProp("description"));
+            obj.Properties.Add("userpassword", entry.GetProp("userpassword"));
+            var ac = entry.GetProp("admincount");
+            if (ac != null)
+            {
+                var a = int.Parse(ac);
+                obj.Properties.Add("admincount", a != 0);
+            }
+            else
+            {
+                obj.Properties.Add("admincount", false);
+            }
+        }
+
+        internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Computer obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.ObjectProps))
+            {
+                return;
+            }
+            var uac = entry.GetProp("useraccountcontrol");
+            bool enabled, unconstrained, trustedToAuth;
+            if (int.TryParse(uac, out var flag))
+            {
+                var flags = (UacFlags)flag;
                 enabled = (flags & UacFlags.AccountDisable) == 0;
                 unconstrained = (flags & UacFlags.TrustedForDelegation) == UacFlags.TrustedForDelegation;
+                trustedToAuth = (flags & UacFlags.TrustedToAuthForDelegation) != 0;
             }
             else
             {
                 unconstrained = false;
                 enabled = true;
+                trustedToAuth = false;
             }
-            var lastLogon = ConvertToUnixEpoch(entry.GetProp("lastlogon"));
-            var lastSet = ConvertToUnixEpoch(entry.GetProp("pwdlastset"));
-            var sid = entry.GetSid();
+
+            var comps = new List<string>();
+
+            if (trustedToAuth)
+            {
+                var delegates = entry.GetPropArray("msds-allowedToDelegateTo");
+                obj.Properties.Add("allowedtodelegate", delegates);
+
+                foreach (var d in delegates)
+                {
+                    var hname = d.Contains("/") ? d.Split('/')[1] : d;
+                    hname = hname.Split(':')[0];
+                    var resolvedHost = Utils.Instance.ResolveHost(hname);
+                    if (resolvedHost.Contains("."))
+                    {
+                        comps.Add(resolvedHost.ToUpper());
+                    }
+                }
+            }
+            obj.AllowedToDelegate = comps.Distinct().ToArray();
+
+            obj.Properties.Add("enabled", enabled);
+            obj.Properties.Add("unconstraineddelegation", unconstrained);
+            obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
+            obj.Properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
+            obj.Properties.Add("serviceprincipalnames", entry.GetPropArray("serviceprincipalname"));
             var os = entry.GetProp("operatingsystem");
             var sp = entry.GetProp("operatingsystemservicepack");
-            var domainS = resolved.BloodHoundDisplay.Split('.');
-            domainS = domainS.Skip(1).ToArray();
-            var domain = string.Join(".", domainS).ToUpper();
 
             if (sp != null)
             {
                 os = $"{os} {sp}";
             }
 
-            return new ComputerProp
-            {
-                ComputerName = resolved.BloodHoundDisplay,
-                Enabled = enabled,
-                LastLogon = lastLogon,
-                ObjectSid = sid,
-                OperatingSystem = os,
-                PwdLastSet = lastSet,
-                UnconstrainedDelegation = unconstrained,
-                Domain = domain
-            };
-        }
-
-        public static UserProp GetUserProps(SearchResultEntry entry, ResolvedEntry resolved)
-        {
-            var uac = entry.GetProp("useraccountcontrol");
-            bool enabled;
-            if (int.TryParse(uac, out var flag))
-            {
-                var flags = (UacFlags) flag;
-                enabled = (flags & UacFlags.AccountDisable) == 0;
-            }
-            else
-            {
-                enabled = true;
-            }
-            var history = entry.GetPropBytes("sidhistory");
-            var lastlogon = entry.GetProp("lastlogon");
-            var pwdlastset = entry.GetProp("pwdlastset");
-            var spn = entry.GetPropArray("serviceprincipalname");
-            var displayName = entry.GetProp("displayname");
-            var hasSpn = spn.Length != 0;
-            var spnString = string.Join("|", spn);
-            var convertedlogon = ConvertToUnixEpoch(lastlogon);
-            var convertedlastset = ConvertToUnixEpoch(pwdlastset);
-            var sid = entry.GetSid();
-            var sidhistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
-            var mail = entry.GetProp("mail");
-            var domain = resolved.BloodHoundDisplay.Split('@')[1].ToUpper();
-            var title = entry.GetProp("title");
-            var homedir = entry.GetProp("homeDirectory");
-
-            return new UserProp
-            {
-                AccountName = resolved.BloodHoundDisplay,
-                Enabled = enabled,
-                LastLogon = convertedlogon,
-                ObjectSid = sid,
-                PwdLastSet = convertedlastset,
-                SidHistory = sidhistory,
-                HasSpn = hasSpn,
-                ServicePrincipalNames = spnString,
-                DisplayName = displayName,
-                Email = mail,
-                Domain = domain,
-                Title = title,
-                HomeDirectory = homedir
-            };
+            obj.Properties.Add("operatingsystem", os);
+            obj.Properties.Add("description", entry.GetProp("description"));
         }
 
         private static long ConvertToUnixEpoch(string ldapTime)

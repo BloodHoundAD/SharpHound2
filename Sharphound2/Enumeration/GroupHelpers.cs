@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Reflection;
-using Sharphound2.OutputObjects;
+using Sharphound2.JsonObjects;
+using GroupMember = Sharphound2.JsonObjects.GroupMember;
 
 namespace Sharphound2.Enumeration
 {
@@ -13,70 +13,22 @@ namespace Sharphound2.Enumeration
         private static Utils _utils;
         private static Cache _cache;
         private static readonly string[] Props = { "samaccountname", "distinguishedname", "samaccounttype", "dnshostname" };
-        private static readonly HashSet<string> FinishedForests = new HashSet<string>();
-
         public static void Init()
         {
             _utils = Utils.Instance;
             _cache = Cache.Instance;
         }
 
-        public static IEnumerable<GroupMember> GetEnterpriseDCs(string domain = null)
+        public static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref Group u)
         {
-            var d = _utils.GetDomain(domain);
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Group))
+                return;
 
-            if (d == null)
-                yield break;
-
-            var f = d.Forest;
-
-            var fName = f.Name;
-
-            if (FinishedForests.Contains(fName))
-                yield break;
-
-            var groupName = $"ENTERPRISE DOMAIN CONTROLLERS@{fName}";
-
-            foreach (Domain subdomain in f.Domains)
-            {
-                DomainControllerCollection dcs;
-                try
-                {
-                    dcs = subdomain.DomainControllers;
-                }
-                catch
-                {
-                    continue;
-                }
-                
-                foreach (DomainController dc in dcs)
-                {
-                    yield return new GroupMember
-                    {
-                        AccountName = dc.Name,
-                        ObjectType = "computer",
-                        GroupName = groupName
-                    };
-                }
-            }
-
-            FinishedForests.Add(fName);
-        }
-
-        /// <summary>
-        /// Processes an LDAP entry to resolve PrimaryGroup/MemberOf properties
-        /// </summary>
-        /// <param name="entry">LDAP entry</param>
-        /// <param name="resolvedEntry">The resolved object with the name/type of the entry</param>
-        /// <param name="domainSid">SID for the domain being enumerated. Used to resolve PrimaryGroupID</param>
-        /// <returns></returns>
-        public static IEnumerable<GroupMember> ProcessAdObject(SearchResultEntry entry, ResolvedEntry resolvedEntry, string domainSid)
-        {
-            var principalDisplayName = resolvedEntry.BloodHoundDisplay;
+            var fMembers = new List<GroupMember>();
+            var principalDisplayName = resolved.BloodHoundDisplay;
             var principalDomainName = Utils.ConvertDnToDomain(entry.DistinguishedName);
 
-            //If this object is a group, add it to our DN cache
-            if (resolvedEntry.ObjectType.Equals("group"))
+            if (resolved.ObjectType == "group")
                 _cache.AddMapValue(entry.DistinguishedName, "group", principalDisplayName);
 
             var members = entry.GetPropArray("member");
@@ -86,14 +38,14 @@ namespace Sharphound2.Enumeration
                 var tempMembers = new List<string>();
                 var finished = false;
                 var bottom = 0;
-                
+
                 while (!finished)
                 {
                     var top = bottom + 1499;
                     var range = $"member;range={bottom}-{top}";
                     bottom += 1500;
                     //Try ranged retrieval
-                    foreach (var result in _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] { range },
+                    foreach (var result in _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] {range},
                         principalDomainName,
                         entry.DistinguishedName))
                     {
@@ -106,13 +58,14 @@ namespace Sharphound2.Enumeration
                             finished = true;
                             break;
                         }
-                        
+
                         if (en.Current == null) continue;
                         var attrib = en.Current.ToString();
                         if (attrib.EndsWith("-*"))
                         {
                             finished = true;
                         }
+
                         tempMembers.AddRange(result.GetPropArray(attrib));
                     }
                 }
@@ -134,6 +87,7 @@ namespace Sharphound2.Enumeration
                             Utils.Verbose($"Unable to resolve domain for FSP {dn}");
                             continue;
                         }
+
                         principal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
                     }
                     else
@@ -149,7 +103,7 @@ namespace Sharphound2.Enumeration
                         else
                         {
                             var resolvedObj = objEntry.ResolveAdEntry();
-                            if (resolvedObj == null)
+                            if (resolvedObj == null || resolvedObj.ObjectType == "domain")
                                 principal = null;
                             else
                             {
@@ -164,33 +118,43 @@ namespace Sharphound2.Enumeration
                     }
                 }
 
-
-
                 if (principal != null)
                 {
-                    yield return new GroupMember
+                    fMembers.Add(new GroupMember
                     {
-                        AccountName = principal.PrincipalName,
-                        GroupName = principalDisplayName,
-                        ObjectType = principal.ObjectType
-                    };
+                        MemberName = principal.PrincipalName,
+                        MemberType = principal.ObjectType
+                    });
                 }
             }
 
+            u.Members = fMembers.Distinct().ToArray();
+        }
+
+        internal static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref User u)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Group))
+                return;
 
             var pgi = entry.GetProp("primarygroupid");
-            if (pgi == null) yield break;
+            if (pgi == null) return;
 
             var pgsid = $"{domainSid}-{pgi}";
-            var primaryGroupName = _utils.SidToDisplay(pgsid, principalDomainName, Props, "group");
+            var primaryGroupName = _utils.SidToDisplay(pgsid, Utils.ConvertDnToDomain(entry.DistinguishedName), Props, "group");
+            u.PrimaryGroup = primaryGroupName;
+        }
 
-            if (primaryGroupName != null)
-                yield return new GroupMember
-                {
-                    AccountName = resolvedEntry.BloodHoundDisplay,
-                    GroupName = primaryGroupName,
-                    ObjectType = resolvedEntry.ObjectType
-                };
+        internal static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref Computer u)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Group))
+                return;
+
+            var pgi = entry.GetProp("primarygroupid");
+            if (pgi == null) return;
+
+            var pgsid = $"{domainSid}-{pgi}";
+            var primaryGroupName = _utils.SidToDisplay(pgsid, Utils.ConvertDnToDomain(entry.DistinguishedName), Props, "group");
+            u.PrimaryGroup = primaryGroupName;
         }
 
         #region Pinvoke

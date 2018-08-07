@@ -12,15 +12,13 @@ function Invoke-BloodHound{
         for the SharpHound executable and passed in via reflection. The appropriate function
         calls are made in order to ensure that assembly dependencies are loaded properly.
 
-    .PARAMETER Verbose
-
-        Enable verbose output mode. Will print a lot!
-
     .PARAMETER CollectionMethod
 
         Specifies the CollectionMethod being used. Possible value are:
             Group - Collect group membership information
-            LocalGroup - Collect local admin information for computers
+            LocalAdmin - Collect local admin information for computers
+            RDP - Collect remote desktop users for computers
+            DCOM - Collect distributed COM users for computers
             Session - Collect session information for computers
             SessionLoop - Continuously collect session information until killed
             Trusts - Enumerate domain trust data
@@ -31,7 +29,8 @@ function Invoke-BloodHound{
             LoggedOn - Collects session information using privileged methods (needs admin!)
             ObjectProps - Collects node property information for users and computers
             Default - Collects Group Membership, Local Admin, Sessions, and Domain Trusts
-            All - Collect all data
+            DcOnly - Collects Group Membership, ACLs, ObjectProps, Trusts, Containers, and GPO Admins
+            All - Collect all data except privileged collection
 
         This can be a list of comma seperated valued as well to run multiple collection methods!
 
@@ -49,14 +48,10 @@ function Invoke-BloodHound{
         Use stealth collection options, will sacrifice data quality in favor of much reduced
         network impact
 
-    .PARAMETER DomainController
+    .PARAMETER SkipGCDeconfliction
 
-        Specify which Domain Controller to request data from. Defaults to closest DC using Site Names
-
-    .PARAMETER Ou
-
-        Limit computer enumeration to this OU. Takes a DistinguishedName.
-        Ex. OU=Domain Controllers,DC=testlab,DC=local
+        Skip's Global Catalog deconfliction during session enumeration. This option
+        can result in more inaccuracy in data.
 
     .PARAMETER ComputerFile
 
@@ -67,11 +62,39 @@ function Invoke-BloodHound{
 
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
 
-    .PARAMETER SkipGCDeconfliction
+    .PARAMETER OU
 
-        Skip's Global Catalog deconfliction during session enumeration. This option
-        can result in more inaccuracy in data.
+        Limit enumeration to this OU. Takes a DistinguishedName.
+        Ex. OU=Domain Controllers,DC=testlab,DC=local
 
+    .PARAMETER DomainController
+
+        Specify which Domain Controller to request data from. Defaults to closest DC using Site Names
+
+    .PARAMETER LdapPort
+
+        Override the port used to connect to LDAP
+
+    .PARAMETER SecureLdap
+
+        Uses LDAPs instead of unencrypted LDAP on port 636
+
+    .PARAMETER IgnoreLdapCert
+
+        Ignores the certificate for LDAP
+
+    .PARAMETER LDAPUser
+
+        User to connect to LDAP with
+
+    .PARAMETER LDAPPassword
+
+        Password for user you are connecting to LDAP with
+
+    .PARAMETER DisableKerbSigning
+
+        Disables Kerberos Signing on requests.
+    
     .PARAMETER Threads
 
         Specifies the number of threads to use during enumeration (Default 20)
@@ -86,17 +109,17 @@ function Invoke-BloodHound{
         API calls will be made to all computers regardless of being up
         Use this option if ping is disabled on the network for some reason
 
-    .PARAMETER LoopTime
+    .PARAMETER LoopDelay
 
         Amount of time to wait between session enumeration loops in minutes. This option
         should be used in conjunction with the SessionLoop enumeration method. 
-        (Default 5 minutes)
+        (Default 300 seconds)
 
     .PARAMETER MaxLoopTime
 
         Length of time to run looped session collection. Format: 0d0h0m0s or any variation of this format.
         Use in conjunction with -c SessionLoop
-        Default will loop infinitely
+        Default will loop for two hours
 
     .PARAMETER Throttle
 
@@ -106,25 +129,33 @@ function Invoke-BloodHound{
 
         Percentage jitter to apply to throttle
 
-    .PARAMETER CSVFolder
+    .PARAMETER JSONFolder
 
-        Folder to export CSVs too (Defaults to current directory)
+        Folder to export JSONs too (Defaults to current directory)
 
-    .PARAMETER CSVPrefix
+    .PARAMETER JSONPrefix
 
-        Prefix to add to your CSV Files (Default "")
+        Prefix to add to your JSON Files (Default "")
 
-    .PARAMETER URI
+    .PARAMETER NoZip
 
-        The URI for the Neo4j REST API. Setting this option will turn off CSV output
-        Format for this options is http(s)://SERVER:PORT
-        REST API ingestion is deprecated, and will be removed in a future release
+        Don't compress JSON files and remove them from disk
 
-    .PARAMETER UserPass
+    .PARAMETER EncryptZip
 
-        Credentials for the Neo4j REST API. 
-        Format for this option is username:password
-        REST API ingestion is deprecated, and will be removed in a future release
+        Add a random password to the zip file
+
+    .PARAMETER ZipFileName
+
+        Change the filename for the zip file
+
+    .PARAMETER RandomFilenames
+
+        Randomize output filenames
+
+    .PARAMETER PrettyJson
+
+        Output pretty JSON at the cost of file size
 
     .PARAMETER CacheFile
 
@@ -142,45 +173,37 @@ function Invoke-BloodHound{
 
         Interval to display progress during enumeration in milliseconds (Default 30000)
 
-    .PARAMETER CompressData
-       
-        Compresses any used CSV files into a timestamped zip after running
+    .PARAMETER Verbose
 
-    .PARAMETER SecureLdap
-
-        Uses LDAPs instead of unencrypted LDAP on port 636
-
-    .PARAMETER LdapPort
-
-        Override the port used to connect to LDAP
-
-    .PARAMETER IgnoreLdapCert
-
-        Ignores the certificate for LDAP
-
-    .PARAMETER DisableKerbSigning
-
-        Disables Kerberos Signing on requests.
+        Enable verbose output mode. Will print a lot!
         
     .EXAMPLE
 
         PS C:\> Invoke-BloodHound
 
-        Executes the default collection options and exports CSVs to the current directory
+        Executes the default collection options and exports JSONs to the current directory, compresses the data to a zip file,
+        and then removes the JSON files from disk
 
     .EXAMPLE
         
-        PS C:\> Invoke-BloodHound -CollectionMethod SessionLoop -LoopTime 1 -MaxLoopTime 10
+        PS C:\> Invoke-BloodHound -CollectionMethod SessionLoop -LoopDelay 60 -MaxLoopTime 10
     
         Executes session collection in a loop. Will wait 1 minute after each run to continue collection
         and will continue running for 10 minutes after which the script will exit
 
     .EXAMPLE
 
-        PS C:\> Invoke-BloodHound -CollectionMethod All -CompressData -RemoveCSV
+        PS C:\> Invoke-BloodHound -CollectionMethod All
     
-        Runs ACL, ObjectProps, Container, and Default collection methods sequentially, compressed the data to a zip file,
-        and then removes the CSV files from disk
+        Runs ACL, ObjectProps, Container, and Default collection methods, compresses the data to a zip file,
+        and then removes the JSON files from disk
+
+    .EXAMPLE (Opsec!)
+
+        PS C:\> Invoke-BloodHound -CollectionMethod DCOnly --NoSaveCache --RandomFilenames --EncryptZip
+    
+        Run LDAP only collection methods (Groups, Trusts, ObjectProps, ACL, Containers, GPO Admins) without outputting the cache file to disk. 
+        Randomizes filenames of the JSON files and the zip file and adds a password to the zip file
     #>
 
     param(
@@ -193,26 +216,45 @@ function Invoke-BloodHound{
         [String]
         $Domain,
 
-        [ValidateScript({ Test-Path -Path $_ })]
-        [String]
-        $CSVFolder = $(Get-Location),
-
-        [ValidateNotNullOrEmpty()]
-        [String]
-        $CSVPrefix,
-
-        [ValidateRange(1,50)]
-        [Int]
-        $Threads = 10,
+        [Switch]
+        $Stealth,
 
         [Switch]
         $SkipGCDeconfliction,
 
         [Switch]
-        $Stealth,
+        $ExcludeDC,
 
         [String]
-        $Ou,
+        $ComputerFile,
+
+        [String]
+        $OU,
+
+        [string]
+        $DomainController,
+
+        [int]
+        $LdapPort,
+
+        [Switch]
+        $SecureLdap,
+
+        [Switch]
+        $IgnoreLdapCert,
+
+        [String]
+        $LDAPUser,
+
+        [String]
+        $LDAPPassword,
+
+        [Switch]
+        $DisableKerbSigning,
+
+        [ValidateRange(1,50)]
+        [Int]
+        $Threads = 10,
 
         [ValidateRange(50,1500)]
         [int]
@@ -221,15 +263,44 @@ function Invoke-BloodHound{
         [Switch]
         $SkipPing,
 
+        [ValidateRange(1,50000000)]
+        [int]
+        $LoopDelay,
+
+        [ValidatePattern('[0-9]+[smdh]')]
+        [string]
+        $MaxLoopTime,
+
+        [ValidateRange(0,100)]
+        [int]
+        $Jitter,
+
+        [int]
+        $Throttle,
+
+        [ValidateScript({ Test-Path -Path $_ })]
         [String]
-        $URI,
+        $JSONFolder = $(Get-Location),
+
+        [ValidateNotNullOrEmpty()]
+        [String]
+        $JSONPrefix,
+
+        [Switch]
+        $NoZip,
+
+        [Switch]
+        $EncryptZip,
 
         [String]
-        [ValidatePattern('.*:.*')]
-        $UserPass,
+        $ZipFileName,
 
-        [String]
-        $ComputerFile,
+        [Switch]
+        $RandomFilenames,
+
+        [Switch]
+        $PrettyJson,
+        
 
         [String]
         [ValidateNotNullOrEmpty()]
@@ -246,46 +317,7 @@ function Invoke-BloodHound{
         $StatusInterval,
 
         [Switch]
-        $Verbose,
-
-        [Switch]
-        $ExcludeDC,
-
-        [ValidateRange(1,50000000)]
-        [int]
-        $LoopTime,
-
-        [ValidatePattern('[0-9]+[smdh]')]
-        [string]
-        $LoopEndTime,
-
-        [Switch]
-        $CompressData,
-
-        [Switch]
-        $SecureLdap,
-
-        [Switch]
-        $IgnoreLdapCert,
-
-        [Switch]
-        $DisableKerbSigning,
-
-        [string]
-        $DomainController,
-
-        [Switch]
-        $RemoveCSV,
-
-        [ValidateRange(0,100)]
-        [int]
-        $Jitter,
-
-        [int]
-        $Throttle,
-
-        [int]
-        $LdapPort
+        $Verbose
     )
 
     $vars = New-Object System.Collections.Generic.List[System.Object]
@@ -304,27 +336,63 @@ function Invoke-BloodHound{
         $vars.Add("-s");
     }
 
-    if ($CSVFolder){
-        $vars.Add("--CSVFolder")
-        $vars.Add($CSVFolder)
-    }
-
-    if ($CSVPrefix){
-        $vars.Add("--CSVPrefix")
-        $vars.Add($CSVPrefix)
-    }
-
-    if ($Threads){
-        $vars.Add("-t")
-        $vars.Add($Threads)
+    if ($Stealth){
+        $vars.Add("--Stealth")
     }
 
     if ($SkipGCDeconfliction){
         $vars.Add("--SkipGCDeconfliction")
     }
 
-    if ($Stealth){
-        $vars.Add("--Stealth")
+    if ($ExcludeDC){
+        $vars.Add("--ExcludeDC")
+    }
+
+    if ($ComputerFile){
+        $vars.Add("--ComputerFile");
+        $vars.Add($ComputerFile);
+    }
+
+    if ($OU){
+        $vars.Add("--OU");
+        $vars.Add($OU);
+    }
+
+    if ($DomainController){
+        $vars.Add("--DomainController");
+        $vars.Add($DomainController);
+    }
+
+    if ($LdapPort){
+        $vars.Add("--LdapPort");
+        $vars.Add($LdapPort);
+    }
+
+    if ($SecureLdap){
+        $vars.Add("--SecureLdap");
+    }
+
+    if ($IgnoreLdapCert){
+        $vars.Add("--IgnoreLdapCert");
+    }
+
+    if ($LDAPUser){
+        $vars.Add("--LDAPUser");
+        $vars.Add($LDAPUser);
+    }
+
+    if ($LDAPPassword){
+        $vars.Add("--LDAPPassword");
+        $vars.Add($LDAPPassword);
+    }
+
+    if ($DisableKerbSigning){
+        $vars.Add("--DisableKerbSigning");
+    }
+
+    if ($Threads){
+        $vars.Add("-t")
+        $vars.Add($Threads)
     }
 
     if ($PingTimeout){
@@ -336,14 +404,55 @@ function Invoke-BloodHound{
         $vars.Add("--SkipPing");
     }
 
-    if ($URI){
-        $vars.Add("--URI")
-        $vars.Add($URI)
+    if ($LoopDelay){
+        $vars.Add("--LoopDelay")
+        $vars.Add($LoopDelay)
     }
 
-    if ($UserPass){
-        $vars.Add("--UserPass")
-        $vars.Add($UserPass)
+    if ($MaxLoopTime){
+        $vars.Add("--MaxLoopTime")
+        $vars.Add($MaxLoopTime)
+    }
+
+    if ($Throttle){
+        $vars.Add("--Throttle");
+        $vars.Add($Throttle);
+    }
+
+    if ($Jitter){
+        $vars.Add("--Jitter");
+        $vars.Add($Jitter);
+    }
+
+    if ($JSONFolder){
+        $vars.Add("--JSONFolder");
+        $vars.Add($JSONFolder);
+    }
+
+    if ($JSONPrefix){
+        $vars.Add("--JSONPrefix");
+        $vars.Add($JSONPrefix);
+    }
+
+    if ($NoZip){
+        $vars.Add("--NoZip");
+    }
+
+    if ($EncryptZip){
+        $vars.Add("--EncryptZip");
+    }
+
+    if ($ZipFileName){
+        $vars.Add("--ZipFileName");
+        $vars.Add($ZipFileName);
+    }
+
+    if ($RandomFilenames){
+        $vars.Add("--RandomFilenames");
+    }
+
+    if ($PrettyJson){
+        $vars.Add("--PrettyJson");
     }
 
     if ($CacheFile){
@@ -366,71 +475,7 @@ function Invoke-BloodHound{
     if ($StatusInterval){
         $vars.Add("--StatusInterval")
         $vars.Add($StatusInterval)
-    }
-
-    if ($LoopTime){
-        $vars.Add("--LoopTime")
-        $vars.Add($LoopTime)
-    }
-
-    if ($MaxLoopTime){
-        $vars.Add("--MaxLoopTime")
-        $vars.Add($MaxLoopTime)
-    }
-
-    if ($ExcludeDC){
-        $vars.Add("--ExcludeDC")
-    }
-
-    if ($CompressData){
-        $vars.Add("--CompressData");
-    }
-
-    if ($SecureLdap){
-        $vars.Add("--SecureLdap");
-    }
-
-    if ($IgnoreLdapCert){
-        $vars.Add("--IgnoreLdapCert");
-    }
-
-    if ($Ou){
-        $vars.Add("--Ou");
-        $vars.Add($Ou);
-    }
-
-    if ($ComputerFile){
-        $vars.Add("--ComputerFile");
-        $vars.Add($ComputerFile);
-    }
-
-    if ($DisableKerbSigning){
-        $vars.Add("--DisableKerbSigning");
-    }
-
-    if ($DomainController){
-        $vars.Add("--DomainController");
-        $vars.Add($DomainController);
-    }
-
-    if ($RemoveCSV){
-        $vars.Add("--RemoveCSV");
-    }
-
-    if ($Throttle){
-        $vars.Add("--Throttle");
-        $vars.Add($Throttle);
-    }
-
-    if ($Jitter){
-        $vars.Add("--Jitter");
-        $vars.Add($Jitter);
-    }
-
-    if ($LdapPort){
-        $vars.Add("--LdapPort");
-        $vars.Add($LdapPort);
-    }
+    }   
 
     $passed = [string[]]$vars.ToArray()
 

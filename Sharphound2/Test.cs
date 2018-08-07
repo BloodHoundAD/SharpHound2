@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Runtime.InteropServices;
-using Sharphound2.Enumeration;
+using System.DirectoryServices.Protocols;
 
 namespace Sharphound2
 {
@@ -8,9 +7,11 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            foreach (var d in GroupHelpers.GetEnterpriseDCs(host))
+            //var forest = "DC=dev,DC=testlab,DC=local";
+            foreach (var s in Utils.Instance.DoSearch("(objectsid=S-1-5-9)", SearchScope.Subtree, null,adsPath:host))
             {
-                Console.WriteLine(d.AccountName);
+                Console.WriteLine(s.GetProp("name"));
+                Console.WriteLine(s.DistinguishedName);
             }
         }
     }

@@ -46,6 +46,9 @@
     <Reference Include="ICSharpCode.SharpZipLib, Version=0.86.0.518, Culture=neutral, PublicKeyToken=1b03e6acf1164f73, processorArchitecture=MSIL">
       <HintPath>..\packages\SharpZipLib.0.86.0\lib\20\ICSharpCode.SharpZipLib.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.11.0.2\lib\net35\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="protobuf-net, Version=2.3.2.0, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
       <HintPath>..\packages\protobuf-net.2.3.2\lib\net35\protobuf-net.dll</HintPath>
     </Reference>
@@ -66,33 +69,33 @@
   <ItemGroup>
     <Compile Include="Cache.cs" />
     <Compile Include="CollectionMethod.cs" />
-    <Compile Include="CsvContainer.cs" />
-    <Compile Include="CustomScheduler.cs" />
     <Compile Include="DnsManager.cs" />
     <Compile Include="Enumeration\ACLHelpers.cs" />
     <Compile Include="Enumeration\ContainerHelpers.cs" />
-    <Compile Include="Enumeration\DomainTrustEnumeration.cs" />
+    <Compile Include="Enumeration\TrustHelpers.cs" />
     <Compile Include="Enumeration\EnumerationRunner.cs" />
     <Compile Include="Enumeration\GroupHelpers.cs" />
     <Compile Include="Enumeration\LdapFilter.cs" />
-    <Compile Include="Enumeration\LocalAdminHelpers.cs" />
+    <Compile Include="Enumeration\LocalGroupHelpers.cs" />
     <Compile Include="Enumeration\MappedPrincipal.cs" />
     <Compile Include="Enumeration\ResolvedEntry.cs" />
     <Compile Include="Enumeration\SessionHelpers.cs" />
     <Compile Include="Enumeration\ObjectPropertyHelpers.cs" />
     <Compile Include="Extensions.cs" />
-    <Compile Include="OutputObjects\ACL.cs" />
-    <Compile Include="OutputObjects\ComputerProp.cs" />
-    <Compile Include="OutputObjects\Container.cs" />
-    <Compile Include="OutputObjects\DCSync.cs" />
-    <Compile Include="OutputObjects\DomainTrust.cs" />
-    <Compile Include="OutputObjects\GPLink.cs" />
-    <Compile Include="OutputObjects\GroupMember.cs" />
-    <Compile Include="OutputObjects\LocalAdmin.cs" />
-    <Compile Include="OutputObjects\OutputBase.cs" />
-    <Compile Include="OutputObjects\RestOutput.cs" />
-    <Compile Include="OutputObjects\Session.cs" />
-    <Compile Include="OutputObjects\UserProp.cs" />
+    <Compile Include="JsonObjects\ACL.cs" />
+    <Compile Include="JsonObjects\Computer.cs" />
+    <Compile Include="JsonObjects\GpoAdmin.cs" />
+    <Compile Include="JsonObjects\GroupMember.cs" />
+    <Compile Include="JsonObjects\JsonBase.cs" />
+    <Compile Include="JsonObjects\LocalMember.cs" />
+    <Compile Include="JsonObjects\Ou.cs" />
+    <Compile Include="JsonObjects\Domain.cs" />
+    <Compile Include="JsonObjects\GpLink.cs" />
+    <Compile Include="JsonObjects\Gpo.cs" />
+    <Compile Include="JsonObjects\Group.cs" />
+    <Compile Include="JsonObjects\Session.cs" />
+    <Compile Include="JsonObjects\Trust.cs" />
+    <Compile Include="JsonObjects\User.cs" />
     <Compile Include="Test.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="Sharphound.cs" />
