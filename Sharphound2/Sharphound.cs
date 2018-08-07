@@ -148,7 +148,7 @@ Enumeration Options:
         ObjectProps - Enumerate Object Properties for Users/Computers
         Container - Collects GPO/OU Structure
         DCOnly - Enumerate Group Membership, Trusts, ACLs, ObjectProps, Containers, and GPO Local Admins
-        All - Performs all enumeration methods
+        All - Performs all enumeration methods except GPOLocalGroup and LoggedOn
 
         This can be a list of comma seperated valued as well to run multiple collection methods!
 

@@ -30,7 +30,7 @@ function Invoke-BloodHound{
             ObjectProps - Collects node property information for users and computers
             Default - Collects Group Membership, Local Admin, Sessions, and Domain Trusts
             DcOnly - Collects Group Membership, ACLs, ObjectProps, Trusts, Containers, and GPO Admins
-            All - Collect all data except privileged collection
+            All - Collect all data except GPOLocalGroup and LoggedOn
 
         This can be a list of comma seperated valued as well to run multiple collection methods!
 
