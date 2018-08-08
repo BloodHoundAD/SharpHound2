@@ -225,10 +225,10 @@ Performance Tuning:
 
 Output Options
     --JsonFolder (Default: .)
-        The folder in which to store CSV files
+        The folder in which to store JSON files
 
     --JsonPrefix (Default: """")
-        The prefix to add to your CSV files
+        The prefix to add to your JSON files
 
     --NoZip
         Don't compress and remove JSON files
