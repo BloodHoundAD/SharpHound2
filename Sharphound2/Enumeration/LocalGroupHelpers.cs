@@ -25,7 +25,6 @@ namespace Sharphound2.Enumeration
         private static Sharphound.Options _options;
         private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
         private static readonly Regex KeyRegex = new Regex(@"(.+?)\s*=(.*)", RegexOptions.Compiled);
-
         private static readonly string[] Props =
             {"samaccountname", "samaccounttype", "dnshostname", "serviceprincipalname", "distinguishedname"};
 
@@ -101,7 +100,7 @@ namespace Sharphound2.Enumeration
             }
 
             Utils.Debug("Starting SamOpenAlias");
-            //Open the alias for Local Administrators (always RID 544)
+            //Open the alias for the desired RID
             status = SamOpenAlias(domainHandle, AliasOpenFlags.ListMembers, rid, out var aliasHandle);
             Utils.Debug($"SamOpenAlias returned {status}");
             if (!status.Equals(NtStatus.StatusSuccess))
