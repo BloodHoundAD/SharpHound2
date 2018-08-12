@@ -46,7 +46,7 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 * **SecureLdap** - Connect to AD using Secure LDAP instead of regular LDAP. Will connect to port 636 by default.
 * **IgnoreLdapCert** - Ignores LDAP SSL certificate. Use if there's a self-signed certificate for example
 * **LDAPUser** - Username to connect to LDAP with. Requires the LDAPPassword parameter as well (Default: null)
-* **LDAPassword** - Password for the user to connect to LDAP with. Requires the LDAPUser parameter as well (Default: null)
+* **LDAPPass** - Password for the user to connect to LDAP with. Requires the LDAPUser parameter as well (Default: null)
 * **DisableKerbSigning** - Disables LDAP encryption. Not recommended.
 
 ### Performance Options
