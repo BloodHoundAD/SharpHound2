@@ -730,7 +730,7 @@ namespace Sharphound2
 
         public static bool CheckWritePrivs()
         {
-            const string filename = "test.csv";
+            const string filename = "test.json";
             var f = Path.Combine(_options.JsonFolder, filename);
             try
             {
