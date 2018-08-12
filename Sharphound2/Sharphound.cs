@@ -194,7 +194,7 @@ Connection Options:
     --LdapUser (Default: null)
         User to connect to LDAP with
 
-    --LdapPassword (Default: null)
+    --LdapPass (Default: null)
         Password for the user to connect to LDAP with
 
 Performance Tuning:
