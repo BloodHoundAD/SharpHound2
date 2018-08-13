@@ -606,7 +606,7 @@ namespace Sharphound2.Enumeration
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup))
                 yield break;
 
-            const string targetSid = "S-1-5-32-544__Members";
+            const string targetSid = "S-1-5-32-544";
 
             var displayName = entry.GetProp("displayname");
             var name = entry.GetProp("name");
@@ -648,38 +648,27 @@ namespace Sharphound2.Enumeration
                         var n = kMatch.Groups[1].Value;
                         var v = kMatch.Groups[2].Value;
 
-                        if (!n.Contains(targetSid))
-                            continue;
-
-                        v = v.Trim();
-                        var members = v.Split(',');
-
-
-                        foreach (var m in members)
+                        if (n.Contains(targetSid))
                         {
-                            var member = m.Trim('*');
-                            string sid;
-                            if (!member.StartsWith("S-1-", StringComparison.CurrentCulture))
-                            {
-                                try
-                                {
-                                    sid = new NTAccount(domainName, m).Translate(typeof(SecurityIdentifier)).Value;
-                                }
-                                catch
-                                {
-                                    sid = null;
-                                }
-                            }
-                            else
-                            {
-                                sid = member;
-                            }
+                            v = v.Trim();
+                            var members = v.Split(',');
 
-                            if (sid == null)
-                                continue;
+                            foreach (var member in members)
+                            {
+                                var trimmedMember = member.Trim('*');
+                                string sid = GetSid(member, trimmedMember, domainName);
 
-                            var domain = _utils.SidToDomainName(sid) ?? domainName;
-                            var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                                MappedPrincipal resolvedPrincipal = ResolveSid(sid, domainName);
+                                if (resolvedPrincipal != null)
+                                    resolvedList.Add(resolvedPrincipal);
+                            }
+                        }
+                        else if (v.Contains(targetSid))
+                        {
+                            var trimmedElement = n.Replace("__Memberof", "").Trim('*');
+                            string sid = GetSid(n, trimmedElement, domainName);
+
+                            MappedPrincipal resolvedPrincipal = ResolveSid(sid, domainName);
                             if (resolvedPrincipal != null)
                                 resolvedList.Add(resolvedPrincipal);
                         }
@@ -718,10 +707,7 @@ namespace Sharphound2.Enumeration
                                 if (action.Equals("ADD"))
                                 {
                                     var sid = subMembers.Current.GetAttribute("sid", "");
-                                    if (sid == "")
-                                        continue;
-                                    var domain = _utils.SidToDomainName(sid) ?? domainName;
-                                    var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                                    MappedPrincipal resolvedPrincipal = ResolveSid(sid, domainName);
                                     if (resolvedPrincipal != null)
                                         resolvedList.Add(resolvedPrincipal);
                                 }
@@ -760,6 +746,40 @@ namespace Sharphound2.Enumeration
                         }
                     }
                 }
+            }
+        }
+
+        private static string GetSid(string element, string trimmedElement, string domainName)
+        {
+            string sid = "";
+            if (!trimmedElement.StartsWith("S-1-", StringComparison.CurrentCulture))
+            {
+                try
+                {
+                    sid = new NTAccount(domainName, element).Translate(typeof(SecurityIdentifier)).Value;
+                }
+                catch
+                {
+                    sid = null;
+                }
+            }
+            else
+            {
+                sid = trimmedElement;
+            }
+            return sid;
+        }
+
+        private static MappedPrincipal ResolveSid(string sid, string domainName) 
+        {
+            if(String.IsNullOrEmpty(sid))
+            {
+                return null;
+            }
+            else
+            {
+                var domain = _utils.SidToDomainName(sid) ?? domainName;
+                return _utils.UnknownSidTypeToDisplay(sid, domain, Props);
             }
         }
 
