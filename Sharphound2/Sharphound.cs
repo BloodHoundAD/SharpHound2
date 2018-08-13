@@ -21,10 +21,10 @@ namespace Sharphound2
             [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]
             public bool Stealth { get; set; }
 
-            [Option('d', HelpText = "Domain to enumerate", DefaultValue = null, MutuallyExclusiveSet = "DomainOption")]
+            [Option('d', "Domain", HelpText = "Domain to enumerate", DefaultValue = null, MutuallyExclusiveSet = "DomainOption")]
             public string Domain { get; set; }
 
-            [Option('s',HelpText ="Search the entire forest", DefaultValue = false, MutuallyExclusiveSet = "DomainOption")]
+            [Option('s', "SearchForest", HelpText ="Search the entire forest", DefaultValue = false, MutuallyExclusiveSet = "DomainOption")]
             public bool SearchForest { get; set; }
 
             [Option(DefaultValue = null)]
