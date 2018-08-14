@@ -268,15 +268,16 @@ namespace Sharphound2.Enumeration
 
                 if (_entDcs.Count > 0)
                 {
-                    var f = _utils.GetForest(domainName);
-                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name.ToUpper()}";
+                    var dObj = _utils.GetForest(domainName);
+                    var d = dObj == null ? domainName : dObj.RootDomain.Name;
+                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{d}";
                     var obj = new Group
                     {
                         Name = n,
                         Members = _entDcs.ToArray()
                     };
 
-                    obj.Properties.Add("domain", f.RootDomain.Name);
+                    obj.Properties.Add("domain", d);
                     obj.Properties.Add("objectsid", "S-1-5-9");
                     obj.Properties.Add("highvalue", true);
 
@@ -621,17 +622,19 @@ namespace Sharphound2.Enumeration
 
                 if (_entDcs.Count > 0)
                 {
-                    var f = _utils.GetForest(domain);
-                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{f.RootDomain.Name.ToUpper()}";
+                    var dObj = _utils.GetForest(domain);
+                    var d = dObj == null ? domain : dObj.RootDomain.Name;
+                    var n = $"ENTERPRISE DOMAIN CONTROLLERS@{d}";
                     var obj = new Group
                     {
                         Name = n,
                         Members = _entDcs.ToArray()
                     };
 
-                    obj.Properties.Add("domain", f.RootDomain.Name);
+                    obj.Properties.Add("domain", d);
                     obj.Properties.Add("objectsid", "S-1-5-9");
                     obj.Properties.Add("highvalue", true);
+
                     output.Add(new Wrapper<JsonBase>
                     {
                         Item = obj

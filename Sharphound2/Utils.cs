@@ -21,6 +21,7 @@ namespace Sharphound2
     internal class Utils
     {
         private readonly ConcurrentDictionary<string, Domain> _domainCache = new ConcurrentDictionary<string, Domain>();
+        private readonly ConcurrentDictionary<string, Forest> _forestCache = new ConcurrentDictionary<string, Forest>();
         private readonly ConcurrentDictionary<string, string> _dnsResolveCache = new ConcurrentDictionary<string, string>();
         private readonly ConcurrentDictionary<string, bool> _pingCache = new ConcurrentDictionary<string, bool>();
         private readonly ConcurrentDictionary<string, string> _netbiosConversionCache = new ConcurrentDictionary<string, string>();
@@ -625,15 +626,23 @@ namespace Sharphound2
             return domains;
         }
 
-        public Forest GetForest(string domain=null)
+        public Forest GetForest(string domain = null)
         {
-            if (domain == null)
+            try
             {
-                return Forest.GetCurrentForest();
-            }
+                if (domain == null)
+                {
+                    return Forest.GetCurrentForest();
+                }
 
-            var d = GetDomain(domain);
-            return d.Forest;
+                var context = new DirectoryContext(DirectoryContextType.Domain, domain);
+                var dObj = Domain.GetDomain(context);
+                return dObj.Forest;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public Domain GetDomain(string domainName = null)
