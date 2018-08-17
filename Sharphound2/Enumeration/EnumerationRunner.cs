@@ -777,7 +777,7 @@ namespace Sharphound2.Enumeration
                 ous?.CloseC(ouCount, "ous");
                 domains?.CloseC(domainCount, "domains");
                 gpos?.CloseC(gpoCount, "gpos");
-                gpomembers?.CloseC(gpoAdminCount,"gpoadmins");
+                gpomembers?.CloseC(gpoAdminCount,"gpomembers");
             }, TaskCreationOptions.LongRunning);
         }
 

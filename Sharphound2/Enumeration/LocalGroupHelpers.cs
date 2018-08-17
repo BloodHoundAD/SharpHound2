@@ -771,17 +771,17 @@ namespace Sharphound2.Enumeration
                 var g = new GpoMember
                 {
                     AffectedComputers = affected.ToArray(),
-                    Admins = resolvedList.Where((x) => x.RID == 544).Select((x) => new LocalMember
+                    LocalAdmins = resolvedList.Where((x) => x.RID == 544).Select((x) => new LocalMember
                     {
                         Name = x.Name,
                         Type = x.Type
                     }).ToArray(),
-                    RDP = resolvedList.Where((x) => x.RID == 555).Select((x) => new LocalMember
+                    RemoteDesktopUsers = resolvedList.Where((x) => x.RID == 555).Select((x) => new LocalMember
                     {
                         Name = x.Name,
                         Type = x.Type
                     }).ToArray(),
-                    DCOM = resolvedList.Where((x) => x.RID == 562).Select((x) => new LocalMember
+                    DcomUsers = resolvedList.Where((x) => x.RID == 562).Select((x) => new LocalMember
                     {
                         Name = x.Name,
                         Type = x.Type
