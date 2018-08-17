@@ -78,17 +78,29 @@ namespace Sharphound2.Enumeration
                 //Check our cache first
                 if (!_cache.GetMapValueUnknownType(dn, out var principal))
                 {
-                    if (dn.Contains("ForeignSecurityPrincipals") && dn.Contains("CN=S-1-5-21"))
+                    if (dn.Contains("ForeignSecurityPrincipals"))
                     {
                         var sid = dn.Split(',')[0].Substring(3);
-                        var domain = _utils.SidToDomainName(sid);
-                        if (domain == null)
+                        if (dn.Contains("CN=S-1-5-21"))
                         {
-                            Utils.Verbose($"Unable to resolve domain for FSP {dn}");
-                            continue;
-                        }
+                            var domain = _utils.SidToDomainName(sid);
+                            if (domain == null)
+                            {
+                                Utils.Verbose($"Unable to resolve domain for FSP {dn}");
+                                continue;
+                            }
 
-                        principal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                            principal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                        }
+                        else
+                        {
+                            if (!MappedPrincipal.GetCommon(sid, out principal))
+                            {
+                                continue;
+                            }
+
+                            principal.PrincipalName = $"{principal.PrincipalName}@{principalDomainName}";
+                        }
                     }
                     else
                     {
