@@ -159,13 +159,13 @@ namespace Sharphound2.Enumeration
                 else
                 {
                     //Check our cache first
-                    if (!_cache.GetGcMap(username, out string[] possible) || possible == null)
+                    if (!_cache.GetGcMap(username, out var possible) || possible == null)
                     {
                         //If we didn't get a cache hit, search the global catalog
                         var temp = new List<string>();
                         foreach (var entry in _utils.DoSearch(
                             $"(&(samAccountType=805306368)(samaccountname={username}))", SearchScope.Subtree,
-                            new[] {"distinguishedname"}, null, "", true))
+                            new[] {"distinguishedname"}, computerDomain, "", true))
                         {
                             temp.Add(Utils.ConvertDnToDomain(entry.DistinguishedName).ToUpper());
                         }

@@ -84,7 +84,7 @@
     <Compile Include="Extensions.cs" />
     <Compile Include="JsonObjects\ACL.cs" />
     <Compile Include="JsonObjects\Computer.cs" />
-    <Compile Include="JsonObjects\GpoAdmin.cs" />
+    <Compile Include="JsonObjects\GpoMember.cs" />
     <Compile Include="JsonObjects\GroupMember.cs" />
     <Compile Include="JsonObjects\JsonBase.cs" />
     <Compile Include="JsonObjects\LocalMember.cs" />

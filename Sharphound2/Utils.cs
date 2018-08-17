@@ -151,6 +151,17 @@ namespace Sharphound2
                 return false;
             }
 
+            var needsPing = IsMethodSet(ResolvedCollectionMethod.LocalAdmin) ||
+                IsMethodSet(ResolvedCollectionMethod.Session) ||
+                IsMethodSet(ResolvedCollectionMethod.LoggedOn) ||
+                IsMethodSet(ResolvedCollectionMethod.RDP) ||
+                IsMethodSet(ResolvedCollectionMethod.DCOM);
+            
+            if (!needsPing)
+            {
+                return true;
+            }
+
             if (_options.SessionLoopRunning)
             {
                 return DoPing(hostName);
@@ -550,19 +561,25 @@ namespace Sharphound2
                 Verbose($"Unable to contact domain {domainName}");
                 return null;
             }
-            var name = targetDomain.Name;
-            if (_gcConnectionCache.TryGetValue(name, out var conn))
+
+            if (targetDomain == null)
+            {
+                return null;
+            }
+
+            var domainController = _options.DomainController ?? targetDomain.Name;
+            if (_gcConnectionCache.TryGetValue(domainController, out var conn))
             {
                 return conn;
             }
-            var connection = new LdapConnection(new LdapDirectoryIdentifier(name, 3268));
+            var connection = new LdapConnection(new LdapDirectoryIdentifier(domainController, 3268));
 
             var lso = connection.SessionOptions;
             if (_options.DisableKerbSigning) return connection;
             lso.Signing = true;
             lso.Sealing = true;
 
-            _gcConnectionCache.TryAdd(name, connection);
+            _gcConnectionCache.TryAdd(domainController, connection);
             return connection;
         }
 

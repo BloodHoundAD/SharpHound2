@@ -17,14 +17,16 @@ namespace Sharphound2.Enumeration
     internal class ApiFailedException : Exception {}
 
     internal class SystemDownException : Exception { }
-
-    [SuppressMessage("ReSharper", "FieldCanBeMadeReadOnly.Local")]
+    
     internal static class LocalGroupHelpers
     {
         private static Utils _utils;
         private static Sharphound.Options _options;
-        private static readonly Regex SectionRegex = new Regex(@"^\[(.+)\]", RegexOptions.Compiled);
         private static readonly Regex KeyRegex = new Regex(@"(.+?)\s*=(.*)", RegexOptions.Compiled);
+        private static readonly Regex MemberRegex = new Regex(@"\[Group Membership\](.*)(?:\[|$)", RegexOptions.Compiled | RegexOptions.Singleline);
+        private static readonly Regex MemberLeftRegex = new Regex(@"(.*(?:S-1-5-32-544|S-1-5-32-555|S-1-5-32-562)__Members)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex MemberRightRegex = new Regex(@"(S-1-5-32-544|S-1-5-32-555|S-1-5-32-562)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ExtractRid = new Regex(@"S-1-5-32-([0-9]{3})", RegexOptions.Compiled);
         private static readonly string[] Props =
             {"samaccountname", "samaccounttype", "dnshostname", "serviceprincipalname", "distinguishedname"};
 
@@ -601,12 +603,10 @@ namespace Sharphound2.Enumeration
         //}
         #endregion
 
-        public static IEnumerable<GpoAdmin> GetGpoAdmins(SearchResultEntry entry, string domainName)
+        public static IEnumerable<GpoMember> GetGpoMembers(SearchResultEntry entry, string domainName)
         {
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup))
                 yield break;
-
-            const string targetSid = "S-1-5-32-544";
 
             var displayName = entry.GetProp("displayname");
             var name = entry.GetProp("name");
@@ -617,60 +617,69 @@ namespace Sharphound2.Enumeration
                 yield break;
             }
 
-            var resolvedList = new List<MappedPrincipal>();
+            var resolvedList = new List<GpoMember>();
 
             var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
-            var currentSection = string.Empty;
             
             if (File.Exists(template))
             {
-                using (var reader = new StreamReader(template))
+                var content = File.ReadAllText(template);
+                var mMatch = MemberRegex.Match(content);
+
+                if (mMatch.Success)
                 {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
+                    var memberText = mMatch.Groups[1].Value;
+                    var lines = Regex.Split(memberText.Trim(), @"\r\n|\r|\n");
+                    foreach (var line in lines)
                     {
-                        var sMatch = SectionRegex.Match(line);
-                        if (sMatch.Success)
-                        {
-                            currentSection = sMatch.Captures[0].Value.Trim();
-                        }
-
-                        if (!currentSection.Equals("[Group Membership]"))
-                        {
-                            continue;
-                        }
-
                         var kMatch = KeyRegex.Match(line);
 
-                        if (!kMatch.Success)
-                            continue;
+                        var key = kMatch.Groups[1].Value.Trim();
+                        var val = kMatch.Groups[2].Value.Trim();
 
-                        var n = kMatch.Groups[1].Value;
-                        var v = kMatch.Groups[2].Value;
+                        var keyMatch = MemberLeftRegex.Match(key);
+                        var valMatch = MemberRightRegex.Matches(val);
 
-                        if (n.Contains(targetSid))
+                        //The first case is when the members of a local group are explicitly set
+                        if (keyMatch.Success)
                         {
-                            v = v.Trim();
-                            var members = v.Split(',');
-
-                            foreach (var member in members)
-                            {
-                                var trimmedMember = member.Trim('*');
-                                string sid = GetSid(member, trimmedMember, domainName);
-
-                                MappedPrincipal resolvedPrincipal = ResolveSid(sid, domainName);
-                                if (resolvedPrincipal != null)
-                                    resolvedList.Add(resolvedPrincipal);
+                            var rid = int.Parse(ExtractRid.Match(keyMatch.Value).Groups[1].Value);
+                            foreach (var member in val.Split(','))
+                            { 
+                                var sid = GetSid(member.Trim('*'), domainName);
+                                if (sid == null)
+                                    continue;
+                                var obj = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid), Props);
+                                if (obj == null)
+                                    continue;
+                                resolvedList.Add(new GpoMember
+                                {
+                                    Name = obj.PrincipalName,
+                                    RID = rid,
+                                    Type = obj.ObjectType
+                                });
                             }
                         }
-                        else if (v.Contains(targetSid))
-                        {
-                            var trimmedElement = n.Replace("__Memberof", "").Trim('*');
-                            string sid = GetSid(n, trimmedElement, domainName);
 
-                            MappedPrincipal resolvedPrincipal = ResolveSid(sid, domainName);
-                            if (resolvedPrincipal != null)
-                                resolvedList.Add(resolvedPrincipal);
+                        //A group has been set as memberof to one of our rids
+                        var index = key.IndexOf("MemberOf", StringComparison.CurrentCultureIgnoreCase);
+                        if (valMatch.Count > 0 && index > 0)
+                        {
+                            var sid = key.Trim('*').Substring(0, index - 3);
+                            var obj = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid), Props);
+                            if (obj != null)
+                            {
+                                foreach (var x in valMatch)
+                                {
+                                    var rid = int.Parse(ExtractRid.Match(x.ToString()).Groups[1].Value);
+                                    resolvedList.Add(new GpoMember
+                                    {
+                                        Name = obj.PrincipalName,
+                                        RID = rid,
+                                        Type = obj.ObjectType
+                                    });
+                                }
+                            }
                         }
                     }
                 }
@@ -696,6 +705,7 @@ namespace Sharphound2.Enumeration
                         if (!groupSid.Equals("S-1-5-32-544"))
                             continue;
 
+                        var rid = int.Parse(ExtractRid.Match(groupSid).Groups[1].Value);
 
                         var members = properties.Current.Select("Members");
                         while (members.MoveNext())
@@ -707,9 +717,16 @@ namespace Sharphound2.Enumeration
                                 if (action.Equals("ADD"))
                                 {
                                     var sid = subMembers.Current.GetAttribute("sid", "");
-                                    MappedPrincipal resolvedPrincipal = ResolveSid(sid, domainName);
+                                    if (string.IsNullOrEmpty(sid))
+                                        continue;
+                                    var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domainName, Props);
                                     if (resolvedPrincipal != null)
-                                        resolvedList.Add(resolvedPrincipal);
+                                        resolvedList.Add(new GpoMember
+                                        {
+                                            RID = rid,
+                                            Name = resolvedPrincipal.PrincipalName,
+                                            Type = resolvedPrincipal.ObjectType
+                                        });
                                 }
                             }
                         }
@@ -737,26 +754,45 @@ namespace Sharphound2.Enumeration
 
                         foreach (var user in resolvedList)
                         {
-                            yield return new GpoAdmin
-                            {
-                                Name = user.PrincipalName,
-                                Type = user.ObjectType,
-                                Computer = server
-                            };
+                            user.Computer = server;
+                            yield return user;
                         }
                     }
                 }
             }
         }
 
-        private static string GetSid(string element, string trimmedElement, string domainName)
+        private static string GetSid(string element, string domainName)
         {
-            string sid = "";
-            if (!trimmedElement.StartsWith("S-1-", StringComparison.CurrentCulture))
+            string sid;
+            if (!element.StartsWith("S-1-", StringComparison.CurrentCulture))
             {
+                string domain;
+                string target;
+                if (element.Contains('\\'))
+                {
+                    var split = element.Split('\\');
+                    var td = _utils.GetDomain(split[0]);
+                    if (td == null)
+                    {
+                        return null;
+                    }
+
+                    domain = td.Name;
+                    target = split[1];
+                }
+                else
+                {
+                    domain = domainName;
+                    target = element;
+                }
+
                 try
                 {
-                    sid = new NTAccount(domainName, element).Translate(typeof(SecurityIdentifier)).Value;
+                    sid = _utils.DoSearch($"(samaccountname={target})", SearchScope.Subtree, new []
+                    {
+                        "objectsid"
+                    }, domain).FirstOrDefault().GetSid();
                 }
                 catch
                 {
@@ -765,22 +801,9 @@ namespace Sharphound2.Enumeration
             }
             else
             {
-                sid = trimmedElement;
+                sid = element;
             }
             return sid;
-        }
-
-        private static MappedPrincipal ResolveSid(string sid, string domainName) 
-        {
-            if(String.IsNullOrEmpty(sid))
-            {
-                return null;
-            }
-            else
-            {
-                var domain = _utils.SidToDomainName(sid) ?? domainName;
-                return _utils.UnknownSidTypeToDisplay(sid, domain, Props);
-            }
         }
 
         private class SamEnumerationObject

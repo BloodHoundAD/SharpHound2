@@ -197,7 +197,7 @@ namespace Sharphound2.Enumeration
 
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
 
-                        foreach (var a in LocalGroupHelpers.GetGpoAdmins(entry, domain))
+                        foreach (var a in LocalGroupHelpers.GetGpoMembers(entry, domain))
                         {
                             output.Add(new Wrapper<JsonBase>
                             {
@@ -209,15 +209,6 @@ namespace Sharphound2.Enumeration
                         {
                             Item = obj
                         });
-
-                        if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup)) continue;
-                        foreach (var admin in LocalGroupHelpers.GetGpoAdmins(entry, domainName))
-                        {
-                            output.Add(new Wrapper<JsonBase>
-                            {
-                                Item = admin
-                            });
-                        }
                     }
                     else if (resolved.ObjectType == "ou")
                     {
@@ -765,7 +756,7 @@ namespace Sharphound2.Enumeration
                             if (sessionCount % 100 == 0)
                                 sessions.Flush();
                             break;
-                        case GpoAdmin a:
+                        case GpoMember a:
                             if (gpoadmin == null)
                                 gpoadmin = CreateFileStream("gpoadmins");
 
@@ -1135,7 +1126,7 @@ namespace Sharphound2.Enumeration
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
 
-                        foreach (var a in LocalGroupHelpers.GetGpoAdmins(entry, domain))
+                        foreach (var a in LocalGroupHelpers.GetGpoMembers(entry, domain))
                         {
                             output.Add(new Wrapper<JsonBase>
                             {
@@ -1147,15 +1138,6 @@ namespace Sharphound2.Enumeration
                         {
                             Item = obj
                         });
-
-                        if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup)) continue;
-                        foreach (var admin in LocalGroupHelpers.GetGpoAdmins(entry, domain))
-                        {
-                            output.Add(new Wrapper<JsonBase>
-                            {
-                                Item = admin
-                            });
-                        }
                     }else if (resolved.ObjectType == "ou")
                     {
                         var obj = new Ou
