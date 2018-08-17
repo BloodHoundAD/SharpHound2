@@ -603,6 +603,13 @@ namespace Sharphound2.Enumeration
         //}
         #endregion
 
+        private class TempGPOStorage
+        {
+            internal int RID { get; set; }
+            internal string Name { get; set; }
+            internal string Type { get; set; }
+        }
+
         public static IEnumerable<GpoMember> GetGpoMembers(SearchResultEntry entry, string domainName)
         {
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.GPOLocalGroup))
@@ -617,7 +624,7 @@ namespace Sharphound2.Enumeration
                 yield break;
             }
 
-            var resolvedList = new List<GpoMember>();
+            var resolvedList = new List<TempGPOStorage>();
 
             var template = $"{path}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf";
             
@@ -652,7 +659,7 @@ namespace Sharphound2.Enumeration
                                 var obj = _utils.UnknownSidTypeToDisplay(sid, _utils.SidToDomainName(sid), Props);
                                 if (obj == null)
                                     continue;
-                                resolvedList.Add(new GpoMember
+                                resolvedList.Add(new TempGPOStorage
                                 {
                                     Name = obj.PrincipalName,
                                     RID = rid,
@@ -672,7 +679,7 @@ namespace Sharphound2.Enumeration
                                 foreach (var x in valMatch)
                                 {
                                     var rid = int.Parse(ExtractRid.Match(x.ToString()).Groups[1].Value);
-                                    resolvedList.Add(new GpoMember
+                                    resolvedList.Add(new TempGPOStorage
                                     {
                                         Name = obj.PrincipalName,
                                         RID = rid,
@@ -721,7 +728,7 @@ namespace Sharphound2.Enumeration
                                         continue;
                                     var resolvedPrincipal = _utils.UnknownSidTypeToDisplay(sid, domainName, Props);
                                     if (resolvedPrincipal != null)
-                                        resolvedList.Add(new GpoMember
+                                        resolvedList.Add(new TempGPOStorage
                                         {
                                             RID = rid,
                                             Name = resolvedPrincipal.PrincipalName,
@@ -734,8 +741,10 @@ namespace Sharphound2.Enumeration
                 }
             }
 
+            var affected = new List<string>();
             if (resolvedList.Count > 0)
             {
+                
                 foreach (var ouObject in _utils.DoSearch($"(gplink=*{name}*)", SearchScope.Subtree, GpLinkProps, domainName))
                 {
                     var adspath = ouObject.DistinguishedName;
@@ -752,13 +761,34 @@ namespace Sharphound2.Enumeration
                         if (server == null)
                             continue;
 
-                        foreach (var user in resolvedList)
-                        {
-                            user.Computer = server;
-                            yield return user;
-                        }
+                        affected.Add(server);
                     }
                 }
+            }
+
+            if (affected.Count > 0)
+            {
+                var g = new GpoMember
+                {
+                    AffectedComputers = affected.ToArray(),
+                    Admins = resolvedList.Where((x) => x.RID == 544).Select((x) => new LocalMember
+                    {
+                        Name = x.Name,
+                        Type = x.Type
+                    }).ToArray(),
+                    RDP = resolvedList.Where((x) => x.RID == 555).Select((x) => new LocalMember
+                    {
+                        Name = x.Name,
+                        Type = x.Type
+                    }).ToArray(),
+                    DCOM = resolvedList.Where((x) => x.RID == 562).Select((x) => new LocalMember
+                    {
+                        Name = x.Name,
+                        Type = x.Type
+                    }).ToArray()
+                };
+
+                yield return g;
             }
         }
 

@@ -2,9 +2,9 @@
 {
     internal class GpoMember : JsonBase
     {
-        public string Computer { get; set; }
-        public string Name { get; set; }
-        public string Type { get; set; }
-        public int RID { get;set; }
+        public string[] AffectedComputers { get; set; }
+        public LocalMember[] RemoteDesktopUsers { get; set; }
+        public LocalMember[] LocalAdmins { get; set; }
+        public LocalMember[] DcomUsers { get; set; }
     }
 }

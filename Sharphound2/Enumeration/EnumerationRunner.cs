@@ -684,7 +684,7 @@ namespace Sharphound2.Enumeration
                 JsonTextWriter gpos = null;
                 JsonTextWriter ous = null;
                 JsonTextWriter sessions = null;
-                JsonTextWriter gpoadmin = null;
+                JsonTextWriter gpomembers = null;
 
                 foreach (var obj in outputQueue.GetConsumingEnumerable())
                 {
@@ -757,13 +757,13 @@ namespace Sharphound2.Enumeration
                                 sessions.Flush();
                             break;
                         case GpoMember a:
-                            if (gpoadmin == null)
-                                gpoadmin = CreateFileStream("gpoadmins");
+                            if (gpomembers == null)
+                                gpomembers = CreateFileStream("gpomembers");
 
-                            serializer.Serialize(gpoadmin, a);
+                            serializer.Serialize(gpomembers, a);
                             gpoAdminCount++;
                             if (gpoAdminCount % 100 == 0)
-                                gpoadmin.Flush();
+                                gpomembers.Flush();
                             break;
                     }
 
@@ -777,7 +777,7 @@ namespace Sharphound2.Enumeration
                 ous?.CloseC(ouCount, "ous");
                 domains?.CloseC(domainCount, "domains");
                 gpos?.CloseC(gpoCount, "gpos");
-                gpoadmin?.CloseC(gpoAdminCount,"gpoadmins");
+                gpomembers?.CloseC(gpoAdminCount,"gpoadmins");
             }, TaskCreationOptions.LongRunning);
         }
 
