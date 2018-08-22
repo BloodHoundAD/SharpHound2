@@ -66,6 +66,8 @@ namespace Sharphound2.Enumeration
                 if ((trustType & TrustType.DsDomainTreeRoot) == TrustType.DsDomainTreeRoot)
                     continue;
 
+                if (data.DnsDomainName == null)
+                    continue;
                 trust.TargetName = data.DnsDomainName;
                 var inbound = (trustType & TrustType.DsDomainDirectInbound) == TrustType.DsDomainDirectInbound;
                 var outbound = (trustType & TrustType.DsDomainDirectOutbound) == TrustType.DsDomainDirectOutbound;
