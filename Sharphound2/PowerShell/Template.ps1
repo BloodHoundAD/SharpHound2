@@ -87,7 +87,7 @@ function Invoke-BloodHound{
 
         User to connect to LDAP with
 
-    .PARAMETER LDAPPassword
+    .PARAMETER LDAPPass
 
         Password for user you are connecting to LDAP with
 
@@ -247,7 +247,7 @@ function Invoke-BloodHound{
         $LDAPUser,
 
         [String]
-        $LDAPPassword,
+        $LDAPPass,
 
         [Switch]
         $DisableKerbSigning,
@@ -381,9 +381,9 @@ function Invoke-BloodHound{
         $vars.Add($LDAPUser);
     }
 
-    if ($LDAPPassword){
-        $vars.Add("--LDAPPassword");
-        $vars.Add($LDAPPassword);
+    if ($LDAPPass){
+        $vars.Add("--LDAPPass");
+        $vars.Add($LDAPPass);
     }
 
     if ($DisableKerbSigning){
