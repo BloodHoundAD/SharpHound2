@@ -1014,7 +1014,7 @@ namespace Sharphound2.Enumeration
                 if (!toContinue)
                     continue;
 
-                if ((adRight & ActiveDirectoryRights.GenericAll) != ActiveDirectoryRights.GenericAll)
+                if (adRightString.Contains("GenericAll"))
                 {
                     if (mappedGuid == "ms-Mcs-AdmPwd")
                     {
@@ -1038,7 +1038,7 @@ namespace Sharphound2.Enumeration
                     }
                 }
 
-                if ((adRight & ActiveDirectoryRights.WriteOwner) != 0)
+                if (adRightString.Contains("WriteOwner"))
                 {
                     aces.Add(new ACL
                     {
@@ -1049,7 +1049,7 @@ namespace Sharphound2.Enumeration
                     });
                 }
 
-                if ((adRight & ActiveDirectoryRights.WriteDacl) != 0)
+                if (adRightString.Contains("WriteDacl"))
                 {
                     aces.Add(new ACL
                     {
@@ -1060,7 +1060,7 @@ namespace Sharphound2.Enumeration
                     });
                 }
 
-                if ((adRight & ActiveDirectoryRights.ExtendedRight) != 0)
+                if (adRightString.Contains("ExtendedRight"))
                 {
                     if (mappedGuid == "ms-Mcs-AdmPwd")
                     {
