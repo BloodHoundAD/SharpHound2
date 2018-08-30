@@ -102,17 +102,19 @@ namespace Sharphound2.Enumeration
                 return;
             }
             var uac = entry.GetProp("useraccountcontrol");
-            bool enabled, trustedToAuth;
+            bool enabled, trustedToAuth, sensitive;
             if (int.TryParse(uac, out var flag))
             {
                 var flags = (UacFlags)flag;
                 enabled = (flags & UacFlags.AccountDisable) == 0;
                 trustedToAuth = (flags & UacFlags.TrustedToAuthForDelegation) != 0;
+                sensitive = (flags & UacFlags.NotDelegated) != 0;
             }
             else
             {
                 trustedToAuth = false;
                 enabled = true;
+                sensitive = false;
             }
 
             var comps = new List<string>();
@@ -149,6 +151,7 @@ namespace Sharphound2.Enumeration
             obj.Properties.Add("homedirectory", entry.GetProp("homedirectory"));
             obj.Properties.Add("description", entry.GetProp("description"));
             obj.Properties.Add("userpassword", entry.GetProp("userpassword"));
+            obj.Properties.Add("sensitive", sensitive);
             var ac = entry.GetProp("admincount");
             if (ac != null)
             {
