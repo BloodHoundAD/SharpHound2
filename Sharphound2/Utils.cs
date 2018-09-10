@@ -258,7 +258,7 @@ namespace Sharphound2
             }
 
             Debug($"Searching for sid in AD by securityidentifier");
-            entry = DoSearch($"(securityidentifier={dSid})", SearchScope.Subtree, new[] { "cn" }, useGc: true)
+            entry = DoSearch($"(&(objectClass=trustedDomain)(securityidentifier={dSid}))", SearchScope.Subtree, new[] { "cn" }, useGc: true)
                 .DefaultIfEmpty(null).FirstOrDefault();
 
             if (entry != null)
