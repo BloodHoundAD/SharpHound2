@@ -30,6 +30,9 @@ namespace Sharphound2
             [Option(DefaultValue = null)]
             public string Ou { get; set; }
 
+            [Option(HelpText = "Custom LDAP filter to control collection", DefaultValue = null)]
+            public string LdapFilter { get; set; }
+
             [Option(DefaultValue=null)]
             public string ComputerFile { get; set; }
 

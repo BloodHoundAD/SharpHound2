@@ -6,7 +6,7 @@ namespace Sharphound2.Enumeration
     internal class LdapFilter
     {
 
-        internal static LdapData BuildLdapData(ResolvedCollectionMethod methods, bool excludeDc)
+        internal static LdapData BuildLdapData(ResolvedCollectionMethod methods, bool excludeDc, string ldapFilter)
         {
             var filterparts = new List<string>();
             var props = new List<string> {"objectsid","distiguishedname"};
@@ -89,6 +89,11 @@ namespace Sharphound2.Enumeration
             if (excludeDc)
             {
                 filter = $"(&({filter})(!(userAccountControl:1.2.840.113556.1.4.803:=8192)))";
+            }
+
+            if (ldapFilter != null)
+            {
+                filter = $"(&({filter})({ldapFilter}))";
             }
 
             return new LdapData

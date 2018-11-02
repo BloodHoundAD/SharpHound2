@@ -71,7 +71,7 @@ namespace Sharphound2.Enumeration
 
                 var domainSid = _utils.GetDomainSid(domainName);
                 var res = _options.ResolvedCollMethods;
-                var data = LdapFilter.BuildLdapData(res, _options.ExcludeDC);
+                var data = LdapFilter.BuildLdapData(res, _options.ExcludeDC, _options.LdapFilter);
 
                 ContainerHelpers.BuildGpoCache(domainName);
 
@@ -406,7 +406,7 @@ namespace Sharphound2.Enumeration
                     {
                         var input = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
                         var taskHandles = new Task[_options.Threads];
-                        var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC);
+                        var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC, _options.LdapFilter);
 
                         for (var i = 0; i < _options.Threads; i++)
                         {
@@ -498,7 +498,7 @@ namespace Sharphound2.Enumeration
 
                     var input = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
                     var taskHandles = new Task[_options.Threads];
-                    var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC);
+                    var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC, _options.LdapFilter);
 
                     ContainerHelpers.BuildGpoCache(domain);
 
@@ -590,7 +590,7 @@ namespace Sharphound2.Enumeration
                 
                 var input = new BlockingCollection<Wrapper<SearchResultEntry>>(1000);
                 var taskHandles = new Task[_options.Threads];
-                var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC);
+                var ldapData = LdapFilter.BuildLdapData(_options.ResolvedCollMethods, _options.ExcludeDC, _options.LdapFilter);
 
                 ContainerHelpers.BuildGpoCache(domain);
 
