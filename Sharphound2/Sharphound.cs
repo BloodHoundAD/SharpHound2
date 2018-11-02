@@ -177,6 +177,9 @@ Enumeration Options:
 
     --ExcludeDC
         Exclude domain controllers from session queries. Useful for ATA environments which detect this behavior
+
+    --LdapFilter
+        Append this to the ldap filter used for querying the directory
    
 Connection Options:
     --SecureLdap
