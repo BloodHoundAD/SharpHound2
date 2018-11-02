@@ -501,7 +501,7 @@ namespace Sharphound2
                 return null;
             }
 
-            var domainController = _options.DomainController ?? targetDomain.Name;
+            var domainController = _options.DomainController ?? targetDomain.PdcRoleOwner.Name;
 
             if (_ldapConnectionCache.TryGetValue(domainController, out var conn))
             {
@@ -569,7 +569,7 @@ namespace Sharphound2
                 return null;
             }
 
-            var domainController = _options.DomainController ?? targetDomain.Name;
+            var domainController = _options.DomainController ?? targetDomain.PdcRoleOwner.Name;
             if (_gcConnectionCache.TryGetValue(domainController, out var conn))
             {
                 return conn;
