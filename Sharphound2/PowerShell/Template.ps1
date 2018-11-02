@@ -43,6 +43,10 @@ function Invoke-BloodHound{
 
         Expands data collection to include all domains in the forest. 
 
+    .PARAMETER LdapFilter
+
+        Append this ldap filter to the search filter to further filter the results enumerated
+
     .PARAMETER Stealth
 
         Use stealth collection options, will sacrifice data quality in favor of much reduced
@@ -215,6 +219,9 @@ function Invoke-BloodHound{
 
         [String]
         $Domain,
+
+        [String]
+        $LdapFilter,
 
         [Switch]
         $Stealth,
@@ -456,16 +463,21 @@ function Invoke-BloodHound{
     }
 
     if ($CacheFile){
-        $vars.Add("--CacheFile")
-        $vars.Add($CacheFile)
+        $vars.Add("--CacheFile");
+        $vars.Add($CacheFile);
     }
 
     if ($Invalidate){
-        $vars.Add("--Invalidate")
+        $vars.Add("--Invalidate");
     }
 
     if ($NoSaveCache){
-        $vars.Add("--NoSaveCache")
+        $vars.Add("--NoSaveCache");
+    }
+
+    if ($LdapFilter){
+        $vars.Add("--LdapFilter");
+        $vars.Add($LdapFilter);
     }
 
     if ($Verbose){
