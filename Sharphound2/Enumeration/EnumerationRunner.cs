@@ -819,7 +819,12 @@ namespace Sharphound2.Enumeration
                     }
 
                     var netbios = Utils.GetComputerNetbiosName(resolved, out var domain);
-                    domain = _utils.GetDomain(domain).Name;
+                    var temp = _utils.GetDomain(domain);
+                    if (temp != null)
+                    {
+                        domain = temp.Name;
+                    }
+
                     var full = new ResolvedEntry
                     {
                         BloodHoundDisplay = resolved,
