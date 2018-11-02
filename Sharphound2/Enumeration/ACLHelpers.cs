@@ -26,7 +26,13 @@ namespace Sharphound2.Enumeration
 
         internal static void BuildGuidCache()
         {
-            var schema = _utils.GetForest().Schema.Name;
+            var forest = _utils.GetForest();
+            if (forest == null)
+                return;
+
+
+            var schema = forest.Schema.Name;
+
             foreach (var entry in _utils.DoSearch("(schemaIDGUID=*)", SearchScope.Subtree, new[] { "schemaidguid", "name" }, adsPath: schema))
             {
                 var name = entry.GetProp("name");
