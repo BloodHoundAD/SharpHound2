@@ -12,5 +12,6 @@ namespace Sharphound2.JsonObjects
         public string[] Computers { get; set; }
         public string[] Users { get; set; }
         public GpLink[] Links { get; set; }
+        public ACL[] Aces { get; set; }
     }
 }
