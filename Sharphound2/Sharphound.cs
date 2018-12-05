@@ -350,7 +350,7 @@ General Options
                     {
                         case All:
                             resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
-                                       ResolvedCollectionMethod.Group | ResolvedCollectionMethod.LocalAdmin |
+                                       ResolvedCollectionMethod.Group | ResolvedCollectionMethod.LocalGroup |
                                        ResolvedCollectionMethod.ObjectProps | ResolvedCollectionMethod.RDP |
                                        ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts |
                                        ResolvedCollectionMethod.DCOM;
@@ -364,12 +364,12 @@ General Options
                             resolved = resolved | ResolvedCollectionMethod.Group;
                             break;
                         case ComputerOnly:
-                            resolved = resolved | ResolvedCollectionMethod.LocalAdmin |
+                            resolved = resolved | ResolvedCollectionMethod.LocalGroup |
                                        ResolvedCollectionMethod.Session | ResolvedCollectionMethod.RDP |
                                        ResolvedCollectionMethod.DCOM;
                             break;
-                        case LocalAdmin:
-                            resolved = resolved | ResolvedCollectionMethod.LocalAdmin;
+                        case LocalGroup:
+                            resolved = resolved | ResolvedCollectionMethod.LocalGroup;
                             break;
                         case GPOLocalGroup:
                             resolved = resolved | ResolvedCollectionMethod.GPOLocalGroup;
@@ -390,7 +390,7 @@ General Options
                             resolved = resolved | ResolvedCollectionMethod.SessionLoop;
                             break;
                         case Default:
-                            resolved = resolved | ResolvedCollectionMethod.LocalAdmin | ResolvedCollectionMethod.Group | ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts;
+                            resolved = resolved | ResolvedCollectionMethod.LocalGroup | ResolvedCollectionMethod.Group | ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts;
                             break;
                         case ObjectProps:
                             resolved = resolved | ResolvedCollectionMethod.ObjectProps;
@@ -608,10 +608,10 @@ General Options
 
             if (options.Stealth)
             {
-                if ((resolved & ResolvedCollectionMethod.LocalAdmin) != 0)
+                if ((resolved & ResolvedCollectionMethod.LocalGroup) != 0)
                 {
                     Console.WriteLine("Note: You specified Stealth and LocalAdmin which is equivalent to GPOLocalGroup");
-                    resolved = resolved ^ ResolvedCollectionMethod.LocalAdmin;
+                    resolved = resolved ^ ResolvedCollectionMethod.LocalGroup;
                     resolved = resolved | ResolvedCollectionMethod.GPOLocalGroup;
                 }
 

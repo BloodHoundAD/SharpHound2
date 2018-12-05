@@ -151,7 +151,7 @@ namespace Sharphound2
                 return false;
             }
 
-            var needsPing = IsMethodSet(ResolvedCollectionMethod.LocalAdmin) ||
+            var needsPing = IsMethodSet(ResolvedCollectionMethod.LocalGroup) ||
                 IsMethodSet(ResolvedCollectionMethod.Session) ||
                 IsMethodSet(ResolvedCollectionMethod.LoggedOn) ||
                 IsMethodSet(ResolvedCollectionMethod.RDP) ||
