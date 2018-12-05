@@ -82,8 +82,6 @@ namespace Sharphound2.Enumeration
                     if (resolved == null)
                         continue;
 
-                    Console.WriteLine(resolved.BloodHoundDisplay);
-                    Console.WriteLine(resolved.ObjectType);
                     var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
                     var sid = entry.GetSid();
 
