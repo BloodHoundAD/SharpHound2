@@ -157,7 +157,8 @@ namespace Sharphound2
                 IsMethodSet(ResolvedCollectionMethod.RDP) ||
                 IsMethodSet(ResolvedCollectionMethod.DCOM) ||
                 IsMethodSet(ResolvedCollectionMethod.SessionLoop) ||
-                IsMethodSet(ResolvedCollectionMethod.LoggedOnLoop);
+                IsMethodSet(ResolvedCollectionMethod.LoggedOnLoop) ||
+                IsMethodSet(ResolvedCollectionMethod.LocalGroup);
             
             if (!needsPing)
             {

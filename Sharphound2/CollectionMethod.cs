@@ -6,7 +6,7 @@ namespace Sharphound2
     {
         Group,
         ComputerOnly,
-        LocalAdmin,
+        LocalGroup,
         GPOLocalGroup,
         Session,
         LoggedOn,
@@ -27,7 +27,7 @@ namespace Sharphound2
     {
         None = 0,
         Group = 1,
-        LocalAdmin = 1 << 1,
+        LocalGroup = 1 << 1,
         GPOLocalGroup = 1 << 2,
         Session = 1 << 3,
         LoggedOn = 1 << 4,
@@ -38,6 +38,6 @@ namespace Sharphound2
         ObjectProps = 1 << 9,
         SessionLoop = 1 << 10,
         LoggedOnLoop = 1 << 11,
-        DCOM = 1 << 12
+        DCOM = 1 << 12,
     }
 }
