@@ -143,6 +143,7 @@ namespace Sharphound2.Enumeration
             //var history = entry.GetPropBytes("sidhistory");
             //obj.SidHistory = history != null ? new SecurityIdentifier(history, 0).Value : "";
             obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
+            obj.Properties.Add("lastlogontimestamp", ConvertToUnixEpoch(entry.GetProp("lastlogontimestamp")));
             obj.Properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
             var spn = entry.GetPropArray("serviceprincipalname");
             obj.Properties.Add("serviceprincipalnames", spn);
@@ -212,6 +213,7 @@ namespace Sharphound2.Enumeration
             obj.Properties.Add("enabled", enabled);
             obj.Properties.Add("unconstraineddelegation", unconstrained);
             obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));
+            obj.Properties.Add("lastlogontimestamp", ConvertToUnixEpoch(entry.GetProp("lastlogontimestamp")));
             obj.Properties.Add("pwdlastset", ConvertToUnixEpoch(entry.GetProp("pwdlastset")));
             obj.Properties.Add("serviceprincipalnames", entry.GetPropArray("serviceprincipalname"));
             var os = entry.GetProp("operatingsystem");
