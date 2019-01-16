@@ -18,7 +18,10 @@ namespace Sharphound2.Enumeration
             }
 
             obj.Properties.Add("description",entry.GetProp("description"));
-            var level = int.Parse(entry.GetProp("msds-behavior-version"));
+            if (!int.TryParse(entry.GetProp("msds-behavior-version"), out var level))
+            {
+                level = -1;
+            }
             string func;
             switch (level)
             {

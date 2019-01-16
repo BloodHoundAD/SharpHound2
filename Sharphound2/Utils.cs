@@ -461,9 +461,10 @@ namespace Sharphound2
                         pageResponse = (PageResultResponseControl)response.Controls[0];
                     }
                 }
-                catch
+                catch (Exception e)
                 {
                     Debug("Error in loop");
+                    Debug(e.Message);
                     yield break;
                 }
                 if (response == null || pageResponse == null) continue;
