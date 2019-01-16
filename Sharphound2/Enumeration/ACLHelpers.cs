@@ -322,6 +322,9 @@ namespace Sharphound2.Enumeration
                 if (qAce == null)
                     continue;
 
+                if (!qAce.AceQualifier.Equals(AceQualifier.AccessAllowed))
+                    continue;
+
                 var objectSid = qAce.SecurityIdentifier.ToString();
                 if (_nullSids.TryGetValue(objectSid, out _))
                     continue;
@@ -532,6 +535,9 @@ namespace Sharphound2.Enumeration
             {
                 var qAce = genericAce as QualifiedAce;
                 if (qAce == null)
+                    continue;
+
+                if (!qAce.AceQualifier.Equals(AceQualifier.AccessAllowed))
                     continue;
 
                 var objectSid = qAce.SecurityIdentifier.ToString();
@@ -753,6 +759,9 @@ namespace Sharphound2.Enumeration
                 if (qAce == null)
                     continue;
 
+                if (!qAce.AceQualifier.Equals(AceQualifier.AccessAllowed))
+                    continue;
+
                 var objectSid = qAce.SecurityIdentifier.ToString();
                 if (_nullSids.TryGetValue(objectSid, out _))
                     continue;
@@ -928,6 +937,9 @@ namespace Sharphound2.Enumeration
             {
                 var qAce = genericAce as QualifiedAce;
                 if (qAce == null)
+                    continue;
+
+                if (!qAce.AceQualifier.Equals(AceQualifier.AccessAllowed))
                     continue;
 
                 var objectSid = qAce.SecurityIdentifier.ToString();
