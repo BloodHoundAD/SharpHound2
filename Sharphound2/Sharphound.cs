@@ -11,6 +11,30 @@ using static Sharphound2.CollectionMethod;
 
 namespace Sharphound2
 {
+    internal class CacheFileNameGenerator
+    {
+        private CacheFileNameGenerator() { }
+
+        public static String getHostUniqueCacheFileName()
+        {
+            String Hostname = System.Environment.GetEnvironmentVariable("Computername");
+
+            /*
+            String Username = System.Environment.GetEnvironmentVariable("Username");
+            String Domain = System.Environment.GetEnvironmentVariable("Userdnsdomain");
+
+            if (Domain != null && Domain.Length > 0)
+            {
+                Domain += "\\";
+            }
+
+            var PlainBytes = System.Text.Encoding.UTF8.GetBytes($"{Domain}{Username}@{Hostname}");
+            return System.Convert.ToBase64String(PlainBytes).Replace("=", String.Empty) + ".bin";
+            */
+            return $"{Hostname}.bin";
+        }
+    }
+
     internal class Sharphound
     {
         public class Options
@@ -63,7 +87,7 @@ namespace Sharphound2
             [Option(HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
             public bool SkipGcDeconfliction { get; set; }
             
-            [Option(HelpText = "Filename for the data cache", DefaultValue = "BloodHound.bin")]
+            [Option(HelpText = "Filename for the data cache. If left empty, host-unique filename will be used.", DefaultValue = "")]
             public string CacheFile { get; set; }
 
             [Option(HelpText = "Filename for the zip file", DefaultValue = null)]
@@ -255,7 +279,7 @@ Cache Options
     --NoSaveCache
         Dont save the cache to disk to speed up future runs
 
-    --CacheFile (Default: BloodHound.bin)
+    --CacheFile (Default: Host-unique generated value)
         Filename for the BloodHound database to write to disk
 
     --Invalidate
@@ -313,6 +337,12 @@ General Options
 
             try
             {
+                if (options.CacheFile.Length == 0)
+                {
+                    options.CacheFile = CacheFileNameGenerator.getHostUniqueCacheFileName();
+                    Console.WriteLine($"Opted to use host-unique Cache file name of: '{options.CacheFile}'");
+                }
+
                 // ReSharper disable once ReturnValueOfPureMethodIsNotUsed
                 Path.Combine(options.JsonFolder, options.CacheFile);
             }
