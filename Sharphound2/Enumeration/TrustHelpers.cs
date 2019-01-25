@@ -27,9 +27,19 @@ namespace Sharphound2.Enumeration
                 return;
 
             var trusts = new List<Trust>();
-            var dc = _utils
-                .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
-                    new[] { "dnshostname" }, resolved.BloodHoundDisplay).DefaultIfEmpty(null).FirstOrDefault();
+
+            SearchResultEntry dc = null;
+            foreach (SearchResultEntry sre in  _utils.DoSearch("(&(objectCategory=computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))", 
+                SearchScope.Subtree, new[] { "dnshostname" }, resolved.BloodHoundDisplay))
+            {
+                if (sre == null)
+                    continue;
+                if (_utils.DoPing(sre.GetProp("dnshostname")))
+                {
+                    dc = sre;
+                    break;
+                }     
+            }
 
             if (dc == null)
                 return;
@@ -60,17 +70,24 @@ namespace Sharphound2.Enumeration
                 var trust = new Trust();
 
                 var data = array[i];
-                var trustType = (TrustType)data.Flags;
+                var trustFlags = (Flags)data.Flags;
                 var trustAttribs = (TrustAttrib)data.TrustAttributes;
-
+                
+                /*
                 if ((trustType & TrustType.DsDomainTreeRoot) == TrustType.DsDomainTreeRoot)
+                    continue;
+                */
+
+                // the domain itself
+                if ((trustFlags & Flags.DsDomainPrimary) == Flags.DsDomainPrimary)
                     continue;
 
                 if (data.DnsDomainName == null)
                     continue;
+
                 trust.TargetName = data.DnsDomainName;
-                var inbound = (trustType & TrustType.DsDomainDirectInbound) == TrustType.DsDomainDirectInbound;
-                var outbound = (trustType & TrustType.DsDomainDirectOutbound) == TrustType.DsDomainDirectOutbound;
+                var inbound = (trustFlags & Flags.DsDomainDirectInbound) == Flags.DsDomainDirectInbound;
+                var outbound = (trustFlags & Flags.DsDomainDirectOutbound) == Flags.DsDomainDirectOutbound;
 
                 if (inbound && outbound)
                 {
@@ -80,12 +97,35 @@ namespace Sharphound2.Enumeration
                 {
                     trust.TrustDirection = (int)TrustDirection.Inbound;
                 }
-                else
+                else if (outbound)
                 {
                     trust.TrustDirection = (int)TrustDirection.Outbound;
                 }
+                else
+                {
+                    // a trust with no direction is probably not enabled (According to MS documentation)
+                    continue;
+                }
 
-                trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
+                if (((trustFlags & Flags.DsDomainTreeRoot) == Flags.DsDomainTreeRoot) && ((trustFlags & Flags.DsDomainInForest) == Flags.DsDomainInForest)
+                    || array[data.ParentIndex].DnsDomainName.ToUpper() == resolved.BloodHoundDisplay)
+                {
+                    trust.TrustType = "ParentChild";
+                }
+                else if ((trustFlags & Flags.DsDomainInForest) == Flags.DsDomainInForest)
+                {
+                    trust.TrustType = "CrossLink";
+                }
+                else if ((trustAttribs & TrustAttrib.ForestTransitive) == TrustAttrib.ForestTransitive)
+                {
+                    trust.TrustType = "Forest";
+                }
+                else
+                {
+                    trust.TrustType = "External";
+                }
+
+                //trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
 
                 if ((trustAttribs & TrustAttrib.NonTransitive) == TrustAttrib.NonTransitive)
                 {
@@ -104,7 +144,7 @@ namespace Sharphound2.Enumeration
 
         #region PINVOKE
         [Flags]
-        private enum TrustType : uint
+        private enum Flags : uint
         {
             DsDomainInForest = 0x0001,  // Domain is a member of the forest
             DsDomainDirectOutbound = 0x0002,  // Domain is directly trusted
@@ -123,7 +163,7 @@ namespace Sharphound2.Enumeration
             ForestTransitive = 0x0008,
             CrossOrganization = 0x0010,
             WithinForest = 0x0020,
-            TreatAsExternal = 0x0030
+            TreatAsExternal = 0x0040
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -135,7 +175,7 @@ namespace Sharphound2.Enumeration
             [MarshalAs(UnmanagedType.LPTStr)]
             public string DnsDomainName;
             public uint Flags;
-            private uint ParentIndex;
+            public uint ParentIndex;
             private uint TrustTypeA;
             public uint TrustAttributes;
             private IntPtr DomainSid;
