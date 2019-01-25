@@ -28,6 +28,7 @@ namespace Sharphound2.Enumeration
 
             var trusts = new List<Trust>();
 
+            // get all DCs and find the first that wa can ping
             SearchResultEntry dc = null;
             foreach (SearchResultEntry sre in  _utils.DoSearch("(&(objectCategory=computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))", 
                 SearchScope.Subtree, new[] { "dnshostname" }, resolved.BloodHoundDisplay))
@@ -72,11 +73,6 @@ namespace Sharphound2.Enumeration
                 var data = array[i];
                 var trustFlags = (TrustFlags)data.Flags;
                 var trustAttribs = (TrustAttrib)data.TrustAttributes;
-                
-                /*
-                if ((trustType & TrustType.DsDomainTreeRoot) == TrustType.DsDomainTreeRoot)
-                    continue;
-                */
 
                 // the domain itself
                 if ((trustFlags & TrustFlags.DsDomainPrimary) == TrustFlags.DsDomainPrimary)
@@ -91,7 +87,7 @@ namespace Sharphound2.Enumeration
 
                 if (inbound && outbound)
                 {
-                    trust.TrustDirection = (int)TrustDirection.Bidrectional;
+                    trust.TrustDirection = (int)TrustDirection.Bidirectional;
                 }
                 else if (inbound)
                 {
@@ -104,9 +100,12 @@ namespace Sharphound2.Enumeration
                 else
                 {
                     // a trust with no direction is probably not enabled (According to MS documentation)
+                    // see: https://docs.microsoft.com/fr-fr/windows/desktop/api/ntsecapi/ns-ntsecapi-_trusted_domain_information_ex (TrustDirection)
                     continue;
                 }
 
+                // parentChild occure only when one of the domain is the forest root
+                // Check is trusted domain is the current forst root or if trusted domain's parent is current enumerated domain
                 if (((trustFlags & TrustFlags.DsDomainTreeRoot) == TrustFlags.DsDomainTreeRoot) && ((trustFlags & TrustFlags.DsDomainInForest) == TrustFlags.DsDomainInForest)
                     || array[data.ParentIndex].DnsDomainName.ToUpper() == resolved.BloodHoundDisplay)
                 {
@@ -124,8 +123,6 @@ namespace Sharphound2.Enumeration
                 {
                     trust.TrustType = "External";
                 }
-
-                //trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
 
                 if ((trustAttribs & TrustAttrib.NonTransitive) == TrustAttrib.NonTransitive)
                 {
