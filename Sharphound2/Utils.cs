@@ -179,13 +179,13 @@ namespace Sharphound2
             return hostIsUp;
         }
 
-        internal bool DoPing(string hostname)
+        internal bool DoPing(string hostname, int port = 445)
         {
             try
             {
                 using (var client = new TcpClient())
                 {
-                    var result = client.BeginConnect(hostname, 445, null, null);
+                    var result = client.BeginConnect(hostname, port, null, null);
                     var success = result.AsyncWaitHandle.WaitOne(_pingTimeout);
                     if (!success)
                     {
@@ -503,14 +503,29 @@ namespace Sharphound2
                 return null;
             }
 
+            var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
             var domainController = _options.DomainController ?? targetDomain.PdcRoleOwner.Name;
+
+            // check if PDC is reachable, if not iterate though all DC to find a reachable one
+            if (!DoPing(domainController, port) && (_options.DomainController is null))
+            {
+                foreach(DomainController dc in targetDomain.DomainControllers)
+                {
+                    if (DoPing(dc.Name, port))
+                    {
+                        domainController = dc.Name;
+                        break;
+                    }
+                }
+                return null;
+            }
 
             if (_ldapConnectionCache.TryGetValue(domainController, out var conn))
             {
                 return conn;
             }
 
-            var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
+            
 
             var identifier =
                 new LdapDirectoryIdentifier(domainController, port, false, false);
