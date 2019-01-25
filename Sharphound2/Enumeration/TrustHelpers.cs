@@ -70,7 +70,7 @@ namespace Sharphound2.Enumeration
                 var trust = new Trust();
 
                 var data = array[i];
-                var trustFlags = (Flags)data.Flags;
+                var trustFlags = (TrustFlags)data.Flags;
                 var trustAttribs = (TrustAttrib)data.TrustAttributes;
                 
                 /*
@@ -79,15 +79,15 @@ namespace Sharphound2.Enumeration
                 */
 
                 // the domain itself
-                if ((trustFlags & Flags.DsDomainPrimary) == Flags.DsDomainPrimary)
+                if ((trustFlags & TrustFlags.DsDomainPrimary) == TrustFlags.DsDomainPrimary)
                     continue;
 
                 if (data.DnsDomainName == null)
                     continue;
 
                 trust.TargetName = data.DnsDomainName;
-                var inbound = (trustFlags & Flags.DsDomainDirectInbound) == Flags.DsDomainDirectInbound;
-                var outbound = (trustFlags & Flags.DsDomainDirectOutbound) == Flags.DsDomainDirectOutbound;
+                var inbound = (trustFlags & TrustFlags.DsDomainDirectInbound) == TrustFlags.DsDomainDirectInbound;
+                var outbound = (trustFlags & TrustFlags.DsDomainDirectOutbound) == TrustFlags.DsDomainDirectOutbound;
 
                 if (inbound && outbound)
                 {
@@ -107,12 +107,12 @@ namespace Sharphound2.Enumeration
                     continue;
                 }
 
-                if (((trustFlags & Flags.DsDomainTreeRoot) == Flags.DsDomainTreeRoot) && ((trustFlags & Flags.DsDomainInForest) == Flags.DsDomainInForest)
+                if (((trustFlags & TrustFlags.DsDomainTreeRoot) == TrustFlags.DsDomainTreeRoot) && ((trustFlags & TrustFlags.DsDomainInForest) == TrustFlags.DsDomainInForest)
                     || array[data.ParentIndex].DnsDomainName.ToUpper() == resolved.BloodHoundDisplay)
                 {
                     trust.TrustType = "ParentChild";
                 }
-                else if ((trustFlags & Flags.DsDomainInForest) == Flags.DsDomainInForest)
+                else if ((trustFlags & TrustFlags.DsDomainInForest) == TrustFlags.DsDomainInForest)
                 {
                     trust.TrustType = "CrossLink";
                 }
@@ -144,7 +144,7 @@ namespace Sharphound2.Enumeration
 
         #region PINVOKE
         [Flags]
-        private enum Flags : uint
+        private enum TrustFlags : uint
         {
             DsDomainInForest = 0x0001,  // Domain is a member of the forest
             DsDomainDirectOutbound = 0x0002,  // Domain is directly trusted
