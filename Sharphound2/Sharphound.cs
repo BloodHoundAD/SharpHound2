@@ -611,14 +611,14 @@ General Options
                 if ((resolved & ResolvedCollectionMethod.LocalGroup) != 0)
                 {
                     Console.WriteLine("Note: You specified Stealth and LocalAdmin which is equivalent to GPOLocalGroup");
-                    resolved = resolved ^ ResolvedCollectionMethod.LocalGroup;
+                    resolved = resolved & ~ResolvedCollectionMethod.LocalGroup;
                     resolved = resolved | ResolvedCollectionMethod.GPOLocalGroup;
                 }
 
                 if ((resolved & ResolvedCollectionMethod.LoggedOn) != 0)
                 {
                     Console.WriteLine("LoggedOn enumeration is not supported with Stealth");
-                    resolved = resolved ^ ResolvedCollectionMethod.LoggedOn;
+                    resolved = resolved & ~ResolvedCollectionMethod.LoggedOn;
                 }
             }
 
