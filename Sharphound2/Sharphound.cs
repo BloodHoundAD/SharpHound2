@@ -601,9 +601,9 @@ General Options
                 }
 
                 Console.WriteLine("ComputerFile detected! Removing non-computer collection methods");
-                resolved = resolved ^ ResolvedCollectionMethod.ACL ^ ResolvedCollectionMethod.Group ^
-                           ResolvedCollectionMethod.GPOLocalGroup ^ ResolvedCollectionMethod.Trusts ^
-                           ResolvedCollectionMethod.Container ^ ResolvedCollectionMethod.ObjectProps;
+                resolved = resolved & ~ResolvedCollectionMethod.ACL & ~ResolvedCollectionMethod.Group
+                           & ~ResolvedCollectionMethod.GPOLocalGroup & ~ResolvedCollectionMethod.Trusts
+                           & ~ResolvedCollectionMethod.Container & ~ResolvedCollectionMethod.ObjectProps;
             }
 
             if (options.Stealth)
