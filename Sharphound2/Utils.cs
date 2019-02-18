@@ -151,14 +151,14 @@ namespace Sharphound2
                 return false;
             }
 
-            var needsPing = IsMethodSet(ResolvedCollectionMethod.LocalGroup) ||
+            var needsPing = IsMethodSet(ResolvedCollectionMethod.LocalAdmin) ||
                 IsMethodSet(ResolvedCollectionMethod.Session) ||
                 IsMethodSet(ResolvedCollectionMethod.LoggedOn) ||
                 IsMethodSet(ResolvedCollectionMethod.RDP) ||
                 IsMethodSet(ResolvedCollectionMethod.DCOM) ||
                 IsMethodSet(ResolvedCollectionMethod.SessionLoop) ||
                 IsMethodSet(ResolvedCollectionMethod.LoggedOnLoop) ||
-                IsMethodSet(ResolvedCollectionMethod.LocalGroup);
+                IsMethodSet(ResolvedCollectionMethod.LocalAdmin);
             
             if (!needsPing)
             {

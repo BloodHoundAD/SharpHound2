@@ -19,7 +19,7 @@ namespace Sharphound2.Enumeration
                 });
             }
 
-            if ((methods & ResolvedCollectionMethod.LocalGroup) != 0 ||
+            if ((methods & ResolvedCollectionMethod.LocalAdmin) != 0 ||
                 (methods & ResolvedCollectionMethod.Session) != 0 ||
                 (methods & ResolvedCollectionMethod.LoggedOn) != 0 || 
                 (methods & ResolvedCollectionMethod.RDP) != 0 || 

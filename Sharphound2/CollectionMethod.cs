@@ -16,6 +16,7 @@ namespace Sharphound2
         Default,
         ObjectProps,
         Container,
+        LocalAdmin,
         RDP,
         DCOM,
         DcOnly,
@@ -27,7 +28,7 @@ namespace Sharphound2
     {
         None = 0,
         Group = 1,
-        LocalGroup = 1 << 1,
+        LocalAdmin = 1 << 1,
         GPOLocalGroup = 1 << 2,
         Session = 1 << 3,
         LoggedOn = 1 << 4,

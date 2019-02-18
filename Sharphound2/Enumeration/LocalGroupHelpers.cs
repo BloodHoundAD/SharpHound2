@@ -245,7 +245,7 @@ namespace Sharphound2.Enumeration
 
         public static IEnumerable<LocalMember> GetGroupMembers(ResolvedEntry entry, LocalGroupRids rid)
         {
-            if (rid.Equals(LocalGroupRids.Administrators) && !Utils.IsMethodSet(ResolvedCollectionMethod.LocalGroup))
+            if (rid.Equals(LocalGroupRids.Administrators) && !Utils.IsMethodSet(ResolvedCollectionMethod.LocalAdmin))
                 yield break;
 
             if (rid.Equals(LocalGroupRids.RemoteDesktopUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.RDP))
