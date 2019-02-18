@@ -56,7 +56,7 @@ namespace Sharphound2.Enumeration
                 filterparts.Add("(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913)(samaccounttype=805306368)(samaccounttype=805306369)(objectclass=domain)(objectclass=organizationalUnit)(objectcategory=groupPolicyContainer))");
                 props.AddRange(new[]
                 {
-                    "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "objectsid",
+                    "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "lastlogontimestamp", "objectsid",
                     "sidhistory", "useraccountcontrol", "dnshostname", "operatingsystem",
                     "operatingsystemservicepack", "serviceprincipalname", "displayname", "mail", "title",
                     "homedirectory","description","admincount","userpassword","gpcfilesyspath","objectclass",
