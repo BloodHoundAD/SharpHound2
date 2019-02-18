@@ -22,6 +22,8 @@ namespace Sharphound2.Enumeration
         private readonly System.Timers.Timer _statusTimer;
         private readonly Utils _utils;
         private Stopwatch _watch;
+        private bool _cancelled = false;
+        private readonly CancellationTokenSource _cancellationToken;
 
         private int _noPing;
         private int _timeouts;
@@ -37,6 +39,9 @@ namespace Sharphound2.Enumeration
             {
                 PrintStatus();
             };
+
+            _cancellationToken = new CancellationTokenSource();
+            Console.CancelKeyPress += CancelHandler;
             
             _statusTimer.AutoReset = false;
             _statusTimer.Interval = _options.StatusInterval;
@@ -77,6 +82,11 @@ namespace Sharphound2.Enumeration
 
                 foreach (var entry in _utils.DoSearch(data.Filter, SearchScope.Subtree, data.Properties, domainName))
                 {
+                    if (_cancelled)
+                    {
+                        output.CompleteAdding();
+                        break;
+                    }
                     var resolved = entry.ResolveAdEntry();
                     _currentCount++;
                     if (resolved == null)
@@ -314,6 +324,11 @@ namespace Sharphound2.Enumeration
                 string line;
                 while ((line = reader.ReadLine()) != null)
                 {
+                    if (_cancelled)
+                    {
+                        input.CompleteAdding();
+                        break;
+                    }
                     input.Add(new Wrapper<string>
                     {
                         Item = line
@@ -416,6 +431,11 @@ namespace Sharphound2.Enumeration
                         foreach (var item in _utils.DoWrappedSearch(ldapData.Filter, SearchScope.Subtree, ldapData.Properties,
                             domain, _options.Ou))
                         {
+                            if (_cancelled)
+                            {
+                                input.CompleteAdding();
+                                break;
+                            }
                             input.Add(item);
                         }
 
@@ -452,7 +472,7 @@ namespace Sharphound2.Enumeration
                 }
 
                 Console.WriteLine($"Starting next session run in {_options.LoopDelay} seconds");
-                new ManualResetEvent(false).WaitOne(_options.LoopDelay * 1000);
+                WaitHandle.WaitAny(new[] {_cancellationToken.Token.WaitHandle}, _options.LoopDelay * 1000);
 
                 if (_options.MaxLoopTime != null)
                 {
@@ -468,6 +488,13 @@ namespace Sharphound2.Enumeration
                 if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
                 {
                     Console.WriteLine("User pressed escape, exiting session loop");
+                    output.CompleteAdding();
+                    writer.Wait();
+                    break;
+                }
+
+                if (_cancelled)
+                {
                     output.CompleteAdding();
                     writer.Wait();
                     break;
@@ -510,6 +537,11 @@ namespace Sharphound2.Enumeration
                     foreach (var item in _utils.DoWrappedSearch(ldapData.Filter, SearchScope.Subtree, ldapData.Properties,
                         domain, _options.Ou))
                     {
+                        if (_cancelled)
+                        {
+                            input.CompleteAdding();
+                            break;
+                        }
                         input.Add(item);
                     }
 
@@ -546,7 +578,7 @@ namespace Sharphound2.Enumeration
                 }
 
                 Console.WriteLine($"Starting next session run in {_options.LoopDelay} seconds");
-                new ManualResetEvent(false).WaitOne(_options.LoopDelay * 1000);
+                WaitHandle.WaitAny(new[] {_cancellationToken.Token.WaitHandle}, _options.LoopDelay * 1000);
 
                 if (_options.MaxLoopTime != null)
                 {
@@ -562,6 +594,13 @@ namespace Sharphound2.Enumeration
                 if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
                 {
                     Console.WriteLine("User pressed escape, exiting session loop");
+                    output.CompleteAdding();
+                    writer.Wait();
+                    break;
+                }
+
+                if (_cancelled)
+                {
                     output.CompleteAdding();
                     writer.Wait();
                     break;
@@ -602,6 +641,11 @@ namespace Sharphound2.Enumeration
                 foreach (var item in _utils.DoWrappedSearch(ldapData.Filter, SearchScope.Subtree, ldapData.Properties,
                     domain, _options.Ou))
                 {
+                    if (_cancelled)
+                    {
+                        input.CompleteAdding();
+                        break;
+                    }
                     input.Add(item);
                 }
 
@@ -656,6 +700,14 @@ namespace Sharphound2.Enumeration
             Console.WriteLine();
             new ManualResetEvent(false).WaitOne(1000);
             StartSessionLoopEnumeration();
+        }
+
+        protected void CancelHandler(object sender, ConsoleCancelEventArgs args)
+        {
+            args.Cancel = true;
+            _cancelled = true;
+            _cancellationToken.Cancel();
+            Console.WriteLine("Caught Ctrl + C, Waiting for cleanup");
         }
 
         private Task StartOutputWriter(BlockingCollection<Wrapper<JsonBase>> outputQueue)
@@ -805,6 +857,11 @@ namespace Sharphound2.Enumeration
             {
                 foreach (var wrapper in input.GetConsumingEnumerable())
                 {
+                    if (_cancelled)
+                    {
+                        output.CompleteAdding();
+                        break;
+                    }
                     var item = wrapper.Item;
 
                     var resolved = _utils.ResolveHost(item);
@@ -928,6 +985,11 @@ namespace Sharphound2.Enumeration
             {
                 foreach (var wrapper in processQueue.GetConsumingEnumerable())
                 {
+                    if (_cancelled)
+                    {
+                        output.CompleteAdding();
+                        break;
+                    }
                     var entry = wrapper.Item;
                     var resolved = entry.ResolveAdEntry();
 
