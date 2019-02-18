@@ -15,7 +15,7 @@ namespace Sharphound2
     {
         public class Options
         {
-            [OptionArray('c', "CollectionMethod", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalAdmin, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default")]
+            [OptionArray('c', "CollectionMethod", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default, RDP, DCOM")]
             public string[] CollectionMethod { get; set; }
 
             [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]

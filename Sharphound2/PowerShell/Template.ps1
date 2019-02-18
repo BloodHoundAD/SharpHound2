@@ -16,7 +16,8 @@ function Invoke-BloodHound{
 
         Specifies the CollectionMethod being used. Possible value are:
             Group - Collect group membership information
-            LocalAdmin - Collect local admin information for computers
+            LocalGroup - Collect local group information for computers
+            LocalAdmin - Collect local admin users for computers
             RDP - Collect remote desktop users for computers
             DCOM - Collect distributed COM users for computers
             Session - Collect session information for computers
