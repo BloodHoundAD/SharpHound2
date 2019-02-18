@@ -815,6 +815,9 @@ namespace Sharphound2.Enumeration
                         wrapper.Item = null;
                         continue;
                     }
+                    
+                    // make sure to have the computer FQDN in full uppercase, like in other collection methods (non-ComputerFile)
+                    resolved = resolved.ToUpper();
 
                     var netbios = Utils.GetComputerNetbiosName(resolved, out var domain);
                     var temp = _utils.GetDomain(domain);
