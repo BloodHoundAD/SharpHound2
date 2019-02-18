@@ -139,7 +139,8 @@ Enumeration Options:
     -c , --CollectionMethod (Default: Default)
         Default - Enumerate Trusts, Sessions, Local Admin, and Group Membership
         Group - Enumerate Group Membership
-        LocalGroup - Enumerate the Administrators Group
+        LocalGroup - Enumerate the Administrators, Distributed COM Users, and Remote Desktop Users groups
+        LocalAdmin - Enumerate the Administrators Group
         DCOM - Enumerate the Distributed COM Users Group
         RDP - Enumerate the Remote Desktop Users Group
         Session - Enumerate Sessions
