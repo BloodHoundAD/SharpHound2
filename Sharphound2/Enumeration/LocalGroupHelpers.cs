@@ -37,7 +37,7 @@ namespace Sharphound2.Enumeration
 
         private static readonly string[] AdminProps = {"samaccountname", "dnshostname", "distinguishedname", "samaccounttype"};
 
-        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
         private static byte[] _sidbytes;
 
