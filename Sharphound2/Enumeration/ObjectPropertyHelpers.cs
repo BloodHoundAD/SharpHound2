@@ -239,8 +239,19 @@ namespace Sharphound2.Enumeration
             var time = long.Parse(ldapTime);
             if (time == 0)
                 return 0;
-            
-            return (long)Math.Floor(DateTime.FromFileTimeUtc(time).Subtract(Subt).TotalSeconds);
+
+            long toReturn;
+
+            try
+            {
+                toReturn = (long) Math.Floor(DateTime.FromFileTimeUtc(time).Subtract(Subt).TotalSeconds);
+            }
+            catch
+            {
+                toReturn = -1;
+            }
+
+            return toReturn;
         }
 
         [Flags]
