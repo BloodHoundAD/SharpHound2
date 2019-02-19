@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
+using System.Linq;
 using System.Security.Principal;
+using System.Text;
+using Newtonsoft.Json;
 using Sharphound2.Enumeration;
 
 namespace Sharphound2
@@ -12,17 +14,12 @@ namespace Sharphound2
         private static readonly HashSet<string> Groups = new HashSet<string> { "268435456", "268435457", "536870912", "536870913" };
         private static readonly HashSet<string> Computers = new HashSet<string> { "805306369" };
         private static readonly HashSet<string> Users = new HashSet<string> { "805306368" };
-        private static readonly HashSet<string> TrustAccount = new HashSet<string> { "805306370" };
         //private static readonly Regex SpnSearch = new Regex(@"HOST\/([A-Za-z0-9-_]*\.[A-Za-z0-9-_]*\.[A-Za-z0-9-_]*)$", RegexOptions.Compiled);
         private static string _primaryDomain;
 
-        static Extensions()
+        internal static void SetPrimaryDomain(string domain)
         {
-        }
-
-        public static void Init()
-        {
-            _primaryDomain = Utils.Instance.GetDomain().Name;
+            _primaryDomain = domain;
         }
 
         public static string ToTitleCase(this string str)
@@ -30,36 +27,25 @@ namespace Sharphound2
             return str.Substring(0, 1).ToUpper() + str.Substring(1).ToLower();
         }
 
-        public static string GetObjectType(this SearchResultEntry result)
+        internal static void PrintEntry(this SearchResultEntry result)
         {
-            var accountType = result.GetProp("samaccounttype");
-
-            if (Groups.Contains(accountType))
+            foreach (var property in result.Attributes.AttributeNames)
             {
-                return "group";
+                Console.WriteLine(property);
             }
-            
-            if (Users.Contains(accountType))
-            {
-                return "user";
-            }
+        }
 
-            if (Computers.Contains(accountType))
-            {
-                return "computer";
-            }
-
-            if (TrustAccount.Contains(accountType))
-            {
-                return "trustaccount";
-            }
-
-            if (result.DistinguishedName.Contains("ForeignSecurityPrincipals"))
-            {
-                return "foreignsecurityprincipal";
-            }
-
-            return "domain";
+        internal static void CloseC(this JsonTextWriter writer, int count, string type)
+        {
+            writer.WriteEndArray();
+            writer.WritePropertyName("meta");
+            writer.WriteStartObject();
+            writer.WritePropertyName("count");
+            writer.WriteValue(count);
+            writer.WritePropertyName("type");
+            writer.WriteValue(type);
+            writer.WriteEndObject();
+            writer.Close();
         }
 
         internal static ResolvedEntry ResolveAdEntry(this SearchResultEntry result)
@@ -120,37 +106,40 @@ namespace Sharphound2
                 return entry;
             }
 
+            
+
+            if (accountType == null)
+            {
+                var objClass = result.GetPropArray("objectClass");
+                if (objClass.Contains("groupPolicyContainer"))
+                {
+                    entry.BloodHoundDisplay = $"{result.GetProp("displayname")}@{domainName}";
+                    entry.ObjectType = "gpo";
+                    return entry;
+                }
+
+                if (objClass.Contains("organizationalUnit"))
+                {
+                    entry.BloodHoundDisplay = $"{result.GetProp("name")}@{domainName}";
+                    entry.ObjectType = "ou";
+                    return entry;
+                }
+
+                if (objClass.Contains("container"))
+                {
+                    entry.BloodHoundDisplay = domainName;
+                    entry.ObjectType = "container";
+                    return entry;
+                }
+            }
+            else
+            {
+                if (accountType.Equals("805306370"))
+                    return null;
+            }
             entry.BloodHoundDisplay = domainName;
             entry.ObjectType = "domain";
             return entry;
-        }
-
-        public static string ResolveBloodhoundDisplay(this SearchResultEntry result)
-        {
-            var accountName = result.GetProp("samaccountname");
-            var distinguishedName = result.DistinguishedName;
-            var accountType = result.GetProp("samaccounttype");
-
-            //I have no idea if this is a thing
-            if (distinguishedName == null)
-                return null;
-
-            var domain = Utils.ConvertDnToDomain(distinguishedName);
-
-            if (Groups.Contains(accountType) || Users.Contains(accountType))
-            {
-                return $"{accountName.ToUpper()}@{domain}";
-            }
-
-            if (Computers.Contains(accountType))
-            {
-                var dnsHostName = result.GetProp("dnshostname") ?? $"{accountName.TrimEnd('$')}.{domain}";
-                
-                return dnsHostName.ToUpper();
-            }
-            
-            //If we got here, we have a domain ACL object
-            return Utils.ConvertDnToDomain(distinguishedName);
         }
 
         public static string GetProp(this SearchResultEntry result, string prop)
@@ -167,11 +156,6 @@ namespace Sharphound2
                 return null;
 
             return result.Attributes[prop][0] as byte[];
-        }
-
-        public static byte[] GetSid(this DirectoryEntry result)
-        {
-            return result.Properties["objectsid"][0] as byte[];
         }
 
         public static string[] GetPropArray(this SearchResultEntry result, string prop)
@@ -194,7 +178,16 @@ namespace Sharphound2
             if (!result.Attributes.Contains("objectsid"))
                 return null;
 
-            return new SecurityIdentifier(result.Attributes["objectsid"][0] as byte[], 0).ToString();
+            var s = result.Attributes["objectsid"][0];
+            switch (s)
+            {
+                case byte[] b:
+                    return new SecurityIdentifier(b, 0).ToString();
+                case string st:
+                    return new SecurityIdentifier(Encoding.ASCII.GetBytes(st), 0).ToString();
+            }
+
+            return null;
         }
     }
 }

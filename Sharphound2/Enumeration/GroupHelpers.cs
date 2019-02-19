@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Reflection;
-using Sharphound2.OutputObjects;
+using Sharphound2.JsonObjects;
+using GroupMember = Sharphound2.JsonObjects.GroupMember;
 
 namespace Sharphound2.Enumeration
 {
@@ -11,92 +12,161 @@ namespace Sharphound2.Enumeration
     {
         private static Utils _utils;
         private static Cache _cache;
-        private static readonly string[] Props = { "samaccountname", "distinguishedname", "samaccounttype" };
-
+        private static readonly string[] Props = { "samaccountname", "distinguishedname", "samaccounttype", "dnshostname" };
         public static void Init()
         {
             _utils = Utils.Instance;
             _cache = Cache.Instance;
         }
 
-        /// <summary>
-        /// Processes an LDAP entry to resolve PrimaryGroup/MemberOf properties
-        /// </summary>
-        /// <param name="entry">LDAP entry</param>
-        /// <param name="resolvedEntry">The resolved object with the name/type of the entry</param>
-        /// <param name="domainSid">SID for the domain being enumerated. Used to resolve PrimaryGroupID</param>
-        /// <returns></returns>
-        public static IEnumerable<GroupMember> ProcessAdObject(SearchResultEntry entry, ResolvedEntry resolvedEntry, string domainSid)
+        public static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref Group u)
         {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Group))
+                return;
+
+            var fMembers = new List<GroupMember>();
+            var principalDisplayName = resolved.BloodHoundDisplay;
             var principalDomainName = Utils.ConvertDnToDomain(entry.DistinguishedName);
-            var principalDisplayName = resolvedEntry.BloodHoundDisplay;
-            var objectType = resolvedEntry.ObjectType;
 
-            //If this object is a group, add it to our DN cache
-            if (objectType.Equals("group"))
-            {
+            if (resolved.ObjectType == "group")
                 _cache.AddMapValue(entry.DistinguishedName, "group", principalDisplayName);
-            }
 
-            foreach (var dn in entry.GetPropArray("memberof"))
+            var members = entry.GetPropArray("member");
+
+            if (members.Length == 0)
             {
-                //Check our cache first
-                if (!_cache.GetMapValue(dn, "group", out var groupName))
+                var tempMembers = new List<string>();
+                var finished = false;
+                var bottom = 0;
+
+                while (!finished)
                 {
-                    //Search for the object directly
-                    var groupEntry = _utils
-                        .DoSearch("(objectclass=group)", SearchScope.Base, Props, Utils.ConvertDnToDomain(dn), dn)
-                        .DefaultIfEmpty(null).FirstOrDefault();
-
-                    if (groupEntry == null)
+                    var top = bottom + 1499;
+                    var range = $"member;range={bottom}-{top}";
+                    bottom += 1500;
+                    //Try ranged retrieval
+                    foreach (var result in _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] {range},
+                        principalDomainName,
+                        entry.DistinguishedName))
                     {
-                        //Our search didn't return anything so fallback
-                        //Try convertadname first
-                        groupName = ConvertAdName(dn, AdsTypes.AdsNameTypeDn, AdsTypes.AdsNameTypeNt4);
+                        if (result.Attributes.AttributeNames == null) continue;
+                        var en = result.Attributes.AttributeNames.GetEnumerator();
 
-                        //If convertadname is null, just screw with the distinguishedname to get the group
-                        groupName = groupName != null
-                            ? groupName.Split('\\').Last()
-                            : dn.Substring(0, dn.IndexOf(",", StringComparison.Ordinal)).Split('=').Last();
-                    }
-                    else
-                    {
-                        //We got an object back!
-                        groupName = groupEntry.ResolveAdEntry().BloodHoundDisplay;
-                    }
+                        //If the enumerator fails, that means theres really no members at all
+                        if (!en.MoveNext())
+                        {
+                            finished = true;
+                            break;
+                        }
 
-                    //If we got a group back, add it to the cache for later use
-                    if (groupName != null)
-                    {
-                        _cache.AddMapValue(dn, "group", groupName);
+                        if (en.Current == null) continue;
+                        var attrib = en.Current.ToString();
+                        if (attrib.EndsWith("-*"))
+                        {
+                            finished = true;
+                        }
+
+                        tempMembers.AddRange(result.GetPropArray(attrib));
                     }
                 }
 
-                //We got our group! Return it
-                if (groupName != null)
-                    yield return new GroupMember
-                    {
-                        AccountName = principalDisplayName,
-                        GroupName = groupName,
-                        ObjectType = objectType
-                    };
+                members = tempMembers.ToArray();
             }
 
-            var primaryGroupId = entry.GetProp("primarygroupid");
-            if (primaryGroupId == null) yield break;
-            
-            //As far as I know you cant belong to a primary group of another domain
-            var pgsid = $"{domainSid}-{primaryGroupId}";
-            var primaryGroupName = _utils.SidToDisplay(pgsid, principalDomainName, Props, "group");
-            
-            if (primaryGroupName != null)
-                yield return new GroupMember
+            foreach (var dn in members)
+            {
+                //Check our cache first
+                if (!_cache.GetMapValueUnknownType(dn, out var principal))
                 {
-                    AccountName = principalDisplayName,
-                    GroupName = primaryGroupName,
-                    ObjectType = objectType
-                };
-            
+                    if (dn.Contains("ForeignSecurityPrincipals"))
+                    {
+                        var sid = dn.Split(',')[0].Substring(3);
+                        if (dn.Contains("CN=S-1-5-21"))
+                        {
+                            var domain = _utils.SidToDomainName(sid);
+                            if (domain == null)
+                            {
+                                Utils.Verbose($"Unable to resolve domain for FSP {dn}");
+                                continue;
+                            }
+
+                            principal = _utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                        }
+                        else
+                        {
+                            if (!MappedPrincipal.GetCommon(sid, out principal))
+                            {
+                                continue;
+                            }
+
+                            principal.PrincipalName = $"{principal.PrincipalName}@{principalDomainName}";
+                        }
+                    }
+                    else
+                    {
+                        var objEntry = _utils
+                            .DoSearch("(objectclass=*)", SearchScope.Base, Props, Utils.ConvertDnToDomain(dn), dn)
+                            .DefaultIfEmpty(null).FirstOrDefault();
+
+                        if (objEntry == null)
+                        {
+                            principal = null;
+                        }
+                        else
+                        {
+                            var resolvedObj = objEntry.ResolveAdEntry();
+                            if (resolvedObj == null || resolvedObj.ObjectType == "domain")
+                                principal = null;
+                            else
+                            {
+                                _cache.AddMapValue(dn, resolvedObj.ObjectType, resolvedObj.BloodHoundDisplay);
+                                principal = new MappedPrincipal
+                                (
+                                    resolvedObj.BloodHoundDisplay,
+                                    resolvedObj.ObjectType
+                                );
+                            }
+                        }
+                    }
+                }
+
+                if (principal != null)
+                {
+                    fMembers.Add(new GroupMember
+                    {
+                        MemberName = principal.PrincipalName,
+                        MemberType = principal.ObjectType
+                    });
+                }
+            }
+
+            u.Members = fMembers.Distinct().ToArray();
+        }
+
+        internal static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref User u)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Group))
+                return;
+
+            var pgi = entry.GetProp("primarygroupid");
+            if (pgi == null) return;
+
+            var pgsid = $"{domainSid}-{pgi}";
+            var primaryGroupName = _utils.SidToDisplay(pgsid, Utils.ConvertDnToDomain(entry.DistinguishedName), Props, "group");
+            u.PrimaryGroup = primaryGroupName;
+        }
+
+        internal static void GetGroupInfo(SearchResultEntry entry, ResolvedEntry resolved, string domainSid, ref Computer u)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Group))
+                return;
+
+            var pgi = entry.GetProp("primarygroupid");
+            if (pgi == null) return;
+
+            var pgsid = $"{domainSid}-{pgi}";
+            var primaryGroupName = _utils.SidToDisplay(pgsid, Utils.ConvertDnToDomain(entry.DistinguishedName), Props, "group");
+            u.PrimaryGroup = primaryGroupName;
         }
 
         #region Pinvoke

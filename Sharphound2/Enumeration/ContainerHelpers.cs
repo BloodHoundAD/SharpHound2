@@ -3,183 +3,215 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.DirectoryServices.Protocols;
 using System.Linq;
-using Sharphound2.OutputObjects;
+using Sharphound2.JsonObjects;
 
 namespace Sharphound2.Enumeration
 {
-    internal class ContainerHelpers
+    internal static class ContainerHelpers
     {
         private static Utils _utils;
+        private static ConcurrentDictionary<string, string> _gpoCache;
 
         public static void Init()
         {
             _utils = Utils.Instance;
+            _gpoCache = new ConcurrentDictionary<string, string>();
         }
 
-        internal static IEnumerable<OutputBase> GetContainersForDomain(string domain)
+        internal static void BuildGpoCache(string domain)
         {
-            domain = _utils.GetDomain(domain).Name;
-            var queue = new Queue<string>();
-            var cache = new ConcurrentDictionary<string, string>();
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Container))
+                return;
 
+            var d = _utils.GetDomain(domain);
+            if (d == null)
+                return;
+
+            domain = d.Name;
             foreach (var entry in _utils.DoSearch("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))",
                 SearchScope.Subtree, new[] {"displayname", "name"}, domain))
             {
                 var dName = entry.GetProp("displayname");
                 var name = entry.GetProp("name");
                 name = name.Substring(1, name.Length - 2);
-                cache.TryAdd(name, dName);
+                _gpoCache.TryAdd(name, dName);
             }
+        }
 
-            var domainBase = _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] {"gplink", "objectguid"}, domain)
-                .Take(1).First();
+        internal static void ResolveContainer(SearchResultEntry entry, ResolvedEntry resolved, ref Ou obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Container))
+                return;
 
-            var domainGuid = new Guid(domainBase.GetPropBytes("objectguid")).ToString();
-            var domainGpLink = domainBase.GetProp("gplink");
+            var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
 
-            if (domainGpLink != null)
+            var opts = entry.GetProp("gpoptions");
+            obj.Properties.Add("blocksinheritance", opts != null && opts.Equals("1"));
+
+            //Resolve GPLinks on the ou
+            var links = new List<GpLink>();
+
+            var gpLinks = entry.GetProp("gplink");
+            if (gpLinks != null)
             {
-                foreach (var t in domainGpLink.Split(']', '[').Where(x => x.StartsWith("LDAP")))
+                foreach (var l in gpLinks.Split(']', '[').Where(x => x.StartsWith("LDAP")))
                 {
-                    var split = t.Split(';');
+                    var split = l.Split(';');
                     var dn = split[0];
-                    var enforced = split[1].Equals("2");
-                    var index = dn.IndexOf("CN=", StringComparison.Ordinal) + 4;
+                    var status = split[1];
+                    if (status.Equals("3") || status.Equals("1"))
+                        continue;
+
+                    var enforced = status.Equals("2");
+                    var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
                     var name = dn.Substring(index, index + 25);
-                    var dName = cache[name];
-                    yield return new GpLink
+
+                    if (!_gpoCache.ContainsKey(name)) continue;
+
+                    var dName = _gpoCache[name];
+                    links.Add(new GpLink
                     {
-                        GpoDisplayName = dName,
                         IsEnforced = enforced,
-                        ObjectGuid = domainGuid,
-                        ObjectType = "domain",
-                        ObjectName = domain,
-                        GpoGuid = name
-                    };
+                        Name = $"{dName}@{domain}"
+                    });
+                }
+
+                obj.Links = links.ToArray();
+            }
+
+            var computers = new List<string>();
+            var users = new List<string>();
+            var ous = new List<string>();
+            foreach (var subEntry in _utils.DoSearch(
+                "(|(samAccountType=805306368)(samAccountType=805306369)(objectclass=organizationalUnit))",
+                SearchScope.OneLevel,
+                new[]
+                {
+                    "samaccountname", "name", "objectguid", "objectclass", "objectsid", "samaccounttype", "dnshostname"
+                }, domain, entry.DistinguishedName))
+            {
+                var subResolved = subEntry.ResolveAdEntry();
+
+                if (subResolved == null)
+                    continue;
+
+                if (subResolved.ObjectType.Equals("ou"))
+                {
+                    ous.Add(new Guid(subEntry.GetPropBytes("objectguid")).ToString().ToUpper());
+                }
+                else if (subResolved.ObjectType.Equals("computer"))
+                {
+                    computers.Add(subResolved.BloodHoundDisplay);
+                }
+                else
+                {
+                    users.Add(subResolved.BloodHoundDisplay);
                 }
             }
 
-            foreach (var container in _utils.DoSearch("(objectclass=container)", SearchScope.OneLevel, new[] {"name", "distinguishedname"},
-                domain))
-            {
-                var name = container.GetProp("name");
-                var path = container.DistinguishedName;
+            obj.Users = users.ToArray();
 
-                foreach (var obj in _utils.DoSearch("(|(samAccountType=805306368)(samAccountType=805306369))",
-                    SearchScope.Subtree, new[] {"samaccounttype", "samaccountname", "distinguishedname", "dnshostname"},
-                    domain, path))
+            obj.Computers = computers.ToArray();
+
+            obj.ChildOus = ous.ToArray();
+        }
+
+        internal static void ResolveContainer(SearchResultEntry entry, ResolvedEntry resolved, ref Domain obj)
+        {
+            if (!Utils.IsMethodSet(ResolvedCollectionMethod.Container))
+                return;
+
+            var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
+
+            //Resolve GPLinks on the domain
+            var links = new List<GpLink>();
+
+            var gpLinks = entry.GetProp("gplink");
+            if (gpLinks != null)
+            {
+                foreach (var l in gpLinks.Split(']', '[').Where(x => x.StartsWith("LDAP")))
                 {
-                    var resolved = obj.ResolveAdEntry();
-                    yield return new Container
+                    var split = l.Split(';');
+                    var dn = split[0];
+                    var status = split[1];
+                    if (status.Equals("3") || status.Equals("1"))
+                        continue;
+
+                    var enforced = status.Equals("2");
+                    var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
+                    var name = dn.Substring(index, index + 25);
+
+                    if (!_gpoCache.ContainsKey(name)) continue;
+
+                    var dName = _gpoCache[name];
+                    links.Add(new GpLink
                     {
-                        ContainerType = "domain",
-                        ContainerBlocksInheritance = false,
-                        ContainerGuid = domainGuid,
-                        ObjectType = resolved.ObjectType,
-                        //Is this supposed to be the domain or the containername
-                        ContainerName = name,
-                        ObjectName = resolved.BloodHoundDisplay
-                    };
+                        IsEnforced = enforced,
+                        Name = $"{dName}@{domain}"
+                    });
+                }
+
+                obj.Links = links.ToArray();
+            }
+
+            var computers = new List<string>();
+            var users = new List<string>();
+            var ous = new List<string>();
+            foreach (var subEntry in _utils.DoSearch(
+                "(|(samAccountType=805306368)(samAccountType=805306369)(objectclass=organizationalUnit))",
+                SearchScope.OneLevel,
+                new[]
+                {
+                    "samaccountname", "name", "objectguid", "objectclass", "objectsid", "samaccounttype", "dnshostname"
+                }, domain, entry.DistinguishedName))
+            {
+                var subResolved = subEntry.ResolveAdEntry();
+
+                if (subResolved == null)
+                    continue;
+
+                if (subResolved.ObjectType.Equals("ou"))
+                {
+                    ous.Add(new Guid(subEntry.GetPropBytes("objectguid")).ToString().ToUpper());
+                }
+                else if (subResolved.ObjectType.Equals("computer"))
+                {
+                    computers.Add(subResolved.BloodHoundDisplay);
+                }
+                else
+                {
+                    users.Add(subResolved.BloodHoundDisplay);
                 }
             }
 
-            foreach (var ou in _utils.DoSearch("(objectcategory=organizationalUnit)", SearchScope.OneLevel,
-                new[] {"name"}, domain))
+            foreach (var container in _utils.DoSearch("(objectclass=container)", SearchScope.OneLevel,
+                new[] {"name", "distinguishedname"}, domain))
             {
-                var name = ou.GetProp("name");
-
-                yield return new Container
+                foreach (var subEntry in _utils.DoSearch("(|(samAccountType=805306368)(samAccountType=805306369))",
+                    SearchScope.Subtree, new[] { "samaccounttype", "samaccountname", "distinguishedname", "dnshostname", "objectsid" },
+                    domain, container.DistinguishedName))
                 {
-                    ContainerType = "domain",
-                    ContainerName = domain,
-                    ContainerGuid = domainGuid,
-                    ContainerBlocksInheritance = false,
-                    ObjectType = "ou",
-                    ObjectName = name
-                };
-
-                queue.Enqueue(ou.DistinguishedName);
-            }
-
-            while (queue.Count > 0)
-            {
-                var distinguishedName = queue.Dequeue();
-                var entry = _utils.DoSearch("(objectcategory=*)", SearchScope.Base,
-                    new[] {"name", "objectguid", "gplink", "gpoptions"}, domain, distinguishedName).First();
-
-                var guid = new Guid(entry.GetPropBytes("objectguid")).ToString();
-                var ouname = entry.GetProp("name");
-                var opts = entry.GetProp("gpoptions");
-
-                var blocksInheritance = opts != null && opts.Equals("1");
-
-                var gplink = entry.GetProp("gplink");
-                if (gplink != null)
-                {
-                    foreach (var t in gplink.Split(']', '[').Where(x => x.StartsWith("LDAP")))
+                    var subResolved = subEntry.ResolveAdEntry();
+                    if (subResolved == null)
                     {
-                        var split = t.Split(';');
-                        var dn = split[0];
-                        var enforced = split[1].Equals("2");
-                        var index = dn.IndexOf("CN=", StringComparison.CurrentCultureIgnoreCase) + 4;
-                        var name = dn.Substring(index, index + 25);
-                        var dName = cache[name];
-                        yield return new GpLink
-                        {
-                            GpoDisplayName = dName,
-                            IsEnforced = enforced,
-                            ObjectGuid = guid,
-                            ObjectType = "ou",
-                            ObjectName = ouname,
-                            GpoGuid = name
-                        };
+                        continue;
                     }
-                }
-
-                foreach (var sub in _utils.DoSearch(
-                    "(|(samAccountType=805306368)(samAccountType=805306369)(objectclass=organizationalUnit))",
-                    SearchScope.OneLevel, new[] {"name", "objectguid", "gplink", "gpoptions", "objectclass"}, domain, distinguishedName))
-                {
-                    var objClass = sub.GetProp("objectclass");
-                    var subName = sub.GetProp("name");
-
-                    if (objClass.Contains("organizationalunit"))
+                    if (subResolved.ObjectType.Equals("computer"))
                     {
-                        yield return new Container
-                        {
-                            ContainerType = "ou",
-                            ContainerName = ouname,
-                            ContainerGuid = guid,
-                            ContainerBlocksInheritance = blocksInheritance,
-                            ObjectType = "ou",
-                            ObjectName = subName
-                        };
-                    }else if (objClass.Contains("computer"))
-                    {
-                        yield return new Container
-                        {
-                            ContainerType = "ou",
-                            ContainerName = ouname,
-                            ContainerGuid = guid,
-                            ContainerBlocksInheritance = blocksInheritance,
-                            ObjectType = "computer",
-                            ObjectName = subName
-                        };
+                        computers.Add(subResolved.BloodHoundDisplay);
                     }
                     else
                     {
-                        yield return new Container
-                        {
-                            ContainerType = "ou",
-                            ContainerName = ouname,
-                            ContainerGuid = guid,
-                            ContainerBlocksInheritance = blocksInheritance,
-                            ObjectType = "user",
-                            ObjectName = subName
-                        };
+                        users.Add(subResolved.BloodHoundDisplay);
                     }
                 }
             }
+
+            obj.Users = users.ToArray();
+
+            obj.Computers = computers.ToArray();
+
+            obj.ChildOus = ous.ToArray();
         }
     }
 }

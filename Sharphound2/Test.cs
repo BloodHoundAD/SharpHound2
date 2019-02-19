@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Runtime.InteropServices;
+using System.DirectoryServices.Protocols;
 
 namespace Sharphound2
 {
@@ -7,9 +7,11 @@ namespace Sharphound2
     {
         public static void DoStuff(string host)
         {
-            for (int i = 0; i < 20; i++)
+            //var forest = "DC=dev,DC=testlab,DC=local";
+            foreach (var s in Utils.Instance.DoSearch("(objectsid=S-1-5-9)", SearchScope.Subtree, null,adsPath:host))
             {
-                Utils.DoJitter();
+                Console.WriteLine(s.GetProp("name"));
+                Console.WriteLine(s.DistinguishedName);
             }
         }
     }
