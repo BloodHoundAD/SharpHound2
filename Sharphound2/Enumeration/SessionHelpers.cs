@@ -19,7 +19,7 @@ namespace Sharphound2.Enumeration
         private static Sharphound.Options _options;
         private static readonly string[] RegistryProps = {"samaccounttype", "samaccountname", "distinguishedname"};
         private static readonly Regex SidRegex = new Regex(@"S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$", RegexOptions.Compiled);
-        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+        private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
         public static void Init(Sharphound.Options opts)
         {
