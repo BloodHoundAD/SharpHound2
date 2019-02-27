@@ -4,11 +4,11 @@ namespace Sharphound2.JsonObjects
 {
     internal class Computer : JsonBase
     {
-        private string _Name;
+        private string _name;
         public string Name
         {
-            get => _Name;
-            set => _Name = value.ToUpper();
+            get => _name;
+            set => _name = value.ToUpper();
         }
         public string PrimaryGroup { get; set; }
 

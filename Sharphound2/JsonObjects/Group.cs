@@ -4,7 +4,12 @@ namespace Sharphound2.JsonObjects
 {
     internal class Group : JsonBase
     {
-        public string Name { get; set; }
+        private string _name;
+        public string Name
+        {
+            get => _name;
+            set => _name = value.ToUpper();
+        }
 
         public Dictionary<string, object> Properties = new Dictionary<string, object>();
         
