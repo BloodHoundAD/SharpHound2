@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Remoting.Channels;
 
 namespace Sharphound2.Enumeration
 {
@@ -47,7 +48,7 @@ namespace Sharphound2.Enumeration
                 filterparts.Add("(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain)(objectCategory=groupPolicyContainer))");
                 props.AddRange(new[]
                 {
-                    "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "ntsecuritydescriptor", "displayname", "objectclass", "objectsid", "name", "ms-mcs-admpwdexpirationtime"
+                    "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "ntsecuritydescriptor", "displayname", "objectclass", "objectsid", "name"
                 });
             }
 
@@ -95,6 +96,8 @@ namespace Sharphound2.Enumeration
             {
                 filter = $"(&({filter})({ldapFilter}))";
             }
+
+            props.Add("ms-mcs-admpwdexpirationtime");
 
             return new LdapData
             {

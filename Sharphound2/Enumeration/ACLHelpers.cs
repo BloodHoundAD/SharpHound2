@@ -877,10 +877,6 @@ namespace Sharphound2.Enumeration
         {
             if (!Utils.IsMethodSet(ResolvedCollectionMethod.ACL))
                 return;
-
-            //We only care about computers if they have LAPS installed
-            if (entry.GetProp("ms-mcs-admpwdexpirationtime") == null)
-                return;
             
             var aces = new List<ACL>();
             var ntSecurityDescriptor = entry.GetPropBytes("ntsecuritydescriptor");
@@ -1025,6 +1021,12 @@ namespace Sharphound2.Enumeration
                     toContinue |= mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd" || toContinue;
                 }
 
+                if (adRightString.Contains("WriteProperty"))
+                {
+                    toContinue |= "00000000-0000-0000-0000-000000000000".Equals(guid) || guid.Equals("") || toContinue;
+                    toContinue |= "3f78c3e5-f79a-46bd-a0b8-9d18116ddc79".Equals(guid) || toContinue;
+                }
+
                 if (!toContinue)
                     continue;
 
@@ -1072,6 +1074,30 @@ namespace Sharphound2.Enumeration
                         PrincipalType = mappedPrincipal.ObjectType,
                         RightName = "WriteDacl"
                     });
+                }
+
+                if (adRightString.Contains("WriteProperty"))
+                {
+                    if (guid.Equals("3f78c3e5-f79a-46bd-a0b8-9d18116ddc79"))
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "AllowedToAct",
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType,
+                            RightName = "WriteProperty"
+                        });
+                    }
+                    else
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "",
+                            PrincipalName = mappedPrincipal.PrincipalName,
+                            PrincipalType = mappedPrincipal.ObjectType,
+                            RightName = "GenericWrite"
+                        });
+                    }
                 }
 
                 if (adRightString.Contains("ExtendedRight"))

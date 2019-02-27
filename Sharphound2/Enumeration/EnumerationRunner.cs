@@ -151,9 +151,12 @@ namespace Sharphound2.Enumeration
                             Name = resolved.BloodHoundDisplay,
                         };
 
+
                         obj.Properties.Add("domain", domain);
                         obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", false);
+                        var hasLaps = entry.GetProp("ms-mcs-admpwdexpirationtime") != null;
+                        obj.Properties.Add("haslaps", hasLaps);
 
                         if (entry.DistinguishedName.ToLower().Contains("domain controllers"))
                         {
@@ -225,7 +228,7 @@ namespace Sharphound2.Enumeration
                             Guid = new Guid(entry.GetPropBytes("objectguid")).ToString().ToUpper()
                         };
 
-                        obj.Properties.Add("name", resolved.BloodHoundDisplay);
+                        obj.Properties.Add("name", resolved.BloodHoundDisplay.ToUpper());
                         obj.Properties.Add("highvalue", false);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
@@ -1061,6 +1064,8 @@ namespace Sharphound2.Enumeration
                             RemoteDesktopUsers = new LocalMember[]{}
                         };
 
+                        var hasLaps = entry.GetProp("ms-mcs-admpwdexpirationtime") != null;
+                        obj.Properties.Add("haslaps", hasLaps);
                         obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", false);
                         obj.Properties.Add("domain", domain);
@@ -1213,7 +1218,7 @@ namespace Sharphound2.Enumeration
                             Guid = new Guid(entry.GetPropBytes("objectguid")).ToString().ToUpper()
                         };
 
-                        obj.Properties.Add("name", resolved.BloodHoundDisplay);
+                        obj.Properties.Add("name", resolved.BloodHoundDisplay.ToUpper());
                         obj.Properties.Add("highvalue", false);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
