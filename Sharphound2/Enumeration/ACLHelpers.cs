@@ -1100,7 +1100,7 @@ namespace Sharphound2.Enumeration
                     }
                 }
 
-                if (adRightString.Contains("ExtendedRight"))
+                if (adRightString.Contains("ExtendedRight") && entry.GetProp("ms-mcs-admpwdexpirationtime") != null)
                 {
                     if (mappedGuid == "ms-Mcs-AdmPwd")
                     {
