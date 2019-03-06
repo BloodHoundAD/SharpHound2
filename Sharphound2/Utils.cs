@@ -682,7 +682,7 @@ namespace Sharphound2
                 }
                 else
                 {
-                    var context = new DirectoryContext(DirectoryContextType.Domain, domainName);
+                    var context = new DirectoryContext(DirectoryContextType.Domain, domainName, _options.LdapUser, _options.LdapPass);
                     domainObj = Domain.GetDomain(context);
                 }
             }
