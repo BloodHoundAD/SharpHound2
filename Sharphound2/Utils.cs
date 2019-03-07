@@ -804,7 +804,11 @@ namespace Sharphound2
                 }
                 else
                 {
-                    var context = new DirectoryContext(DirectoryContextType.Domain, domainName, _options.LdapUser, _options.LdapPass);
+                    var context = _options.LdapUser != null
+                        ? new DirectoryContext(DirectoryContextType.Domain, domainName, _options.LdapUser,
+                            _options.LdapPass)
+                        : new DirectoryContext(DirectoryContextType.Domain, domainName);
+
                     domainObj = Domain.GetDomain(context);
                 }
             }
