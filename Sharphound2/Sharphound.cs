@@ -482,6 +482,17 @@ General Options
             }
             
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
+
+            Cache.CreateInstance(options);
+            Utils.CreateInstance(options);
+
+
+            if (!Utils.CheckWritePrivs())
+            {
+                Console.WriteLine("Unable to write in chosen directory. Please check privs");
+                return;
+            }
+
             var nowtime = DateTime.Now;
             Console.WriteLine($"Initializing BloodHound at {nowtime.ToShortTimeString()} on {nowtime.ToShortDateString()}");
 
@@ -493,20 +504,26 @@ General Options
                     options.PingTimeout = 1000;
                 }
             }
-
-            Cache.CreateInstance(options);
-            Utils.CreateInstance(options);
-
-            if (!Utils.CheckWritePrivs())
-            {
-                Console.WriteLine("Unable to write in chosen directory. Please check privs");
-                return;
-            }
-
+            
             if (Utils.Instance.GetDomainList().Count == 0)
             {
                 Console.WriteLine("Unable to contact domain. Try from a domain context!");
                 return;
+            }
+
+            if (options.DomainController != null)
+            {
+                Console.WriteLine("Manually specifying a domain controller will likely result in data loss. Only use this for performance/opsec reasons");
+                if (options.SearchForest)
+                {
+                    Console.WriteLine("SearchForest is not usable with the --DomainController flag");
+                    options.SearchForest = false;
+                }
+            }
+            else
+            {
+                //Build our DC cache
+                Utils.Instance.GetUsableDomainControllers();
             }
 
             SessionHelpers.Init(options);
@@ -521,7 +538,7 @@ General Options
                 Test.DoStuff(options.Test);
                 return;
             }
-
+            
             //Lets test our connection to LDAP before we do anything else
             try
             {

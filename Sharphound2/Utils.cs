@@ -25,6 +25,7 @@ namespace Sharphound2
         private readonly ConcurrentDictionary<string, string> _dnsResolveCache = new ConcurrentDictionary<string, string>();
         private readonly ConcurrentDictionary<string, bool> _pingCache = new ConcurrentDictionary<string, bool>();
         private readonly ConcurrentDictionary<string, string> _netbiosConversionCache = new ConcurrentDictionary<string, string>();
+        private readonly ConcurrentDictionary<string, string> _domainDcCache = new ConcurrentDictionary<string, string>();
 
         private readonly TimeSpan _pingTimeout;
         private static Sharphound.Options _options;
@@ -179,13 +180,13 @@ namespace Sharphound2
             return hostIsUp;
         }
 
-        internal bool DoPing(string hostname)
+        internal bool DoPing(string hostname, int port=445)
         {
             try
             {
                 using (var client = new TcpClient())
                 {
-                    var result = client.BeginConnect(hostname, 445, null, null);
+                    var result = client.BeginConnect(hostname, port, null, null);
                     var success = result.AsyncWaitHandle.WaitOne(_pingTimeout);
                     if (!success)
                     {
@@ -483,6 +484,92 @@ namespace Sharphound2
             }
         }
 
+        internal void GetUsableDomainControllers()
+        {
+            var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
+            if (_options.SearchForest)
+            {
+                var forest = GetForest(_options.Domain);
+                foreach (Domain domain in forest.Domains)
+                {
+                    // Try the PDC first
+                    var pdc = domain.PdcRoleOwner.Name;
+                    if (DoPing(pdc, port))
+                    {
+                        _domainDcCache.TryAdd(domain.Name, pdc);
+                        Verbose($"Found usable Domain Controller for {domain.Name} : {pdc}");
+                        continue;
+                    }
+
+                    //If the PDC isn't reachable loop through the rest
+                    foreach (DomainController domainController in domain.DomainControllers)
+                    {
+                        var name = domainController.Name;
+                        if (!DoPing(name, port)) continue;
+                        Verbose($"Found usable Domain Controller for {domain.Name} : {name}");
+                        _domainDcCache.TryAdd(domain.Name, name);
+                        break;
+                    }
+                    Verbose($"No usable Domain Controller for {domain.Name}");
+                    //If we get here, somehow we didn't get any usable DCs. Save it off as null
+                    _domainDcCache.TryAdd(domain.Name, null);
+                }
+            }
+            else
+            {
+                var domain = GetDomain(_options.Domain);
+                // Try the PDC first
+                var pdc = domain.PdcRoleOwner.Name;
+                if (DoPing(pdc, port))
+                {
+                    _domainDcCache.TryAdd(domain.Name, pdc);
+                    Verbose($"Found usable Domain Controller for {domain.Name} : {pdc}");
+                    return;
+                }
+
+                //If the PDC isn't reachable loop through the rest
+                foreach (DomainController domainController in domain.DomainControllers)
+                {
+                    var name = domainController.Name;
+                    if (!DoPing(name, port)) continue;
+                    Verbose($"Found usable Domain Controller for {domain.Name} : {name}");
+                    _domainDcCache.TryAdd(domain.Name, name);
+                    return;
+                }
+
+                Verbose($"No usable Domain Controller for {domain.Name}");
+                //If we get here, somehow we didn't get any usable DCs. Save it off as null
+                _domainDcCache.TryAdd(domain.Name, null);
+            }
+        }
+
+        internal string GetUsableDomainController(Domain domain)
+        {
+            var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
+            var pdc = domain.PdcRoleOwner.Name;
+            if (DoPing(pdc, port))
+            {
+                _domainDcCache.TryAdd(domain.Name, pdc);
+                Verbose($"Found usable Domain Controller for {domain.Name} : {pdc}");
+                return pdc;
+            }
+
+            //If the PDC isn't reachable loop through the rest
+            foreach (DomainController domainController in domain.DomainControllers)
+            {
+                var name = domainController.Name;
+                if (!DoPing(name, port)) continue;
+                Verbose($"Found usable Domain Controller for {domain.Name} : {name}");
+                _domainDcCache.TryAdd(domain.Name, name);
+                return name;
+            }
+
+            //If we get here, somehow we didn't get any usable DCs. Save it off as null
+            _domainDcCache.TryAdd(domain.Name, null);
+            Console.WriteLine($"Unable to find usable domain controller for {domain.Name}");
+            return null;
+        }
+
 
         public LdapConnection GetLdapConnection(string domainName = null)
         {
@@ -503,8 +590,25 @@ namespace Sharphound2
                 return null;
             }
 
-            var domainController = _options.DomainController ?? targetDomain.PdcRoleOwner.Name;
+            string domainController;
 
+            if (_options.DomainController != null)
+            {
+                domainController = _options.DomainController;
+            }
+            else
+            {
+                if (!_domainDcCache.TryGetValue(targetDomain.Name, out domainController))
+                {
+                    domainController = GetUsableDomainController(targetDomain);
+                }
+            }
+
+            if (domainController == null)
+            {
+                return null;
+            }
+            
             if (_ldapConnectionCache.TryGetValue(domainController, out var conn))
             {
                 return conn;
@@ -571,7 +675,25 @@ namespace Sharphound2
                 return null;
             }
 
-            var domainController = _options.DomainController ?? targetDomain.PdcRoleOwner.Name;
+            string domainController;
+
+            if (_options.DomainController != null)
+            {
+                domainController = _options.DomainController;
+            }
+            else
+            {
+                if (!_domainDcCache.TryGetValue(targetDomain.Name, out domainController))
+                {
+                    domainController = GetUsableDomainController(targetDomain);
+                }
+            }
+
+            if (domainController == null)
+            {
+                return null;
+            }
+
             if (_gcConnectionCache.TryGetValue(domainController, out var conn))
             {
                 return conn;
