@@ -27,6 +27,7 @@ namespace Sharphound2
             return str.Substring(0, 1).ToUpper() + str.Substring(1).ToLower();
         }
 
+        //Helper method for testing stuff
         internal static void PrintEntry(this SearchResultEntry result)
         {
             foreach (var property in result.Attributes.AttributeNames)
@@ -35,8 +36,15 @@ namespace Sharphound2
             }
         }
 
+        public static bool HasFlag(this Enum self, Enum test)
+        {
+            var num = Convert.ToUInt64(test);
+            return (Convert.ToUInt64(self) & num) == num;
+        }
+
         internal static void CloseC(this JsonTextWriter writer, int count, string type)
         {
+            writer.Flush();
             writer.WriteEndArray();
             writer.WritePropertyName("meta");
             writer.WriteStartObject();

@@ -83,8 +83,8 @@ namespace Sharphound2
 
             if (_options.SessionLoopRunning)
                 return false;
-            
-            return (_options.ResolvedCollMethods & method) != 0;
+
+            return _options.ResolvedCollMethods.HasFlag(method);
         }
 
         public static string ConvertDnToDomain(string dn)
