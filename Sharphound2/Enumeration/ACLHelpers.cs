@@ -444,7 +444,7 @@ namespace Sharphound2.Enumeration
                     });
                 }
 
-                if (!rights.HasFlag(ActiveDirectoryRights.ExtendedRight))
+                if (rights.HasFlag(ActiveDirectoryRights.ExtendedRight))
                 {
                     if (objectAceType == "00299570-246d-11d0-a768-00aa006e0529")
                     {
@@ -715,7 +715,7 @@ namespace Sharphound2.Enumeration
                     });
                 }
 
-                if (!rights.HasFlag(ActiveDirectoryRights.ExtendedRight))
+                if (rights.HasFlag(ActiveDirectoryRights.ExtendedRight))
                 {
                     if (mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd" && entry.GetProp("ms-mcs-admpwdexpirationtime") != null)
                     {
@@ -965,8 +965,8 @@ namespace Sharphound2.Enumeration
         {
             var sid = acl.GetOwner(typeof(SecurityIdentifier)).Value;
 
-            //Filter Local System/Creator Owner
-            if (sid == "S-1-5-18" || sid == "S-1-3-0")
+            //Filter Local System/Creator Owner/Principal Self
+            if (sid == "S-1-5-18" || sid == "S-1-3-0" || sid == "S-1-5-10")
             {
                 return null;
             }
@@ -1001,8 +1001,8 @@ namespace Sharphound2.Enumeration
         {
             var sid = rule.IdentityReference.Value;
 
-            //Filter Local System/Creator Owner
-            if (sid == "S-1-5-18" || sid == "S-1-3-0")
+            //Filter Local System/Creator Owner/Principal Self
+            if (sid == "S-1-5-18" || sid == "S-1-3-0" || sid == "S-1-5-10")
             {
                 return null;
             }
