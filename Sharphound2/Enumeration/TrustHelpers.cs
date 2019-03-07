@@ -60,32 +60,57 @@ namespace Sharphound2.Enumeration
                 var trust = new Trust();
 
                 var data = array[i];
-                var trustType = (TrustType)data.Flags;
+                var trustFlags = (TrustFlags)data.Flags;
                 var trustAttribs = (TrustAttrib)data.TrustAttributes;
 
-                if ((trustType & TrustType.DsDomainTreeRoot) == TrustType.DsDomainTreeRoot)
+                // the domain itself
+                if ((trustFlags & TrustFlags.DsDomainPrimary) == TrustFlags.DsDomainPrimary)
                     continue;
 
                 if (data.DnsDomainName == null)
                     continue;
                 trust.TargetName = data.DnsDomainName;
-                var inbound = (trustType & TrustType.DsDomainDirectInbound) == TrustType.DsDomainDirectInbound;
-                var outbound = (trustType & TrustType.DsDomainDirectOutbound) == TrustType.DsDomainDirectOutbound;
+                var inbound = (trustFlags & TrustFlags.DsDomainDirectInbound) == TrustFlags.DsDomainDirectInbound;
+                var outbound = (trustFlags & TrustFlags.DsDomainDirectOutbound) == TrustFlags.DsDomainDirectOutbound;
 
                 if (inbound && outbound)
                 {
-                    trust.TrustDirection = (int)TrustDirection.Bidrectional;
+                    trust.TrustDirection = (int)TrustDirection.Bidirectional;
                 }
                 else if (inbound)
                 {
                     trust.TrustDirection = (int)TrustDirection.Inbound;
                 }
-                else
+                else if (outbound)
                 {
                     trust.TrustDirection = (int)TrustDirection.Outbound;
                 }
+                else
+                {
+                    // a trust with no direction is probably not enabled (According to MS documentation)
+                    // see: https://docs.microsoft.com/fr-fr/windows/desktop/api/ntsecapi/ns-ntsecapi-_trusted_domain_information_ex (TrustDirection)
+                    continue;
+                }
 
-                trust.TrustType = (trustType & TrustType.DsDomainInForest) == TrustType.DsDomainInForest ? "ParentChild" : "External";
+                // parentChild occure only when one of the domain is the forest root
+                // Check is trusted domain is the current forest root or if trusted domain's parent is current enumerated domain
+                if (((trustFlags & TrustFlags.DsDomainTreeRoot) == TrustFlags.DsDomainTreeRoot) && ((trustFlags & TrustFlags.DsDomainInForest) == TrustFlags.DsDomainInForest)
+    || array[data.ParentIndex].DnsDomainName.ToUpper() == resolved.BloodHoundDisplay)
+                {
+                    trust.TrustType = "ParentChild";
+                }
+                else if ((trustFlags & TrustFlags.DsDomainInForest) == TrustFlags.DsDomainInForest)
+                {
+                    trust.TrustType = "CrossLink";
+                }
+                else if ((trustAttribs & TrustAttrib.ForestTransitive) == TrustAttrib.ForestTransitive)
+                {
+                    trust.TrustType = "Forest";
+                }
+                else
+                {
+                    trust.TrustType = "External";
+                }
 
                 if ((trustAttribs & TrustAttrib.NonTransitive) == TrustAttrib.NonTransitive)
                 {
@@ -104,7 +129,7 @@ namespace Sharphound2.Enumeration
 
         #region PINVOKE
         [Flags]
-        private enum TrustType : uint
+        private enum TrustFlags : uint
         {
             DsDomainInForest = 0x0001,  // Domain is a member of the forest
             DsDomainDirectOutbound = 0x0002,  // Domain is directly trusted
@@ -123,7 +148,7 @@ namespace Sharphound2.Enumeration
             ForestTransitive = 0x0008,
             CrossOrganization = 0x0010,
             WithinForest = 0x0020,
-            TreatAsExternal = 0x0030
+            TreatAsExternal = 0x0040
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -135,7 +160,7 @@ namespace Sharphound2.Enumeration
             [MarshalAs(UnmanagedType.LPTStr)]
             public string DnsDomainName;
             public uint Flags;
-            private uint ParentIndex;
+            public uint ParentIndex;
             private uint TrustTypeA;
             public uint TrustAttributes;
             private IntPtr DomainSid;

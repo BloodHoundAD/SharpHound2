@@ -19,6 +19,6 @@
     {
         Inbound = 0,
         Outbound = 1,
-        Bidrectional = 2
+        Bidirectional = 2
     }
 }
