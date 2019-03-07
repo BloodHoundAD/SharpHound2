@@ -353,6 +353,8 @@ namespace Sharphound2.Enumeration
                 users.Add($"{username}@{domainName}".ToUpper());
             }
 
+            NetApiBufferFree(intPtr);
+
             foreach (var user in  users.Distinct())
             {
                 yield return user;
