@@ -63,7 +63,7 @@ namespace Sharphound2
             [Option(HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
             public bool SkipGcDeconfliction { get; set; }
             
-            [Option(HelpText = "Filename for the data cache", DefaultValue = "BloodHound.bin")]
+            [Option(HelpText = "Filename for the data cache (defaults to b64 of machine sid)", DefaultValue = null)]
             public string CacheFile { get; set; }
 
             [Option(HelpText = "Filename for the zip file", DefaultValue = null)]
@@ -256,7 +256,7 @@ Cache Options
     --NoSaveCache
         Dont save the cache to disk to speed up future runs
 
-    --CacheFile (Default: BloodHound.bin)
+    --CacheFile (Default: <B64 Machine Sid>.bin)
         Filename for the BloodHound database to write to disk
 
     --Invalidate
@@ -310,6 +310,13 @@ General Options
             if (!Parser.Default.ParseArguments(args, options))
             {
                 return;
+            }
+
+            if (options.CacheFile == null)
+            {
+                var sid = Utils.GetLocalMachineSid();
+                var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(sid);
+                options.CacheFile = $"{Convert.ToBase64String(plainTextBytes)}.bin";
             }
 
             try

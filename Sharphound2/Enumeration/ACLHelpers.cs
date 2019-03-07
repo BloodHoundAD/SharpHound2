@@ -82,7 +82,6 @@ namespace Sharphound2.Enumeration
                 });
             }
 
-
             foreach (ActiveDirectoryAccessRule ace in newDescriptor.GetAccessRules(true, true, typeof(SecurityIdentifier)))
             {
                 //Ignore null aces

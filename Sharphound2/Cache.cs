@@ -28,6 +28,12 @@ namespace Sharphound2
         {
             _options = opts;
             _fileName = Path.Combine(_options.JsonFolder, _options.CacheFile);
+            var oldFilePath = Path.Combine(_options.JsonFolder, "BloodHound.bin");
+            if (File.Exists(oldFilePath))
+            {
+                File.Move(oldFilePath, _fileName);
+            }
+            
             LoadCache();
         }
 

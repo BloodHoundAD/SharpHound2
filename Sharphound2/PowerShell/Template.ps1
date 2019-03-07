@@ -164,7 +164,7 @@ function Invoke-BloodHound{
 
     .PARAMETER CacheFile
 
-        Filename for the cache used by bloodhound. (Default BloodHound.bin)
+        Filename for the cache used by bloodhound. (Default <B64 machine sid>.bin)
     
     .PARAMETER Invalidate
 

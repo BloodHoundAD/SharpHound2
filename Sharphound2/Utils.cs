@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
 using System.IO;
@@ -21,7 +22,6 @@ namespace Sharphound2
     internal class Utils
     {
         private readonly ConcurrentDictionary<string, Domain> _domainCache = new ConcurrentDictionary<string, Domain>();
-        private readonly ConcurrentDictionary<string, Forest> _forestCache = new ConcurrentDictionary<string, Forest>();
         private readonly ConcurrentDictionary<string, string> _dnsResolveCache = new ConcurrentDictionary<string, string>();
         private readonly ConcurrentDictionary<string, bool> _pingCache = new ConcurrentDictionary<string, bool>();
         private readonly ConcurrentDictionary<string, string> _netbiosConversionCache = new ConcurrentDictionary<string, string>();
@@ -71,6 +71,22 @@ namespace Sharphound2
             _pingTimeout = TimeSpan.FromMilliseconds(_options.PingTimeout);
             _ldapConnectionCache = new ConcurrentDictionary<string, LdapConnection>();
             _gcConnectionCache = new ConcurrentDictionary<string, LdapConnection>();
+        }
+
+        internal static string GetLocalMachineSid()
+        {
+            var server = new UNICODE_STRING("localhost");
+            var obj = default(OBJECT_ATTRIBUTES);
+
+            SamConnect(ref server, out var serverHandle,
+                SamAccessMasks.SamServerLookupDomain |
+                SamAccessMasks.SamServerConnect, ref obj);
+
+            var san = new UNICODE_STRING(Environment.MachineName);
+            SamLookupDomainInSamServer(serverHandle, ref san, out var temp);
+            var machineSid = new SecurityIdentifier(temp).Value;
+            SamCloseHandle(serverHandle);
+            return machineSid;
         }
 
         public static bool IsMethodSet(ResolvedCollectionMethod method)
@@ -1290,6 +1306,92 @@ namespace Sharphound2
             public int ver_major;
             public int ver_minor;
         }
+
+        [Flags]
+        [SuppressMessage("ReSharper", "UnusedMember.Local")]
+        private enum SamAccessMasks
+        {
+            SamServerConnect = 0x1,
+            SamServerShutdown = 0x2,
+            SamServerInitialize = 0x4,
+            SamServerCreateDomains = 0x8,
+            SamServerEnumerateDomains = 0x10,
+            SamServerLookupDomain = 0x20,
+            SamServerAllAccess = 0xf003f,
+            SamServerRead = 0x20010,
+            SamServerWrite = 0x2000e,
+            SamServerExecute = 0x20021
+        }
+
+        [DllImport("samlib.dll")]
+        private static extern int SamCloseHandle(
+            IntPtr handle
+        );
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern int SamLookupDomainInSamServer(
+            IntPtr serverHandle,
+            ref UNICODE_STRING name,
+            out IntPtr sid);
+
+        [DllImport("samlib.dll", CharSet = CharSet.Unicode)]
+        private static extern int SamConnect(
+            ref UNICODE_STRING serverName,
+            out IntPtr serverHandle,
+            SamAccessMasks desiredAccess,
+            ref OBJECT_ATTRIBUTES objectAttributes
+        );
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct UNICODE_STRING : IDisposable
+        {
+            private ushort Length;
+            private ushort MaximumLength;
+            private IntPtr Buffer;
+
+            public UNICODE_STRING(string s)
+                : this()
+            {
+                if (s == null) return;
+                Length = (ushort)(s.Length * 2);
+                MaximumLength = (ushort)(Length + 2);
+                Buffer = Marshal.StringToHGlobalUni(s);
+            }
+
+            public void Dispose()
+            {
+                if (Buffer == IntPtr.Zero) return;
+                Marshal.FreeHGlobal(Buffer);
+                Buffer = IntPtr.Zero;
+            }
+
+            public override string ToString()
+            {
+                return (Buffer != IntPtr.Zero ? Marshal.PtrToStringUni(Buffer) : null) ?? throw new InvalidOperationException();
+            }
+        }
+
+        #pragma warning disable 169
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        private struct OBJECT_ATTRIBUTES : IDisposable
+        {
+            public void Dispose()
+            {
+                if (objectName == IntPtr.Zero) return;
+                Marshal.DestroyStructure(objectName, typeof(UNICODE_STRING));
+                Marshal.FreeHGlobal(objectName);
+                objectName = IntPtr.Zero;
+            }
+
+            public int len;
+            public IntPtr rootDirectory;
+            public uint attribs;
+            public IntPtr sid;
+            public IntPtr qos;
+            private IntPtr objectName;
+            public UNICODE_STRING ObjectName;
+        }
+        #pragma warning restore 169
         #endregion
     }
 }
