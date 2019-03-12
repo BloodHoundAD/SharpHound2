@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Sharphound2.JsonObjects;
 
 namespace Sharphound2.Enumeration
@@ -9,6 +12,7 @@ namespace Sharphound2.Enumeration
     internal class ObjectPropertyHelpers
     {
         private static readonly DateTime Subt = new DateTime(1970,1,1);
+        private static readonly string[] Props = { "distinguishedname", "samaccounttype", "samaccountname", "dnshostname" };
 
         internal static void GetProps(SearchResultEntry entry, ResolvedEntry resolved, ref Domain obj)
         {
@@ -213,6 +217,50 @@ namespace Sharphound2.Enumeration
             }
             obj.AllowedToDelegate = comps.Distinct().ToArray();
 
+            var allowedToAct = entry.GetPropBytes("msDS-AllowedToActOnBehalfOfOtherIdentity");
+            if (allowedToAct != null)
+            {
+                var principals = new List<LocalMember>();
+                var sd = new ActiveDirectorySecurity();
+                sd.SetSecurityDescriptorBinaryForm(allowedToAct, AccessControlSections.Access);
+                var utils = Utils.Instance;
+                foreach (ActiveDirectoryAccessRule rule in sd.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+                {
+                    var sid = rule.IdentityReference.Value;
+                    var domain = utils.SidToDomainName(sid) ?? Utils.ConvertDnToDomain(entry.DistinguishedName);
+                    if (!MappedPrincipal.GetCommon(sid, out var principal))
+                    {
+                        principal = utils.UnknownSidTypeToDisplay(sid, domain, Props);
+                    }
+                    else
+                    {
+                        if (sid == "S-1-5-9")
+                        {
+                            var dObj = utils.GetForest(domain);
+                            var d = dObj == null ? domain : dObj.RootDomain.Name;
+                            principal.PrincipalName = $"ENTERPRISE DOMAIN CONTROLLERS@{d}".ToUpper();
+                        }
+                        else
+                        {
+                            principal.PrincipalName = $"{principal.PrincipalName}@{domain}".ToUpper();
+                        }
+                    }
+
+                    if (principal == null)
+                    {
+                        continue;
+                    }
+
+                    principals.Add(new LocalMember
+                    {
+                        Name = principal.PrincipalName,
+                        Type = principal.ObjectType
+                    });
+                }
+
+                obj.AllowedToAct = principals.ToArray();
+            }
+            
             obj.Properties.Add("enabled", enabled);
             obj.Properties.Add("unconstraineddelegation", unconstrained);
             obj.Properties.Add("lastlogon", ConvertToUnixEpoch(entry.GetProp("lastlogon")));

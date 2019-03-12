@@ -18,6 +18,7 @@ namespace Sharphound2.JsonObjects
         public LocalMember[] RemoteDesktopUsers { get; set; }
         public LocalMember[] DcomUsers { get; set; }
         public string[] AllowedToDelegate { get; set; }
+        public LocalMember[] AllowedToAct { get; set; }
         public ACL[] Aces { get; set; }
     }
 }
