@@ -11,7 +11,11 @@ Original script at https://github.com/PowerShellMafia/PowerSploit/blob/master/Sc
     [CmdletBinding()] Param (
         [Parameter(Mandatory = $True)]
         [String]
-        $FilePath
+        $FilePath,
+
+        [Parameter(Mandatory = $True)]
+        [String]
+        $TemplatePath
     )
 
     $Path = Resolve-Path $FilePath
@@ -51,5 +55,5 @@ Original script at https://github.com/PowerShellMafia/PowerSploit/blob/master/Sc
 	`$Assembly.GetType("Sharphound2.Sharphound").GetMethod("InvokeBloodHound").Invoke(`$Null, @(,`$passed))
 "@
 
-	Get-Content "..\..\PowerShell\Template.ps1" | %{$_ -replace "#ENCODEDCONTENTHERE", $Output} | Write-Output
+	Get-Content $TemplatePath | %{$_ -replace "#ENCODEDCONTENTHERE", $Output}
 }

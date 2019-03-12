@@ -57,7 +57,7 @@
     <Reference Include="System.DirectoryServices" />
     <Reference Include="System.DirectoryServices.Protocols" />
     <Reference Include="System.Management" />
-    <Reference Include="System.Threading, Version=1.0.2856.102, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+    <Reference Include="System.Threading, Version=1.0.2856.102, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL" Condition=" '$(TargetFrameworkVersion)' == 'v3.5' ">
       <HintPath>..\packages\TaskParallelLibrary.1.0.2856.0\lib\Net35\System.Threading.dll</HintPath>
     </Reference>
     <Reference Include="System.Web.Extensions" />
@@ -129,7 +129,7 @@
   </Target>
   <Import Project="..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets" Condition="Exists('..\packages\Costura.Fody.1.6.2\build\portable-net+sl+win+wpa+wp\Costura.Fody.targets')" />
   <PropertyGroup>
-    <PostBuildEvent>powershell -ep bypass -c ". '$(SolutionDir)\Sharphound2\PowerShell\Out-CompressedDLL.ps1';Out-CompressedDll -FilePath '$(TargetPath)' | Out-File -Encoding ASCII "SharpHound.ps1"</PostBuildEvent>
+    <PostBuildEvent>powershell -ep bypass -c ". '$(ProjectDir)\PowerShell\Out-CompressedDLL.ps1';Out-CompressedDll -FilePath '$(TargetPath)' -TemplatePath '$(ProjectDir)\PowerShell\Template.ps1' | Out-File -Encoding ASCII "$(TargetDir)$(TargetName).ps1"</PostBuildEvent>
   </PropertyGroup>
   <Import Project="..\packages\Fody.2.1.2\build\portable-net+sl+win+wpa+wp\Fody.targets" Condition="Exists('..\packages\Fody.2.1.2\build\portable-net+sl+win+wpa+wp\Fody.targets')" />
 </Project>
