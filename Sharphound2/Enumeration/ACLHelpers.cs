@@ -236,6 +236,7 @@ namespace Sharphound2.Enumeration
 
                 //Interesting Group ACEs - GenericAll, WriteDacl, WriteOwner, GenericWrite, AddMember
                 var rights = ace.ActiveDirectoryRights;
+
                 var objectAceType = ace.ObjectType.ToString();
                 
                 if (rights.HasFlag(ActiveDirectoryRights.GenericAll))
@@ -1012,7 +1013,7 @@ namespace Sharphound2.Enumeration
                 //Check if its a common SID
                 if (!MappedPrincipal.GetCommon(sid, out var principal))
                 {
-                    //Resolve the sid manually if we still dont have it
+                    //Resolve the sid manually if we still don't have it
                     var ownerDomain = _utils.SidToDomainName(sid) ?? domainName;
                     principal = _utils.UnknownSidTypeToDisplay(sid, ownerDomain, Props);
                 }

@@ -38,8 +38,22 @@ namespace Sharphound2
 
         public static bool HasFlag(this Enum self, Enum test)
         {
-            var num = Convert.ToUInt64(test);
-            return (Convert.ToUInt64(self) & num) == num;
+            if (self == null || test == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                var temp = Convert.ToInt32(self);
+                var num = Convert.ToInt32(test);
+                return (temp & num) == num;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            
         }
 
         internal static void CloseC(this JsonTextWriter writer, int count, string type)
