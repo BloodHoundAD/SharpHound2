@@ -132,7 +132,7 @@ namespace Sharphound2
             [HelpOption]
             public string GetUsage()
             {
-                var text = @"SharpHound v2.0.0
+                var text = @"SharpHound v2.1.0
 Usage: SharpHound.exe <options>
 
 Enumeration Options:

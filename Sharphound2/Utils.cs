@@ -75,6 +75,7 @@ namespace Sharphound2
 
         internal static string GetLocalMachineSid()
         {
+            string machineSid;
             var server = new UNICODE_STRING("localhost");
             var obj = default(OBJECT_ATTRIBUTES);
 
@@ -83,9 +84,20 @@ namespace Sharphound2
                 SamAccessMasks.SamServerConnect, ref obj);
 
             var san = new UNICODE_STRING(Environment.MachineName);
-            SamLookupDomainInSamServer(serverHandle, ref san, out var temp);
-            var machineSid = new SecurityIdentifier(temp).Value;
+
+            try
+            {
+                SamLookupDomainInSamServer(serverHandle, ref san, out var temp);
+                machineSid = new SecurityIdentifier(temp).Value;
+            }
+            catch
+            {
+                //This happens on domain controllers
+                machineSid = Environment.MachineName;
+            }
+            
             SamCloseHandle(serverHandle);
+
             return machineSid;
         }
 
