@@ -83,6 +83,15 @@ namespace Sharphound2
 
             var domainName = Utils.ConvertDnToDomain(distinguishedName);
 
+            if (MappedPrincipal.GetCommon(result.GetSid(), out var temp))
+            {
+                return new ResolvedEntry
+                {
+                    BloodHoundDisplay = $"{temp.PrincipalName}@{domainName}".ToUpper(),
+                    ObjectType = temp.ObjectType
+                };
+            }
+            
             if (Groups.Contains(accountType))
             {
                 entry.BloodHoundDisplay = $"{accountName}@{domainName}".ToUpper();
