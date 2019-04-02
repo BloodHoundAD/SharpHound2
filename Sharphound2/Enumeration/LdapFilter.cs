@@ -45,7 +45,7 @@ namespace Sharphound2.Enumeration
 
             if ((methods & ResolvedCollectionMethod.ACL) != 0)
             {
-                filterparts.Add("(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain)(objectCategory=groupPolicyContainer))");
+                filterparts.Add("(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456)(samAccountType=268435457)(samAccountType=536870912)(samAccountType=536870913)(objectClass=domain)(&(objectCategory=groupPolicyContainer)(flags=*)))");
                 props.AddRange(new[]
                 {
                     "samaccountname", "distinguishedname", "dnshostname", "samaccounttype", "ntsecuritydescriptor", "displayname", "objectclass", "objectsid", "name"
@@ -54,7 +54,7 @@ namespace Sharphound2.Enumeration
 
             if ((methods & ResolvedCollectionMethod.ObjectProps) != 0)
             {
-                filterparts.Add("(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913)(samaccounttype=805306368)(samaccounttype=805306369)(objectclass=domain)(objectclass=organizationalUnit)(objectcategory=groupPolicyContainer))");
+                filterparts.Add("(|(samaccounttype=268435456)(samaccounttype=268435457)(samaccounttype=536870912)(samaccounttype=536870913)(samaccounttype=805306368)(samaccounttype=805306369)(objectclass=domain)(objectclass=organizationalUnit)(&(objectCategory=groupPolicyContainer)(flags=*)))");
                 props.AddRange(new[]
                 {
                     "samaccountname", "distinguishedname", "samaccounttype", "pwdlastset", "lastlogon", "lastlogontimestamp", "objectsid",
@@ -67,7 +67,7 @@ namespace Sharphound2.Enumeration
 
             if ((methods & ResolvedCollectionMethod.GPOLocalGroup) != 0)
             {
-                filterparts.Add("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))");
+                filterparts.Add("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*)(flags=*))");
                 props.AddRange(new[]
                 {
                     "displayname", "name", "gpcfilesyspath", "objectclass"
@@ -76,7 +76,7 @@ namespace Sharphound2.Enumeration
 
             if ((methods & ResolvedCollectionMethod.Container) != 0)
             {
-                filterparts.Add("(|(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))(objectcategory=organizationalUnit)(objectClass=domain))");
+                filterparts.Add("(|(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*)(flags=*))(objectcategory=organizationalUnit)(objectClass=domain))");
                 props.AddRange(new[]
                 {
                     "displayname", "name", "objectguid", "gplink", "gpoptions", "objectclass"
