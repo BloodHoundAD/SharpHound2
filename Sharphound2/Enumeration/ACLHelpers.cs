@@ -718,24 +718,27 @@ namespace Sharphound2.Enumeration
 
                 if (rights.HasFlag(ActiveDirectoryRights.ExtendedRight))
                 {
-                    if (mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd" && entry.GetProp("ms-mcs-admpwdexpirationtime") != null)
+                    if (entry.GetProp("ms-mcs-admpwdexpirationtime") != null)
                     {
-                        aces.Add(new ACL
+                        if (mappedGuid != null && mappedGuid == "ms-Mcs-AdmPwd")
                         {
-                            AceType = "",
-                            RightName = "ReadLAPSPassword",
-                            PrincipalName = principal.PrincipalName,
-                            PrincipalType = principal.ObjectType
-                        });
-                    }else if (objectAceType == AllGuid || objectAceType == "")
-                    {
-                        aces.Add(new ACL
+                            aces.Add(new ACL
+                            {
+                                AceType = "",
+                                RightName = "ReadLAPSPassword",
+                                PrincipalName = principal.PrincipalName,
+                                PrincipalType = principal.ObjectType
+                            });
+                        }else if (objectAceType == AllGuid || objectAceType == "")
                         {
-                            AceType = "All",
-                            RightName = "ExtendedRight",
-                            PrincipalName = principal.PrincipalName,
-                            PrincipalType = principal.ObjectType
-                        });
+                            aces.Add(new ACL
+                            {
+                                AceType = "All",
+                                RightName = "ExtendedRight",
+                                PrincipalName = principal.PrincipalName,
+                                PrincipalType = principal.ObjectType
+                            });
+                        }
                     }
                 }
             }
