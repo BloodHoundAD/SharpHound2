@@ -520,6 +520,11 @@ namespace Sharphound2
             if (_options.SearchForest)
             {
                 var forest = GetForest(_options.Domain);
+                if (forest == null)
+                {
+                    Verbose($"Unable to resolve the forest");
+                    return;
+                }
                 foreach (Domain domain in forest.Domains)
                 {
                     // Try the PDC first
@@ -549,6 +554,13 @@ namespace Sharphound2
             {
                 var domain = GetDomain(_options.Domain);
                 // Try the PDC first
+                if (domain == null)
+                {
+                    Verbose($"Unable to resolve domain");
+                    _domainCache.TryAdd(_options.Domain, null);
+                    return;
+                }
+
                 var pdc = domain.PdcRoleOwner.Name;
                 if (DoPing(pdc, port))
                 {
