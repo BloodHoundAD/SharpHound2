@@ -28,7 +28,7 @@ namespace Sharphound2.Enumeration
                 return;
 
             domain = d.Name;
-            foreach (var entry in _utils.DoSearch("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))",
+            foreach (var entry in _utils.DoSearch("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*)(flags=*))",
                 SearchScope.Subtree, new[] {"displayname", "name"}, domain))
             {
                 var dName = entry.GetProp("displayname");
