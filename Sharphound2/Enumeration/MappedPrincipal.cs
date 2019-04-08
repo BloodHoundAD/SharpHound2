@@ -211,7 +211,7 @@
                     result = new MappedPrincipal("Access Control Assistance Operators", "GROUP");
                     break;
                 case "S-1-5-32-580":
-                    result = new MappedPrincipal("Access Control Assistance Operators", "GROUP");
+                    result = new MappedPrincipal("Remote Management Users", "GROUP");
                     break;
                 default:
                     result = null;

@@ -1235,7 +1235,7 @@ namespace Sharphound2
                     result = "BUILTIN\\Access Control Assistance Operators";
                     break;
                 case "S-1-5-32-580":
-                    result = "BUILTIN\\Access Control Assistance Operators";
+                    result = "BUILTIN\\Remote Management Users";
                     break;
                 default:
                     result = null;
