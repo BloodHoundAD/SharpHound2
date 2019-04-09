@@ -294,7 +294,7 @@ namespace Sharphound2.Enumeration
                 _statusTimer.Stop();
 
                 Console.WriteLine($"Finished stealth enumeration for {domainName} in {_watch.Elapsed}");
-                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timed out.");
             }
             output.CompleteAdding();
             Utils.Verbose("Waiting for writer thread to finish");
@@ -350,7 +350,7 @@ namespace Sharphound2.Enumeration
             writer.Wait();
             _watch.Stop();
             Console.WriteLine($"Finished CompFile enumeration in {_watch.Elapsed}");
-            Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+            Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timed out.");
             _watch = null;
 
             if ((_options.ResolvedCollMethods & ResolvedCollectionMethod.SessionLoop) == 0)
@@ -414,7 +414,7 @@ namespace Sharphound2.Enumeration
                             PrintStatus();
                             _watch.Stop();
                             Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
-                            Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                            Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timed out.");
                             _watch = null;
                         }
                     }
@@ -450,7 +450,7 @@ namespace Sharphound2.Enumeration
                         PrintStatus();
                         _watch.Stop();
                         Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
-                        Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                        Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timed out.");
                         _watch = null;
                     }
                 }
@@ -557,7 +557,7 @@ namespace Sharphound2.Enumeration
                     output.CompleteAdding();
                     _watch.Stop();
                     Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
-                    Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                    Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timed out.");
                     _watch = null;
                 }
 
@@ -681,7 +681,7 @@ namespace Sharphound2.Enumeration
                 PrintStatus();
                 _watch.Stop();
                 Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
-                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
+                Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timed out.");
                 _watch = null;
             }
 
