@@ -361,7 +361,7 @@ General Options
                                        ResolvedCollectionMethod.Group | ResolvedCollectionMethod.LocalAdmin |
                                        ResolvedCollectionMethod.ObjectProps | ResolvedCollectionMethod.RDP |
                                        ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts |
-                                       ResolvedCollectionMethod.DCOM;
+                                       ResolvedCollectionMethod.DCOM | ResolvedCollectionMethod.LoggedOn;
                             break;
                         case DcOnly:
                             resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
