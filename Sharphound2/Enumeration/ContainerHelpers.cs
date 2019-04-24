@@ -29,10 +29,10 @@ namespace Sharphound2.Enumeration
 
             domain = d.Name;
             foreach (var entry in _utils.DoSearch("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))",
-                SearchScope.Subtree, new[] {"displayname", "name"}, domain))
+                SearchScope.Subtree, new[] { "displayname", "name" }, domain))
             {
-                var dName = entry.GetProp("displayname");
-                var name = entry.GetProp("name");
+                var dName = entry.GetProp("displayname").ToUpper();
+                var name = entry.GetProp("name").ToUpper();
                 name = name.Substring(1, name.Length - 2);
                 _gpoCache.TryAdd(name, dName);
             }
@@ -64,7 +64,7 @@ namespace Sharphound2.Enumeration
 
                     var enforced = status.Equals("2");
                     var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
-                    var name = dn.Substring(index, index + 25);
+                    var name = dn.Substring(index, index + 25).ToUpper();
 
                     if (!_gpoCache.ContainsKey(name)) continue;
 
@@ -90,6 +90,8 @@ namespace Sharphound2.Enumeration
                     "samaccountname", "name", "objectguid", "objectclass", "objectsid", "samaccounttype", "dnshostname"
                 }, domain, entry.DistinguishedName))
             {
+
+
                 var subResolved = subEntry.ResolveAdEntry();
 
                 if (subResolved == null)
@@ -139,8 +141,7 @@ namespace Sharphound2.Enumeration
 
                     var enforced = status.Equals("2");
                     var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
-                    var name = dn.Substring(index, index + 25);
-
+                    var name = dn.Substring(index, index + 25).ToUpper();
                     if (!_gpoCache.ContainsKey(name)) continue;
 
                     var dName = _gpoCache[name];
@@ -185,7 +186,7 @@ namespace Sharphound2.Enumeration
             }
 
             foreach (var container in _utils.DoSearch("(objectclass=container)", SearchScope.OneLevel,
-                new[] {"name", "distinguishedname"}, domain))
+                new[] { "name", "distinguishedname" }, domain))
             {
                 foreach (var subEntry in _utils.DoSearch("(|(samAccountType=805306368)(samAccountType=805306369))",
                     SearchScope.Subtree, new[] { "samaccounttype", "samaccountname", "distinguishedname", "dnshostname", "objectsid" },
