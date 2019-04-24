@@ -70,7 +70,7 @@ namespace Sharphound2
             writer.Close();
         }
 
-        internal static ResolvedEntry ResolveAdEntry(this SearchResultEntry result)
+        internal static ResolvedEntry ResolveAdEntry(this SearchResultEntry result, bool bypassDns = false)
         {
             var entry = new ResolvedEntry();
 
@@ -110,27 +110,12 @@ namespace Sharphound2
             {
                 var shortName = accountName?.TrimEnd('$');
                 var dnshostname = result.GetProp("dnshostname");
-                
                 if (dnshostname == null)
                 {
-                    bool hostFound;
-                    if (domainName.Equals(_primaryDomain, StringComparison.CurrentCultureIgnoreCase))
-                    {
-                        hostFound = DnsManager.HostExistsDns(shortName, out dnshostname);
-                        if (!hostFound)
-                            hostFound = DnsManager.HostExistsDns($"{shortName}.{domainName}", out dnshostname);
-                    }
-                    else
-                    {
-                        hostFound = DnsManager.HostExistsDns($"{shortName}.{domainName}", out dnshostname);
-                        if (!hostFound)
-                            hostFound = DnsManager.HostExistsDns(shortName, out dnshostname);
-                    }
-
-                    if (!hostFound)
-                        return null;
-                    
+                    var domain = Utils.ConvertDnToDomain(result.DistinguishedName);
+                    dnshostname = $"{shortName}.{domain}".ToUpper();
                 }
+
                 entry.BloodHoundDisplay = dnshostname;
                 entry.ObjectType = "computer";
                 entry.ComputerSamAccountName = shortName;
