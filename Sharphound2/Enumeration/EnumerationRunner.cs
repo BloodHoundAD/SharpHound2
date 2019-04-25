@@ -1003,6 +1003,14 @@ namespace Sharphound2.Enumeration
                         continue;
                     }
 
+                    var innerTimer = Stopwatch.StartNew();
+                    var innerElapse = new System.Timers.Timer {Interval = 30000};
+
+                    innerElapse.Elapsed += (sender, args) => { Console.WriteLine($"Still processing {resolved.ObjectType} - {resolved.BloodHoundDisplay}: {innerTimer.ElapsedMilliseconds  / 1000}s"); };
+                    innerElapse.AutoReset = true;
+                    innerTimer.Start();
+                    innerElapse.Start();
+                    
                     var sid = entry.GetSid();
                     var domain = Utils.ConvertDnToDomain(entry.DistinguishedName).ToUpper();
                     var domainSid = _utils.GetDomainSid(domain);
@@ -1229,6 +1237,16 @@ namespace Sharphound2.Enumeration
                             Item = obj
                         });
                     }
+
+                    innerTimer.Stop();
+                    if (innerTimer.ElapsedMilliseconds > 30000)
+                    {
+                        Console.WriteLine($"Finished {resolved.BloodHoundDisplay}");
+                    }
+
+                    innerElapse.Stop();
+                    innerElapse.Close();
+                    
 
                     Interlocked.Increment(ref _currentCount);
                     wrapper.Item = null;
