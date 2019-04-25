@@ -95,7 +95,7 @@ namespace Sharphound2
                 //This happens on domain controllers
                 machineSid = Environment.MachineName;
             }
-            
+
             SamCloseHandle(serverHandle);
 
             return machineSid;
@@ -119,7 +119,7 @@ namespace Sharphound2
         {
             return dn.Substring(dn.IndexOf("DC=", StringComparison.CurrentCulture)).Replace("DC=", "").Replace(",", ".");
         }
-        
+
         public string ResolveHost(string hostName)
         {
             if (_dnsResolveCache.TryGetValue(hostName, out var dnsHostName)) return dnsHostName;
@@ -132,8 +132,8 @@ namespace Sharphound2
                 var result = NetWkstaGetInfo(hostName, 100, out var data);
                 if (result == 0)
                 {
-                    var marshalled = (WkstaInfo100) Marshal.PtrToStructure(data, typeof(WkstaInfo100));
-                    
+                    var marshalled = (WkstaInfo100)Marshal.PtrToStructure(data, typeof(WkstaInfo100));
+
                     var dObj = GetDomain(marshalled.lan_group);
                     if (dObj == null)
                     {
@@ -164,7 +164,7 @@ namespace Sharphound2
             var result = NetWkstaGetInfo(server, 100, out var buf);
             domain = null;
             if (result != 0) return null;
-            var marshalled = (WorkstationInfo100) Marshal.PtrToStructure(buf, typeof(WorkstationInfo100));
+            var marshalled = (WorkstationInfo100)Marshal.PtrToStructure(buf, typeof(WorkstationInfo100));
             NetApiBufferFree(buf);
             domain = marshalled.lan_group;
             return marshalled.computer_name;
@@ -190,7 +190,7 @@ namespace Sharphound2
                 IsMethodSet(ResolvedCollectionMethod.SessionLoop) ||
                 IsMethodSet(ResolvedCollectionMethod.LoggedOnLoop) ||
                 IsMethodSet(ResolvedCollectionMethod.LocalAdmin);
-            
+
             if (!needsPing)
             {
                 return true;
@@ -210,7 +210,7 @@ namespace Sharphound2
             return hostIsUp;
         }
 
-        internal bool DoPing(string hostname, int port=445)
+        internal bool DoPing(string hostname, int port = 445)
         {
             try
             {
@@ -261,7 +261,7 @@ namespace Sharphound2
             {
                 return null;
             }
-            
+
             if (id.AccountDomainSid == null)
             {
                 Debug($"SecurityIdentifier was null");
@@ -277,7 +277,7 @@ namespace Sharphound2
 
             Debug($"Searching for sid in AD by objectsid");
 
-            var entry = DoSearch($"(objectsid={dSid})", SearchScope.Subtree, new[] {"distinguishedname"}, useGc: true)
+            var entry = DoSearch($"(objectsid={dSid})", SearchScope.Subtree, new[] { "distinguishedname" }, useGc: true)
                 .DefaultIfEmpty(null).FirstOrDefault();
 
             if (entry != null)
@@ -389,8 +389,8 @@ namespace Sharphound2
         public IEnumerable<Wrapper<SearchResultEntry>> DoWrappedSearch(string filter, SearchScope scope, string[] props,
             string domainName = null, string adsPath = null, bool useGc = false)
         {
-            var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName);
-            
+            var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName, true);
+
             if (conn == null)
             {
                 Verbose("Unable to contact LDAP");
@@ -420,29 +420,30 @@ namespace Sharphound2
                 SearchResponse response;
                 try
                 {
-                    response = (SearchResponse) conn.SendRequest(request);
+                    response = (SearchResponse)conn.SendRequest(request);
                     if (response != null)
                     {
-                        pageResponse = (PageResultResponseControl) response.Controls[0];
+                        pageResponse = (PageResultResponseControl)response.Controls[0];
                     }
                 }
                 catch (Exception e)
                 {
                     Debug("Exception in Domain Searcher.");
                     Debug(e.Message);
-                    yield break;
+                    continue;
                 }
                 if (response == null || pageResponse == null) continue;
                 foreach (SearchResultEntry entry in response.Entries)
                 {
-                    yield return new Wrapper<SearchResultEntry>{Item = entry};
+                    yield return new Wrapper<SearchResultEntry> { Item = entry };
                 }
 
                 if (pageResponse.Cookie.Length == 0)
                 {
                     break;
                 }
-
+                conn.Dispose();
+                conn = GetLdapConnection(domainName, true);
                 prc.Cookie = pageResponse.Cookie;
             }
         }
@@ -452,7 +453,7 @@ namespace Sharphound2
         {
             Debug("Creating connection");
             var conn = useGc ? GetGcConnection(domainName) : GetLdapConnection(domainName);
-            
+
             if (conn == null)
             {
                 Debug("Connection null");
@@ -496,6 +497,7 @@ namespace Sharphound2
                 {
                     Debug("Error in loop");
                     Debug(e.Message);
+                    Console.WriteLine(e);
                     yield break;
                 }
                 if (response == null || pageResponse == null) continue;
@@ -613,7 +615,7 @@ namespace Sharphound2
         }
 
 
-        public LdapConnection GetLdapConnection(string domainName = null)
+        public LdapConnection GetLdapConnection(string domainName = null, bool bypassCache = false)
         {
             Domain targetDomain;
             try
@@ -650,18 +652,22 @@ namespace Sharphound2
             {
                 return null;
             }
-            
-            if (_ldapConnectionCache.TryGetValue(domainController, out var conn))
+
+            if (!bypassCache)
             {
-                return conn;
+                if (_ldapConnectionCache.TryGetValue(domainController, out var conn))
+                {
+                    return conn;
+                }
             }
+
 
             var port = _options.LdapPort == 0 ? (_options.SecureLdap ? 636 : 389) : _options.LdapPort;
 
             var identifier =
                 new LdapDirectoryIdentifier(domainController, port, false, false);
 
-            var connection = new LdapConnection(identifier) {Timeout = new TimeSpan(0,0,5,0)};
+            var connection = new LdapConnection(identifier) { Timeout = new TimeSpan(0, 0, 5, 0) };
 
             if (_options.LdapPass != null && _options.LdapUser != null)
             {
@@ -677,7 +683,7 @@ namespace Sharphound2
                 lso.Signing = true;
                 lso.Sealing = true;
             }
-            
+
             if (_options.SecureLdap)
             {
                 lso.ProtocolVersion = 3;
@@ -687,7 +693,8 @@ namespace Sharphound2
             }
 
             lso.ReferralChasing = ReferralChasingOptions.None;
-            _ldapConnectionCache.TryAdd(domainController, connection);
+            if (!bypassCache)
+                _ldapConnectionCache.TryAdd(domainController, connection);
             return connection;
         }
 
@@ -770,7 +777,7 @@ namespace Sharphound2
             var request = new SearchRequest(adsPath, filter, scope, attribs);
             //Add our search options control
             var soc = new SearchOptionsControl(SearchOption.DomainScope);
-            
+
             request.Controls.Add(soc);
 
             return request;
@@ -795,7 +802,7 @@ namespace Sharphound2
             var d = GetDomain();
             if (d != null)
                 return new List<string> { GetDomain().Name };
-            
+
             return new List<string>();
         }
 
@@ -858,7 +865,7 @@ namespace Sharphound2
             {
                 domainObj = null;
             }
-            
+
 
             _domainCache.TryAdd(key, domainObj);
             return domainObj;
@@ -871,7 +878,7 @@ namespace Sharphound2
             {
                 return sid;
             }
-            var entry = DoSearch("(objectclass=*)", SearchScope.Base, new[] {"objectsid"}, domainName)
+            var entry = DoSearch("(objectclass=*)", SearchScope.Base, new[] { "objectsid" }, domainName)
                 .DefaultIfEmpty(null).FirstOrDefault();
 
             if (entry == null)
@@ -895,13 +902,13 @@ namespace Sharphound2
             if (returnValue != 0)
                 return null;
 
-            var info = (DOMAIN_CONTROLLER_INFO) Marshal.PtrToStructure(pDCI, typeof(DOMAIN_CONTROLLER_INFO));
+            var info = (DOMAIN_CONTROLLER_INFO)Marshal.PtrToStructure(pDCI, typeof(DOMAIN_CONTROLLER_INFO));
             NetApiBufferFree(pDCI);
 
             _netbiosConversionCache.TryAdd(netbios, info.DomainName);
             return info.DomainName;
         }
-        
+
 
         public static string GetJsonFileName(string baseFileName)
         {
@@ -932,7 +939,7 @@ namespace Sharphound2
             var f = Path.Combine(_options.JsonFolder, filename);
             try
             {
-                using (File.Create(f)){}
+                using (File.Create(f)) { }
                 File.Delete(f);
                 return true;
             }
@@ -993,7 +1000,7 @@ namespace Sharphound2
             }
 
             var buffer = new byte[4096];
-            
+
             using (var s = new ZipOutputStream(File.Create(zipfilepath)))
             {
                 s.SetLevel(9);
@@ -1003,7 +1010,7 @@ namespace Sharphound2
                 }
                 foreach (var file in UsedFiles)
                 {
-                    var entry = new ZipEntry(Path.GetFileName(file)) {DateTime = DateTime.Now};
+                    var entry = new ZipEntry(Path.GetFileName(file)) { DateTime = DateTime.Now };
                     s.PutNextEntry(entry);
 
                     using (var fs = File.OpenRead(file))
@@ -1016,9 +1023,9 @@ namespace Sharphound2
                         } while (source > 0);
                     }
 
-                    
+
                     File.Delete(file);
-                    
+
                 }
 
                 s.Finish();
@@ -1397,7 +1404,7 @@ namespace Sharphound2
             }
         }
 
-        #pragma warning disable 169
+#pragma warning disable 169
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         private struct OBJECT_ATTRIBUTES : IDisposable
         {
@@ -1417,7 +1424,7 @@ namespace Sharphound2
             private IntPtr objectName;
             public UNICODE_STRING ObjectName;
         }
-        #pragma warning restore 169
+#pragma warning restore 169
         #endregion
     }
 }
