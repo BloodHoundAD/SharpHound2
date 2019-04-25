@@ -36,38 +36,43 @@ namespace Sharphound2.Enumeration
             if (members.Length == 0)
             {
                 var tempMembers = new List<string>();
-                var finished = false;
                 var bottom = 0;
 
-                while (!finished)
+                while (true)
                 {
                     var top = bottom + 1499;
                     var range = $"member;range={bottom}-{top}";
                     bottom += 1500;
                     //Try ranged retrieval
-                    foreach (var result in _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] {range},
+                    var result = _utils.DoSearch("(objectclass=*)", SearchScope.Base, new[] {range},
                         principalDomainName,
-                        entry.DistinguishedName))
+                        entry.DistinguishedName).DefaultIfEmpty(null).FirstOrDefault();
+
+                    //We didn't get an object back. Break out of the loop
+                    if (result?.Attributes.AttributeNames == null)
                     {
-                        if (result.Attributes.AttributeNames == null) continue;
-                        var en = result.Attributes.AttributeNames.GetEnumerator();
-
-                        //If the enumerator fails, that means theres really no members at all
-                        if (!en.MoveNext())
-                        {
-                            finished = true;
-                            break;
-                        }
-
-                        if (en.Current == null) continue;
-                        var attrib = en.Current.ToString();
-                        if (attrib.EndsWith("-*"))
-                        {
-                            finished = true;
-                        }
-
-                        tempMembers.AddRange(result.GetPropArray(attrib));
+                        break;
                     }
+                    var en = result.Attributes.AttributeNames.GetEnumerator();
+
+                    //If the enumerator fails, that means theres really no members at all
+                    if (!en.MoveNext())
+                    {
+                        break;
+                    }
+
+                    if (en.Current == null)
+                    {
+                        continue;
+                    }
+                    var attrib = en.Current.ToString();
+                    if (attrib.EndsWith("-*"))
+                    {
+                        //We're done here, no more members to grab
+                        break;
+                    }
+                    tempMembers.AddRange(result.GetPropArray(attrib));
+                    
                 }
 
                 members = tempMembers.ToArray();
