@@ -20,6 +20,7 @@ namespace Sharphound2
         RDP,
         DCOM,
         DcOnly,
+        SPNTargets,
         All
     }
 
@@ -40,5 +41,6 @@ namespace Sharphound2
         SessionLoop = 1 << 10,
         LoggedOnLoop = 1 << 11,
         DCOM = 1 << 12,
+        SPNTargets = 1 << 13
     }
 }

@@ -343,8 +343,10 @@ namespace Sharphound2.Enumeration
             Utils.Verbose("Waiting for enumeration threads to finish");
             Task.WaitAll(taskHandles);
 
-            _statusTimer.Stop();
             PrintStatus();
+            _statusTimer.Stop();
+            //_statusTimer.Dispose();
+            
             output.CompleteAdding();
             Utils.Verbose("Waiting for writer thread to finish");
             writer.Wait();
@@ -446,8 +448,9 @@ namespace Sharphound2.Enumeration
                         Utils.Verbose("Waiting for enumeration threads to finish");
                         Task.WaitAll(taskHandles);
 
-                        _statusTimer.Stop();
                         PrintStatus();
+                        _statusTimer.Stop();
+                        
                         _watch.Stop();
                         Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
                         Console.WriteLine($"{_noPing} hosts failed ping. {_timeouts} hosts timedout.");
@@ -678,6 +681,7 @@ namespace Sharphound2.Enumeration
                 }
 
                 _statusTimer.Stop();
+                //_statusTimer.Dispose();
                 PrintStatus();
                 _watch.Stop();
                 Console.WriteLine($"Finished enumeration for {domain} in {_watch.Elapsed}");
@@ -1029,6 +1033,7 @@ namespace Sharphound2.Enumeration
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
+                        SPNHelpers.GetSpnTargets(entry, resolved, ref obj);
 
                         output.Add(new Wrapper<JsonBase>
                         {

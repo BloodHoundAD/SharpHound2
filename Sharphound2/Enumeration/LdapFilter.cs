@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Remoting.Channels;
 
@@ -83,9 +84,18 @@ namespace Sharphound2.Enumeration
                 });
             }
 
+            if ((methods & ResolvedCollectionMethod.SPNTargets) != 0)
+            {
+                filterparts.Add("(|(&(samaccounttype=805306368)(serviceprincipalname=*)))");
+                props.AddRange(new[]
+                {
+                    "serviceprincipalname", "samaccountname", "samaccounttype"
+                });
+            }
+
+
             var filter = string.Join("", filterparts.ToArray());
             filter = filterparts.Count == 1 ? filterparts[0] : $"(|{filter})";
-            
 
             if (excludeDc)
             {

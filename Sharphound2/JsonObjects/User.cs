@@ -16,5 +16,6 @@ namespace Sharphound2.JsonObjects
         
         public ACL[] Aces { get; set; }
         public string[] AllowedToDelegate { get; set; }
+        public SPNTarget[] SPNTargets { get; set; }
     }
 }

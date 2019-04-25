@@ -361,7 +361,7 @@ General Options
                                        ResolvedCollectionMethod.Group | ResolvedCollectionMethod.LocalAdmin |
                                        ResolvedCollectionMethod.ObjectProps | ResolvedCollectionMethod.RDP |
                                        ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts |
-                                       ResolvedCollectionMethod.DCOM | ResolvedCollectionMethod.LoggedOn;
+                                       ResolvedCollectionMethod.DCOM | ResolvedCollectionMethod.LoggedOn | ResolvedCollectionMethod.SPNTargets;
                             break;
                         case DcOnly:
                             resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
@@ -414,6 +414,9 @@ General Options
                             break;
                         case DCOM:
                             resolved = resolved | ResolvedCollectionMethod.DCOM;
+                            break;
+                        case SPNTargets:
+                            resolved = resolved | ResolvedCollectionMethod.SPNTargets;
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();

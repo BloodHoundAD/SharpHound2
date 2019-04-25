@@ -109,7 +109,7 @@ namespace Sharphound2.Enumeration
                 return;
             }
             var uac = entry.GetProp("useraccountcontrol");
-            bool enabled, trustedToAuth, sensitive, dontReqPreAuth;
+            bool enabled, trustedToAuth, sensitive, dontReqPreAuth, passwdNotReq;
             if (int.TryParse(uac, out var flag))
             {
                 var flags = (UacFlags)flag;
@@ -117,6 +117,7 @@ namespace Sharphound2.Enumeration
                 trustedToAuth = (flags & UacFlags.TrustedToAuthForDelegation) != 0;
                 sensitive = (flags & UacFlags.NotDelegated) != 0;
                 dontReqPreAuth = (flags & UacFlags.DontReqPreauth) != 0;
+                passwdNotReq = (flags & UacFlags.PasswordNotRequired) != 0;
             }
             else
             {
@@ -124,6 +125,7 @@ namespace Sharphound2.Enumeration
                 enabled = true;
                 sensitive = false;
                 dontReqPreAuth = false;
+                passwdNotReq = false;
             }
 
             var comps = new List<string>();
@@ -163,6 +165,7 @@ namespace Sharphound2.Enumeration
             obj.Properties.Add("userpassword", entry.GetProp("userpassword"));
             obj.Properties.Add("sensitive", sensitive);
             obj.Properties.Add("dontreqpreauth", dontReqPreAuth);
+            obj.Properties.Add("passwordnotreqd", passwdNotReq);
             var ac = entry.GetProp("admincount");
             if (ac != null)
             {

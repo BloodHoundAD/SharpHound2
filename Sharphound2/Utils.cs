@@ -26,6 +26,7 @@ namespace Sharphound2
         private readonly ConcurrentDictionary<string, bool> _pingCache = new ConcurrentDictionary<string, bool>();
         private readonly ConcurrentDictionary<string, string> _netbiosConversionCache = new ConcurrentDictionary<string, string>();
         private readonly ConcurrentDictionary<string, string> _domainDcCache = new ConcurrentDictionary<string, string>();
+        private static readonly ConcurrentDictionary<string, bool> _sqlCache = new ConcurrentDictionary<string, bool>();
 
         private readonly TimeSpan _pingTimeout;
         private static Sharphound.Options _options;
@@ -232,6 +233,37 @@ namespace Sharphound2
                 Verbose($"{hostname} did not respond to ping");
                 return false;
             }
+            return true;
+        }
+
+        internal static bool CheckSqlServer(string hostname, int port)
+        {
+            var key = $"{hostname}:{port}".ToUpper();
+            if (_sqlCache.TryGetValue(key, out var success))
+            {
+                return success;
+            }
+            try
+            {
+                using (var client = new TcpClient())
+                {
+                    var result = client.BeginConnect(hostname, port, null, null);
+                    success = result.AsyncWaitHandle.WaitOne(_options.PingTimeout);
+                    if (!success)
+                    {
+                        _sqlCache.TryAdd(key, false);
+                        return false;
+                    }
+
+                    client.EndConnect(result);
+                }
+            }
+            catch
+            {
+                _sqlCache.TryAdd(key, false);
+                return false;
+            }
+            _sqlCache.TryAdd(key, true);
             return true;
         }
 

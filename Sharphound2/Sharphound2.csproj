@@ -72,6 +72,7 @@
     <Compile Include="DnsManager.cs" />
     <Compile Include="Enumeration\ACLHelpers.cs" />
     <Compile Include="Enumeration\ContainerHelpers.cs" />
+    <Compile Include="Enumeration\SPNHelpers.cs" />
     <Compile Include="Enumeration\TrustHelpers.cs" />
     <Compile Include="Enumeration\EnumerationRunner.cs" />
     <Compile Include="Enumeration\GroupHelpers.cs" />
@@ -94,6 +95,7 @@
     <Compile Include="JsonObjects\Gpo.cs" />
     <Compile Include="JsonObjects\Group.cs" />
     <Compile Include="JsonObjects\Session.cs" />
+    <Compile Include="JsonObjects\SPNTarget.cs" />
     <Compile Include="JsonObjects\Trust.cs" />
     <Compile Include="JsonObjects\User.cs" />
     <Compile Include="Test.cs" />
