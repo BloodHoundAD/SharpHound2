@@ -141,7 +141,7 @@ namespace Sharphound2.Enumeration
                 {
                     var hname = d.Contains("/") ? d.Split('/')[1] : d;
                     hname = hname.Split(':')[0];
-                    var resolvedHost = Utils.Instance.ResolveHost(hname);
+                    var resolvedHost = Utils.Instance.ResolveHost(hname, Utils.ConvertDnToDomain(entry.DistinguishedName));
                     if (resolvedHost.Contains("."))
                     {
                         comps.Add(resolvedHost.ToUpper());
@@ -214,7 +214,8 @@ namespace Sharphound2.Enumeration
                 {
                     var hname = d.Contains("/") ? d.Split('/')[1] : d;
                     hname = hname.Split(':')[0];
-                    var resolvedHost = Utils.Instance.ResolveHost(hname);
+                    var resolvedHost =
+                        Utils.Instance.ResolveHost(hname, Utils.ConvertDnToDomain(entry.DistinguishedName));
                     if (resolvedHost.Contains("."))
                     {
                         comps.Add(resolvedHost.ToUpper());

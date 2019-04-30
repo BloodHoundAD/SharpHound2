@@ -260,7 +260,7 @@ namespace Sharphound2
                 _dnsResolveCache.TryAdd(hostName, hostName);
                 return hostName;
             }
-            dnsHostName = $"{hostName}@{domainObj.Name}";
+            dnsHostName = $"{hostName}.{domainObj.Name}";
             _dnsResolveCache.TryAdd(hostName, dnsHostName);
             return hostName;
         }

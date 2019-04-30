@@ -20,8 +20,12 @@ namespace Sharphound2.Enumeration
 
             var spn = entry.GetPropArray("serviceprincipalname");
             var resolvedTargets = new List<SPNTarget>();
+            var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
             foreach (var sp in spn)
             {
+                if (sp.Contains("@"))
+                    continue;
+
                 if (sp.ToLower().Contains("mssqlsvc"))
                 {
                     var initial = sp.Split('/')[1];
@@ -42,7 +46,7 @@ namespace Sharphound2.Enumeration
                         port = 1433;
                     }
 
-                    var resolvedHost = Utils.Instance.ResolveHost(host);
+                    var resolvedHost = Utils.Instance.ResolveHost(host, domain);
                     if (!resolvedHost.Contains(".")) continue;
                     
                     if (Utils.CheckSqlServer(resolvedHost, port))
@@ -53,6 +57,14 @@ namespace Sharphound2.Enumeration
                             Port = port,
                             Service = "SQLAdmin"
                         });
+                    }
+                    else
+                    {
+                        if (port != 1433)
+                        {
+                            Console.WriteLine($"{resolvedHost}:{port} failed");
+                        }
+                        
                     }
                 }
             }
