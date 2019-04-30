@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.DirectoryServices;
 using System.DirectoryServices.Protocols;
 using System.Linq;
 using System.Security.Principal;
@@ -121,9 +122,7 @@ namespace Sharphound2
                 entry.ComputerSamAccountName = shortName;
                 return entry;
             }
-
             
-
             if (accountType == null)
             {
                 var objClass = result.GetPropArray("objectClass");
@@ -195,6 +194,23 @@ namespace Sharphound2
                 return null;
 
             var s = result.Attributes["objectsid"][0];
+            switch (s)
+            {
+                case byte[] b:
+                    return new SecurityIdentifier(b, 0).ToString();
+                case string st:
+                    return new SecurityIdentifier(Encoding.ASCII.GetBytes(st), 0).ToString();
+            }
+
+            return null;
+        }
+
+        public static string GetSid(this DirectoryEntry result)
+        {
+            if (!result.Properties.Contains("objectsid"))
+                return null;
+
+            var s = result.Properties["objectsid"][0];
             switch (s)
             {
                 case byte[] b:

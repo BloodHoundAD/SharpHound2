@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.DirectoryServices.Protocols;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Heijden.DNS;
 using Microsoft.Win32;
 using Sharphound2.JsonObjects;
 
@@ -128,16 +131,13 @@ namespace Sharphound2.Enumeration
 
             //Free the IntPtr
             NetApiBufferFree(ptrInfo);
-
             foreach (var result in results)
             {
                 var username = result.sesi10_username;
                 var cname = result.sesi10_cname;
-                Utils.Debug($"Result Username: {username}");
-                Utils.Debug($"Result cname: {cname}");
 
                 if (cname == null || username.EndsWith("$") || username.Trim() == "" || username == "$" ||
-                    username == _options.CurrentUser)
+                    username == _options.CurrentUser || username == "ANONYMOUS LOGON")
                     continue;
 
                 if (cname.StartsWith("\\", StringComparison.CurrentCulture))
@@ -146,11 +146,15 @@ namespace Sharphound2.Enumeration
                 if (cname.Equals("[::1]") || cname.Equals("127.0.0.1"))
                     cname = target.BloodHoundDisplay;
 
-                var dnsHostName = _utils.ResolveHost(cname);
+                Utils.Debug($"Result Username: {username}");
+                
+                Utils.Debug($"Original cname: {cname}");
+                var watch = Stopwatch.StartNew();
+                var dnsHostName = _utils.ResolveCname(cname, computerDomain).Replace("\\", "");
+                watch.Stop();
+                Utils.Debug($"Name resolution took {watch.ElapsedMilliseconds}");
                 Utils.Debug($"Result cname: {dnsHostName}");
-                if (dnsHostName == null)
-                    continue;
-
+                
                 //If we're skipping Global Catalog deconfliction, just return a session
                 if (_options.SkipGcDeconfliction)
                 {
@@ -159,19 +163,28 @@ namespace Sharphound2.Enumeration
                 else
                 {
                     //Check our cache first
-                    if (!_cache.GetGcMap(username, out var possible) || possible == null)
+                    if (!_cache.GetGcMap(username.ToUpper(), out var possible))
                     {
+                        Utils.Debug($"Missed cache hit for {username}");
                         //If we didn't get a cache hit, search the global catalog
                         var temp = new List<string>();
                         foreach (var entry in _utils.DoSearch(
                             $"(&(samAccountType=805306368)(samaccountname={username}))", SearchScope.Subtree,
-                            new[] {"distinguishedname"}, computerDomain, "", true))
+                            new[] {"distinguishedname"}, useGc: true))
                         {
                             temp.Add(Utils.ConvertDnToDomain(entry.DistinguishedName).ToUpper());
                         }
 
                         possible = temp.ToArray();
-                        _cache.AddGcMap(username, possible);
+                        _cache.AddGcMap(username.ToUpper(), possible);
+                    }
+                    else
+                    {
+                        Utils.Debug($"Cache hit for {username}");
+                        if (possible == null)
+                        {
+                            possible = new string[0];
+                        }
                     }
 
                     switch (possible.Length)

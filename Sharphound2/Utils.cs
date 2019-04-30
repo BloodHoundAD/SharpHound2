@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.ActiveDirectory;
 using System.DirectoryServices.Protocols;
@@ -12,6 +13,8 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using Heijden.DNS;
 using ICSharpCode.SharpZipLib.Zip;
 using Sharphound2.Enumeration;
 using SearchOption = System.DirectoryServices.Protocols.SearchOption;
@@ -26,6 +29,7 @@ namespace Sharphound2
         private readonly ConcurrentDictionary<string, bool> _pingCache = new ConcurrentDictionary<string, bool>();
         private readonly ConcurrentDictionary<string, string> _netbiosConversionCache = new ConcurrentDictionary<string, string>();
         private readonly ConcurrentDictionary<string, string> _domainDcCache = new ConcurrentDictionary<string, string>();
+        private readonly ConcurrentDictionary<string, Resolver> _resolverCache = new ConcurrentDictionary<string, Resolver>();
         private static readonly ConcurrentDictionary<string, bool> _sqlCache = new ConcurrentDictionary<string, bool>();
 
         private readonly TimeSpan _pingTimeout;
@@ -121,43 +125,144 @@ namespace Sharphound2
             return dn.Substring(dn.IndexOf("DC=", StringComparison.CurrentCulture)).Replace("DC=", "").Replace(",", ".");
         }
 
-        public string ResolveHost(string hostName)
+        public string ResolveCname(string ip, string computerDomain)
         {
-            if (_dnsResolveCache.TryGetValue(hostName, out var dnsHostName)) return dnsHostName;
-            try
+            ip = ip.ToUpper();
+            if (_dnsResolveCache.TryGetValue(ip, out var dnsHostName)) return dnsHostName;
+
+            var data = IntPtr.Zero;
+            var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(ip, 100, out data));
+            var success = t.Wait(TimeSpan.FromSeconds(5));
+
+            if (success)
             {
-                dnsHostName = Dns.GetHostEntry(hostName).HostName;
-            }
-            catch
-            {
-                var result = NetWkstaGetInfo(hostName, 100, out var data);
-                if (result == 0)
+                if (t.Result == 0)
                 {
                     var marshalled = (WkstaInfo100)Marshal.PtrToStructure(data, typeof(WkstaInfo100));
 
                     var dObj = GetDomain(marshalled.lan_group);
                     if (dObj == null)
                     {
-                        return null;
+                        _dnsResolveCache.TryAdd(ip, ip);
+                        return ip;
                     }
 
                     var domain = dObj.Name;
                     var nbname = marshalled.computer_name;
-                    if (!DnsManager.HostExistsDns($"{nbname}.{domain}", out dnsHostName))
-                    {
-                        dnsHostName = hostName;
-                    }
+                    var testName = $"{nbname}.{domain}";
+                    _dnsResolveCache.TryAdd(ip, testName);
+                    return testName;
                 }
-                else
-                {
-                    dnsHostName = hostName;
-                }
-                NetApiBufferFree(data);
             }
 
-            _dnsResolveCache.TryAdd(hostName, dnsHostName);
+            var resolver = CreateDNSResolver(computerDomain);
 
-            return dnsHostName;
+            if (IPAddress.TryParse(ip, out var parsed))
+            {
+                var query = resolver.Query(Resolver.GetArpaFromIp(parsed), QType.PTR);
+                if (query.RecordsPTR.Length > 0)
+                {
+                    dnsHostName = query.RecordsPTR[0].ToString().TrimEnd('.');
+                    _dnsResolveCache.TryAdd(ip, dnsHostName);
+                    return dnsHostName;
+                }
+            }
+            
+            _dnsResolveCache.TryAdd(ip, ip);
+            return ip;
+        }
+
+        private Resolver CreateDNSResolver(string domain=null)
+        {
+            var dObj = GetDomain(domain);
+            var key = dObj == null ? "UNIQUENULL" : dObj.Name.ToUpper();
+            if (_resolverCache.TryGetValue(key, out var resolver)) return resolver;
+            
+            resolver = new Resolver();
+            var newServers = new List<IPEndPoint>();
+            var dc = GetUsableDomainController(dObj);
+            var query = resolver.Query(dc, QType.A);
+            if (query.RecordsA.Length > 0)
+            {
+                newServers.Add(new IPEndPoint(query.RecordsA[0].Address, 53));
+            }
+            foreach (var s in resolver.DnsServers)
+            {
+                if (!s.ToString().StartsWith("fec0"))
+                {
+                    //Grab the first DNS server from our defaults thats not an fec0 address
+                    //This is to avoid vmware created DNS servers
+                    newServers.Add(s);
+                    break;
+                }
+            }
+
+            resolver.DnsServers = newServers.ToArray();
+            _resolverCache.TryAdd(key, resolver);
+            return resolver;
+        }
+
+        public string ResolveHost(string hostName, string targetDomain=null)
+        {
+            hostName = hostName.ToUpper();
+            if (_dnsResolveCache.TryGetValue(hostName, out var dnsHostName)) return dnsHostName;
+            var data = IntPtr.Zero;
+            var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(hostName, 100, out data));
+            var success = t.Wait(TimeSpan.FromSeconds(5));
+
+            if (success)
+            {
+                if (t.Result == 0)
+                {
+                    var marshalled = (WkstaInfo100)Marshal.PtrToStructure(data, typeof(WkstaInfo100));
+
+                    var dObj = GetDomain(marshalled.lan_group);
+                    if (dObj == null)
+                    {
+                        _dnsResolveCache.TryAdd(hostName, hostName);
+                        return hostName;
+                    }
+
+                    var domain = dObj.Name;
+                    var nbname = marshalled.computer_name;
+                    var testName = $"{nbname}.{domain}";
+                    _dnsResolveCache.TryAdd(hostName, testName);
+                    return testName;
+                }
+            }
+            
+            var domainObj = GetDomain(targetDomain);
+            var resolver = CreateDNSResolver(targetDomain);
+            
+            if (IPAddress.TryParse(hostName, out var parsed))
+            {
+                var query = resolver.Query(Resolver.GetArpaFromIp(parsed), QType.PTR);
+                if (query.RecordsPTR.Length > 0)
+                {
+                    dnsHostName = query.RecordsPTR[0].ToString().TrimEnd('.');
+                    _dnsResolveCache.TryAdd(hostName, dnsHostName);
+                    return dnsHostName;
+                }
+            }
+            else
+            {
+                var query = resolver.Query($"{hostName}.{domainObj.Name}", QType.A);
+                if (query.RecordsA.Length > 0)
+                {
+                    dnsHostName = query.RecordsA[0].RR.NAME.TrimEnd('.');
+                    _dnsResolveCache.TryAdd(hostName, dnsHostName);
+                    return dnsHostName;
+                }
+            }
+
+            if (hostName.Contains("."))
+            {
+                _dnsResolveCache.TryAdd(hostName, hostName);
+                return hostName;
+            }
+            dnsHostName = $"{hostName}@{domainObj.Name}";
+            _dnsResolveCache.TryAdd(hostName, dnsHostName);
+            return hostName;
         }
 
         public static string GetComputerNetbiosName(string server, out string domain)
@@ -529,7 +634,7 @@ namespace Sharphound2
                 {
                     Debug("Error in loop");
                     Debug(e.Message);
-                    Console.WriteLine(e);
+                    //Console.WriteLine(e);
                     yield break;
                 }
                 if (response == null || pageResponse == null) continue;
@@ -905,18 +1010,28 @@ namespace Sharphound2
 
         public string GetDomainSid(string domainName = null)
         {
-            var key = domainName ?? "UNIQUENULL";
-            if (_cache.GetDomainFromSid(domainName, out var sid))
+            var key = domainName?.ToUpper() ?? "UNIQUENULL";
+            if (_cache.GetDomainFromSid(key, out var sid))
             {
                 return sid;
             }
-            var entry = DoSearch("(objectclass=*)", SearchScope.Base, new[] { "objectsid" }, domainName)
-                .DefaultIfEmpty(null).FirstOrDefault();
 
-            if (entry == null)
-                return null;
+            var dObj = GetDomain(domainName);
 
-            sid = entry.GetSid();
+            if (dObj != null)
+            {
+                sid = dObj.GetDirectoryEntry().GetSid();
+                if (sid != null)
+                {
+                    _cache.AddDomainFromSid(key, sid);
+                    _cache.AddDomainFromSid(sid, domainName);
+                }
+            }
+            else
+            {
+                sid = null;
+            }
+            
             _cache.AddDomainFromSid(key, sid);
             _cache.AddDomainFromSid(sid, domainName);
 

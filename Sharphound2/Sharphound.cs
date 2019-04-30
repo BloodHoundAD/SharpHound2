@@ -719,6 +719,7 @@ General Options
             }
         }
 
+        // Accessor function for the PS1 to work, do not change or remove
         public static void InvokeBloodHound(string[] args)
         {
             Main(args);
