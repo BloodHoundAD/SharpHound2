@@ -15,7 +15,7 @@ namespace Sharphound2
     {
         public class Options
         {
-            [OptionArray('c', "CollectionMethod", DefaultValue = new[] {"Default"}, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default, RDP, DCOM")]
+            [OptionArray('c', "CollectionMethod", DefaultValue = new[] { "Default" }, HelpText = "Collection Method (Group, LocalGroup, GPOLocalGroup, Session, LoggedOn, ComputerOnly, Trusts, Stealth, Default, RDP, DCOM")]
             public string[] CollectionMethod { get; set; }
 
             [Option(HelpText = "Use stealth enumeration options", DefaultValue = false)]
@@ -24,7 +24,7 @@ namespace Sharphound2
             [Option('d', "Domain", HelpText = "Domain to enumerate", DefaultValue = null, MutuallyExclusiveSet = "DomainOption")]
             public string Domain { get; set; }
 
-            [Option('s', "SearchForest", HelpText ="Search the entire forest", DefaultValue = false, MutuallyExclusiveSet = "DomainOption")]
+            [Option('s', "SearchForest", HelpText = "Search the entire forest", DefaultValue = false, MutuallyExclusiveSet = "DomainOption")]
             public bool SearchForest { get; set; }
 
             [Option(DefaultValue = null)]
@@ -33,10 +33,10 @@ namespace Sharphound2
             [Option(HelpText = "Custom LDAP filter to control collection", DefaultValue = null)]
             public string LdapFilter { get; set; }
 
-            [Option(DefaultValue=null)]
+            [Option(DefaultValue = null)]
             public string ComputerFile { get; set; }
 
-            [Option('t',"Threads",HelpText ="Number of Threads to use", DefaultValue =10)]
+            [Option('t', "Threads", HelpText = "Number of Threads to use", DefaultValue = 10)]
             public int Threads { get; set; }
 
             [Option(HelpText = "Folder to drop Json files", DefaultValue = ".")]
@@ -51,18 +51,18 @@ namespace Sharphound2
             [Option(DefaultValue = 0)]
             public int LdapPort { get; set; }
 
-            [Option(HelpText ="Interval to display progress in milliseconds", DefaultValue =30000)]
+            [Option(HelpText = "Interval to display progress in milliseconds", DefaultValue = 30000)]
             public int StatusInterval { get; set; }
 
-            [Option(HelpText ="Skip ping checks for hosts", DefaultValue =false)]
+            [Option(HelpText = "Skip ping checks for hosts", DefaultValue = false)]
             public bool SkipPing { get; set; }
 
-            [Option(HelpText ="Timeout in milliseconds for ping timeout", DefaultValue =500)]
+            [Option(HelpText = "Timeout in milliseconds for ping timeout", DefaultValue = 500)]
             public int PingTimeout { get; set; }
 
-            [Option(HelpText= "Skip Global Catalog Deconfliction", DefaultValue = false)]
+            [Option(HelpText = "Skip Global Catalog Deconfliction", DefaultValue = false)]
             public bool SkipGcDeconfliction { get; set; }
-            
+
             [Option(HelpText = "Filename for the data cache (defaults to b64 of machine sid)", DefaultValue = null)]
             public string CacheFile { get; set; }
 
@@ -84,7 +84,7 @@ namespace Sharphound2
             [Option(DefaultValue = null)]
             public string MaxLoopTime { get; set; }
 
-            [Option('v',"Verbose",HelpText = "Enable verbose output",DefaultValue = false)]
+            [Option('v', "Verbose", HelpText = "Enable verbose output", DefaultValue = false)]
             public bool Verbose { get; set; }
 
             [Option(HelpText = "Exclude Domain Controllers from search (useful for ATA environments)", DefaultValue = false)]
@@ -110,7 +110,7 @@ namespace Sharphound2
 
             [Option(DefaultValue = null)]
             public string DomainController { get; set; }
-            
+
             [Option(DefaultValue = false)]
             public bool Debug { get; set; }
 
@@ -306,7 +306,7 @@ General Options
                 throw new ArgumentNullException(nameof(args));
 
             var options = new Options();
-            
+
             if (!Parser.Default.ParseArguments(args, options))
             {
                 return;
@@ -361,7 +361,8 @@ General Options
                                        ResolvedCollectionMethod.Group | ResolvedCollectionMethod.LocalAdmin |
                                        ResolvedCollectionMethod.ObjectProps | ResolvedCollectionMethod.RDP |
                                        ResolvedCollectionMethod.Session | ResolvedCollectionMethod.Trusts |
-                                       ResolvedCollectionMethod.DCOM | ResolvedCollectionMethod.LoggedOn | ResolvedCollectionMethod.SPNTargets;
+                                       ResolvedCollectionMethod.DCOM | ResolvedCollectionMethod.LoggedOn |
+                                       ResolvedCollectionMethod.SPNTargets;
                             break;
                         case DcOnly:
                             resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
@@ -490,7 +491,7 @@ General Options
                     options.LoopEnd = DateTime.Now + TimeSpan.FromHours(2);
                 }
             }
-            
+
             options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
 
             Cache.CreateInstance(options);
@@ -514,7 +515,7 @@ General Options
                     options.PingTimeout = 1000;
                 }
             }
-            
+
             if (Utils.Instance.GetDomainList().Count == 0)
             {
                 Console.WriteLine("Unable to contact domain. Try from a domain context!");
@@ -548,7 +549,7 @@ General Options
                 Test.DoStuff(options.Test);
                 return;
             }
-            
+
             //Lets test our connection to LDAP before we do anything else
             try
             {
