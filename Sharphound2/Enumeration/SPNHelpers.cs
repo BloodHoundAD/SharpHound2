@@ -58,14 +58,6 @@ namespace Sharphound2.Enumeration
                             Service = "SQLAdmin"
                         });
                     }
-                    else
-                    {
-                        if (port != 1433)
-                        {
-                            Console.WriteLine($"{resolvedHost}:{port} failed");
-                        }
-                        
-                    }
                 }
             }
 
