@@ -126,6 +126,9 @@ namespace Sharphound2
             [Option(DefaultValue = null)]
             public string LdapPass { get; set; }
 
+            [Option(DefaultValue = null)]
+            public string OverrideUser { get; set; }
+
             [ParserState]
             public IParserState LastParserState { get; set; }
 
@@ -433,7 +436,7 @@ General Options
             if (options.Debug)
             {
                 Console.WriteLine("Debug Mode activated!");
-                options.Threads = 1;
+                //options.Threads = 1;
             }
 
             if ((resolved & ResolvedCollectionMethod.SessionLoop) != 0)
@@ -492,7 +495,7 @@ General Options
                 }
             }
 
-            options.CurrentUser = WindowsIdentity.GetCurrent().Name.Split('\\')[1];
+            options.CurrentUser = options.OverrideUser ?? WindowsIdentity.GetCurrent().Name.Split('\\')[1];
 
             Cache.CreateInstance(options);
             Utils.CreateInstance(options);

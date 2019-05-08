@@ -84,7 +84,7 @@ namespace Sharphound2.Enumeration
                 {
                     if (_cancelled)
                     {
-                        output.CompleteAdding();
+                        //output.CompleteAdding();
                         break;
                     }
                     var resolved = entry.ResolveAdEntry();
@@ -92,7 +92,7 @@ namespace Sharphound2.Enumeration
                     if (resolved == null)
                         continue;
 
-                    var domain = Utils.ConvertDnToDomain(entry.DistinguishedName);
+                    var domain = Utils.ConvertDnToDomain(entry.DistinguishedName).ToUpper();
                     var sid = entry.GetSid();
 
                     if (resolved.ObjectType == "user")
@@ -461,7 +461,7 @@ namespace Sharphound2.Enumeration
                 if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape)
                 {
                     Console.WriteLine("User pressed escape, exiting session loop");
-                    output.CompleteAdding();
+                    //output.CompleteAdding();
                     writer.Wait();
                     break;
                 }
@@ -471,7 +471,7 @@ namespace Sharphound2.Enumeration
                     if (DateTime.Now > _options.LoopEnd)
                     {
                         Console.WriteLine("Exiting session loop as LoopEndTime has passed.");
-                        output.CompleteAdding();
+                        //output.CompleteAdding();
                         writer.Wait();
                         break;
                     }
@@ -994,7 +994,6 @@ namespace Sharphound2.Enumeration
                 {
                     if (_cancelled)
                     {
-                        output.CompleteAdding();
                         break;
                     }
                     var entry = wrapper.Item;

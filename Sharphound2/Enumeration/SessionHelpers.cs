@@ -94,6 +94,7 @@ namespace Sharphound2.Enumeration
                 !Utils.IsMethodSet(ResolvedCollectionMethod.SessionLoop))
                 yield break;
             
+            Utils.Debug($"Starting NetSessionEnum for {target.BloodHoundDisplay}");
             var resumeHandle = IntPtr.Zero;
             var si10 = typeof(SESSION_INFO_10);
 

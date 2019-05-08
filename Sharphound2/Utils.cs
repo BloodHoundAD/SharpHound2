@@ -128,11 +128,15 @@ namespace Sharphound2
         public string ResolveCname(string ip, string computerDomain)
         {
             ip = ip.ToUpper();
-            if (_dnsResolveCache.TryGetValue(ip, out var dnsHostName)) return dnsHostName;
+            if (_dnsResolveCache.TryGetValue(ip, out var dnsHostName))
+            {
+                Debug("DNS resolved from cache");
+                return dnsHostName;
+            }
 
             var data = IntPtr.Zero;
             var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(ip, 100, out data));
-            var success = t.Wait(TimeSpan.FromSeconds(5));
+            var success = t.Wait(TimeSpan.FromSeconds(3));
 
             if (success)
             {
@@ -208,7 +212,7 @@ namespace Sharphound2
             if (_dnsResolveCache.TryGetValue(hostName, out var dnsHostName)) return dnsHostName;
             var data = IntPtr.Zero;
             var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(hostName, 100, out data));
-            var success = t.Wait(TimeSpan.FromSeconds(5));
+            var success = t.Wait(TimeSpan.FromSeconds(3));
 
             if (success)
             {
