@@ -571,7 +571,7 @@ namespace Sharphound2
                 {
                     Debug("Exception in Domain Searcher.");
                     Debug(e.Message);
-                    continue;
+                    yield break;
                 }
                 if (response == null || pageResponse == null) continue;
                 foreach (SearchResultEntry entry in response.Entries)
