@@ -181,6 +181,11 @@ function Invoke-BloodHound{
     .PARAMETER Verbose
 
         Enable verbose output mode. Will print a lot!
+
+    .PARAMETER OverrideUser
+
+        Overrides the 'current' user to filter it out of session enumeration.
+        Useful when you're using runas, as the user will be detected incorrectly
         
     .EXAMPLE
 
@@ -323,6 +328,9 @@ function Invoke-BloodHound{
         [ValidateRange(500,60000)]
         [int]
         $StatusInterval,
+
+        [String]
+        $OverrideUser,
 
         [Switch]
         $Verbose
@@ -488,7 +496,12 @@ function Invoke-BloodHound{
     if ($StatusInterval){
         $vars.Add("--StatusInterval")
         $vars.Add($StatusInterval)
-    }   
+    }
+
+    if ($OverrideUser){
+        $vars.Add("--OverrideUser")
+        $vars.Add($OverrideUser)
+    }
 
     $passed = [string[]]$vars.ToArray()
 

@@ -572,8 +572,8 @@ namespace Sharphound2
                     Debug("Exception in Domain Searcher.");
                     Debug(e.Message);
                     conn.Dispose();
-                    conn = GetLdapConnection(domainName, true);
-                    continue;
+                    //conn = GetLdapConnection(domainName, true);
+                    yield break;
                 }
                 if (response == null || pageResponse == null) continue;
                 foreach (SearchResultEntry entry in response.Entries)
@@ -583,10 +583,10 @@ namespace Sharphound2
 
                 if (pageResponse.Cookie.Length == 0)
                 {
-                    break;
+                    yield break;
                 }
-                conn.Dispose();
-                conn = GetLdapConnection(domainName, true);
+                //conn.Dispose();
+                //conn = GetLdapConnection(domainName, true);
                 prc.Cookie = pageResponse.Cookie;
             }
         }
@@ -821,6 +821,8 @@ namespace Sharphound2
 
             //Add LdapSessionOptions
             var lso = connection.SessionOptions;
+            lso.ProtocolVersion = 3;
+
             if (!_options.DisableKerbSigning)
             {
                 lso.Signing = true;
@@ -829,11 +831,12 @@ namespace Sharphound2
 
             if (_options.SecureLdap)
             {
-                lso.ProtocolVersion = 3;
                 lso.SecureSocketLayer = true;
                 if (_options.IgnoreLdapCert)
                     connection.SessionOptions.VerifyServerCertificate = (con, cer) => true;
             }
+
+            connection.AuthType = AuthType.Kerberos;
 
             lso.ReferralChasing = ReferralChasingOptions.None;
             if (!bypassCache)

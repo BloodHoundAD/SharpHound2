@@ -27,9 +27,10 @@ namespace Sharphound2.Enumeration
                 return;
 
             var trusts = new List<Trust>();
-            var dc = _utils
-                .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
-                    new[] { "dnshostname" }, resolved.BloodHoundDisplay).DefaultIfEmpty(null).FirstOrDefault();
+            var dc = _utils.GetUsableDomainController(_utils.GetDomain(resolved.BloodHoundDisplay));
+            //var dc = _utils
+            //    .DoSearch("(userAccountControl:1.2.840.113556.1.4.803:=8192)", SearchScope.Subtree,
+            //        new[] { "dnshostname" }, resolved.BloodHoundDisplay).DefaultIfEmpty(null).FirstOrDefault();
 
             if (dc == null)
                 return;
@@ -37,7 +38,7 @@ namespace Sharphound2.Enumeration
 
             const uint flags = 63;
             var ddt = typeof(DsDomainTrusts);
-            var result = DsEnumerateDomainTrusts(dc.GetProp("dnshostname"), flags, out var ptr, out var domainCount);
+            var result = DsEnumerateDomainTrusts(dc, flags, out var ptr, out var domainCount);
 
             if (result != 0)
                 return;

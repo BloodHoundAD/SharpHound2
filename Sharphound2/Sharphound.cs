@@ -184,6 +184,10 @@ Enumeration Options:
 
     --LdapFilter
         Append this to the ldap filter used for querying the directory
+
+    --OverrideUser
+        Overrides the 'current' user to filter it out of session enumeration.
+        Useful when you're using runas, as the user will be detected incorrectly
    
 Connection Options:
     --SecureLdap
