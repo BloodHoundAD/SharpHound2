@@ -31,8 +31,8 @@ namespace Sharphound2.Enumeration
             foreach (var entry in _utils.DoSearch("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))",
                 SearchScope.Subtree, new[] { "displayname", "name" }, domain))
             {
-                var dName = entry.GetProp("displayname").ToUpper();
                 var name = entry.GetProp("name").ToUpper();
+                var dName = entry.GetProp("displayname")?.ToUpper() ?? name;
                 name = name.Substring(1, name.Length - 2);
                 _gpoCache.TryAdd(name, dName);
             }
