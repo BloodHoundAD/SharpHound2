@@ -95,8 +95,7 @@ namespace Sharphound2.Enumeration
 
                 // parentChild occure only when one of the domain is the forest root
                 // Check is trusted domain is the current forest root or if trusted domain's parent is current enumerated domain
-                if (((trustFlags & TrustFlags.DsDomainTreeRoot) == TrustFlags.DsDomainTreeRoot) && ((trustFlags & TrustFlags.DsDomainInForest) == TrustFlags.DsDomainInForest)
-    || array[data.ParentIndex].DnsDomainName.ToUpper() == resolved.BloodHoundDisplay)
+                if (((trustFlags & TrustFlags.DsDomainTreeRoot) == TrustFlags.DsDomainTreeRoot) && ((trustFlags & TrustFlags.DsDomainInForest) == TrustFlags.DsDomainInForest) || array[data.ParentIndex].DnsDomainName?.ToUpper() == resolved.BloodHoundDisplay)
                 {
                     trust.TrustType = "ParentChild";
                 }

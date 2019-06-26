@@ -185,11 +185,15 @@ namespace Sharphound2
             resolver = new Resolver();
             var newServers = new List<IPEndPoint>();
             var dc = GetUsableDomainController(dObj);
-            var query = resolver.Query(dc, QType.A);
-            if (query.RecordsA.Length > 0)
+            if (dc != null)
             {
-                newServers.Add(new IPEndPoint(query.RecordsA[0].Address, 53));
+                var query = resolver.Query(dc, QType.A);
+                if (query.RecordsA.Length > 0)
+                {
+                    newServers.Add(new IPEndPoint(query.RecordsA[0].Address, 53));
+                }
             }
+            
             foreach (var s in resolver.DnsServers)
             {
                 if (!s.ToString().StartsWith("fec0"))
