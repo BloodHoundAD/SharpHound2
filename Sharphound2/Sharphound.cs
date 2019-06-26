@@ -435,16 +435,12 @@ General Options
                     Console.WriteLine($"Failed to parse value {unparsed}. Check your values for CollectionMethods!");
                     return;
                 }
-
-                //Temporarily remove SPNTargets
-                //TODO Remove this
-                resolved &= ~ResolvedCollectionMethod.SPNTargets;
             }
 
             if (options.Debug)
             {
                 Console.WriteLine("Debug Mode activated!");
-                options.Threads = 1;
+                //options.Threads = 1;
             }
 
             if ((resolved & ResolvedCollectionMethod.SessionLoop) != 0)
