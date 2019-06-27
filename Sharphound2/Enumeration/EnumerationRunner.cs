@@ -1188,6 +1188,7 @@ namespace Sharphound2.Enumeration
 
                         obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", true);
+                        obj.Properties.Add("domain", domain);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
@@ -1207,6 +1208,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("highvalue", false);
+                        obj.Properties.Add("domain", domain);
 
                         AclHelpers.GetObjectAces(entry, resolved, ref obj);
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
@@ -1232,6 +1234,7 @@ namespace Sharphound2.Enumeration
 
                         obj.Properties.Add("name", resolved.BloodHoundDisplay.ToUpper());
                         obj.Properties.Add("highvalue", false);
+                        obj.Properties.Add("domain", domain);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
