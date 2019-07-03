@@ -134,31 +134,34 @@ namespace Sharphound2
                 return dnsHostName;
             }
 
-            var data = IntPtr.Zero;
-            var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(ip, 100, out data));
-            var success = t.Wait(TimeSpan.FromSeconds(3));
-
-            if (success)
+            if ((_options.ResolvedCollMethods & ResolvedCollectionMethod.DCOnly) == 0)
             {
-                if (t.Result == 0)
+                var data = IntPtr.Zero;
+                var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(ip, 100, out data));
+                var success = t.Wait(TimeSpan.FromSeconds(3));
+
+                if (success)
                 {
-                    var marshalled = (WkstaInfo100)Marshal.PtrToStructure(data, typeof(WkstaInfo100));
-
-                    var dObj = GetDomain(marshalled.lan_group);
-                    if (dObj == null)
+                    if (t.Result == 0)
                     {
-                        _dnsResolveCache.TryAdd(ip, ip);
-                        return ip;
-                    }
+                        var marshalled = (WkstaInfo100)Marshal.PtrToStructure(data, typeof(WkstaInfo100));
 
-                    var domain = dObj.Name;
-                    var nbname = marshalled.computer_name;
-                    var testName = $"{nbname}.{domain}";
-                    _dnsResolveCache.TryAdd(ip, testName);
-                    return testName;
+                        var dObj = GetDomain(marshalled.lan_group);
+                        if (dObj == null)
+                        {
+                            _dnsResolveCache.TryAdd(ip, ip);
+                            return ip;
+                        }
+
+                        var domain = dObj.Name;
+                        var nbname = marshalled.computer_name;
+                        var testName = $"{nbname}.{domain}";
+                        _dnsResolveCache.TryAdd(ip, testName);
+                        return testName;
+                    }
                 }
             }
-
+            
             var resolver = CreateDNSResolver(computerDomain);
 
             if (IPAddress.TryParse(ip, out var parsed))
@@ -214,31 +217,35 @@ namespace Sharphound2
         {
             hostName = hostName.ToUpper();
             if (_dnsResolveCache.TryGetValue(hostName, out var dnsHostName)) return dnsHostName;
-            var data = IntPtr.Zero;
-            var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(hostName, 100, out data));
-            var success = t.Wait(TimeSpan.FromSeconds(3));
 
-            if (success)
+            if ((_options.ResolvedCollMethods & ResolvedCollectionMethod.DCOnly) == 0)
             {
-                if (t.Result == 0)
+                var data = IntPtr.Zero;
+                var t = Task<int>.Factory.StartNew(() => NetWkstaGetInfo(hostName, 100, out data));
+                var success = t.Wait(TimeSpan.FromSeconds(3));
+
+                if (success)
                 {
-                    var marshalled = (WkstaInfo100)Marshal.PtrToStructure(data, typeof(WkstaInfo100));
-
-                    var dObj = GetDomain(marshalled.lan_group);
-                    if (dObj == null)
+                    if (t.Result == 0)
                     {
-                        _dnsResolveCache.TryAdd(hostName, hostName);
-                        return hostName;
-                    }
+                        var marshalled = (WkstaInfo100)Marshal.PtrToStructure(data, typeof(WkstaInfo100));
 
-                    var domain = dObj.Name;
-                    var nbname = marshalled.computer_name;
-                    var testName = $"{nbname}.{domain}";
-                    _dnsResolveCache.TryAdd(hostName, testName);
-                    return testName;
+                        var dObj = GetDomain(marshalled.lan_group);
+                        if (dObj == null)
+                        {
+                            _dnsResolveCache.TryAdd(hostName, hostName);
+                            return hostName;
+                        }
+
+                        var domain = dObj.Name;
+                        var nbname = marshalled.computer_name;
+                        var testName = $"{nbname}.{domain}";
+                        _dnsResolveCache.TryAdd(hostName, testName);
+                        return testName;
+                    }
                 }
             }
-            
+           
             var domainObj = GetDomain(targetDomain);
             var resolver = CreateDNSResolver(targetDomain);
             

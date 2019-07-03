@@ -374,7 +374,7 @@ General Options
                         case DcOnly:
                             resolved = resolved | ResolvedCollectionMethod.ACL | ResolvedCollectionMethod.Container |
                                        ResolvedCollectionMethod.Trusts | ResolvedCollectionMethod.ObjectProps |
-                                       ResolvedCollectionMethod.GPOLocalGroup | ResolvedCollectionMethod.Group;
+                                       ResolvedCollectionMethod.GPOLocalGroup | ResolvedCollectionMethod.Group | ResolvedCollectionMethod.DCOnly;
                             break;
                         case CollectionMethod.Group:
                             resolved = resolved | ResolvedCollectionMethod.Group;
