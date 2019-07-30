@@ -545,6 +545,32 @@ namespace Sharphound2.Enumeration
                     continue;
                 }
 
+                if (rights.HasFlag(ActiveDirectoryRights.GenericWrite) || rights.HasFlag(ActiveDirectoryRights.WriteProperty))
+                {
+                    if (rights.HasFlag(ActiveDirectoryRights.GenericWrite) &&
+                        (objectAceType == AllGuid || objectAceType == ""))
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "",
+                            RightName = "GenericWrite",
+                            PrincipalName = principal.PrincipalName,
+                            PrincipalType = principal.ObjectType
+                        });
+                    }
+                    else if (rights.HasFlag(ActiveDirectoryRights.WriteProperty) &&
+                        (objectAceType == AllGuid || objectAceType == ""))
+                    {
+                        aces.Add(new ACL
+                        {
+                            AceType = "",
+                            RightName = "GenericWrite",
+                            PrincipalName = principal.PrincipalName,
+                            PrincipalType = principal.ObjectType
+                        });
+                    }
+                }
+
                 if (rights.HasFlag(ActiveDirectoryRights.WriteDacl))
                 {
                     aces.Add(new ACL
