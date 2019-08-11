@@ -6,5 +6,6 @@
         public LocalMember[] RemoteDesktopUsers { get; set; }
         public LocalMember[] LocalAdmins { get; set; }
         public LocalMember[] DcomUsers { get; set; }
+        public LocalMember[] RemoteManagementUsers { get; set; }
     }
 }
