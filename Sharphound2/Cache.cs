@@ -73,13 +73,23 @@ namespace Sharphound2
             if (_options.NoSaveCache)
                 return;
 
-            using (var file = File.Create(_fileName))
+            try
             {
-                Serializer.SerializeWithLengthPrefix(file,_userCache,PrefixStyle.Base128);
-                Serializer.SerializeWithLengthPrefix(file, _groupCache, PrefixStyle.Base128);
-                Serializer.SerializeWithLengthPrefix(file, _computerCache, PrefixStyle.Base128);
-                Serializer.SerializeWithLengthPrefix(file, _domainToSidCache, PrefixStyle.Base128);
-                Serializer.SerializeWithLengthPrefix(file, _globalCatalogMap, PrefixStyle.Base128);
+                using (var file = File.Create(_fileName))
+                {
+                    Serializer.SerializeWithLengthPrefix(file, _userCache, PrefixStyle.Base128);
+                    Serializer.SerializeWithLengthPrefix(file, _groupCache, PrefixStyle.Base128);
+                    Serializer.SerializeWithLengthPrefix(file, _computerCache, PrefixStyle.Base128);
+                    Serializer.SerializeWithLengthPrefix(file, _domainToSidCache, PrefixStyle.Base128);
+                    Serializer.SerializeWithLengthPrefix(file, _globalCatalogMap, PrefixStyle.Base128);
+                }
+            }
+            catch (System.UnauthorizedAccessException)
+            {
+                // can happen for example if two Sharphound instances are running in parallel, the second won't be
+                // able to write on the file that is locked by the first process
+                // simply ignore it, do not save cache, and gracefully continue
+                return;
             }
         }
 
