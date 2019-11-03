@@ -157,52 +157,66 @@ namespace Sharphound2
             return entry;
         }
 
-        public static string GetProp(this SearchResultEntry result, string prop)
+        public static string GetProp(this SearchResultEntry searchResultEntry, string property)
         {
-            if (!result.Attributes.Contains(prop))
+            if (!searchResultEntry.Attributes.Contains(property))
                 return null;
 
-            return result.Attributes[prop][0].ToString();
-        }
-
-        public static byte[] GetPropBytes(this SearchResultEntry result, string prop)
-        {
-            if (!result.Attributes.Contains(prop))
+            var collection = searchResultEntry.Attributes[property];
+            var lookups = collection.GetValues(typeof(string));
+            if (lookups.Length == 0)
                 return null;
 
-            return result.Attributes[prop][0] as byte[];
+            if (!(lookups[0] is string prop) || prop.Length == 0)
+                return null;
+
+            return prop;
         }
 
-        public static string[] GetPropArray(this SearchResultEntry result, string prop)
+        public static byte[] GetPropBytes(this SearchResultEntry searchResultEntry, string property)
         {
-            if (!result.Attributes.Contains(prop))
+            if (!searchResultEntry.Attributes.Contains(property))
+                return null;
+
+            var collection = searchResultEntry.Attributes[property];
+            var lookups = collection.GetValues(typeof(byte[]));
+            if (lookups.Length == 0)
+                return null;
+
+            if (!(lookups[0] is byte[] bytes) || bytes.Length == 0)
+                return null;
+
+            return bytes;
+        }
+
+        public static string[] GetPropArray(this SearchResultEntry searchResultEntry, string property)
+        {
+            if (!searchResultEntry.Attributes.Contains(property))
                 return new string[0];
 
-            var values = result.Attributes[prop];
+            var values = searchResultEntry.Attributes[property];
+            var strings = values.GetValues(typeof(string));
 
-            var toreturn = new string[values.Count];
-            for (var i = 0; i < values.Count; i++)
-                toreturn[i] = values[i].ToString();
+            if (!(strings is string[] result))
+                return null;
 
-            return toreturn;
+            return result;
         }
 
         
-        public static string GetSid(this SearchResultEntry result)
+        public static string GetSid(this SearchResultEntry searchResultEntry)
         {
-            if (!result.Attributes.Contains("objectsid"))
+            if (!searchResultEntry.Attributes.Contains("objectsid"))
                 return null;
 
-            var s = result.Attributes["objectsid"][0];
-            switch (s)
-            {
-                case byte[] b:
-                    return new SecurityIdentifier(b, 0).ToString();
-                case string st:
-                    return new SecurityIdentifier(Encoding.ASCII.GetBytes(st), 0).ToString();
-            }
+            var s = searchResultEntry.Attributes["objectsid"].GetValues(typeof(byte[]));
+            if (s.Length == 0)
+                return null;
 
-            return null;
+            if (!(s[0] is byte[] sidBytes) || sidBytes.Length == 0)
+                return null;
+
+            return new SecurityIdentifier(sidBytes, 0).Value;
         }
 
         public static string GetSid(this DirectoryEntry result)
