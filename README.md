@@ -68,8 +68,8 @@ Sharphound is designed targetting .Net 3.5. Sharphound must be run from the cont
 * **PrettyJson** - Outputs JSON with indentation on multiple lines to improve readability. Tradeoff is increased file size.
 
 ### Cache Options
-* **CacheFile** - Filename for the Sharphound cache. (Default: BloodHound.bin)
-* **NoSaveCache** - Don't save the cache file to disk. Without this flag, BloodHound.bin will be dropped to disk
+* **CacheFile** - Filename for the Sharphound cache. (Default: <B64 Machine Sid>.bin)
+* **NoSaveCache** - Don't save the cache file to disk. Without this flag, <B64 Machine Sid>.bin will be dropped to disk
 * **Invalidate** - Invalidate the cache file and build a new cache
 
 ### Misc Options
