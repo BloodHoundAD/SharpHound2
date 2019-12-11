@@ -103,7 +103,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("domain", domain);
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", false);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
@@ -122,7 +122,7 @@ namespace Sharphound2.Enumeration
                         };
                         
                         obj.Properties.Add("domain", domain);
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
 
                         if (sid.EndsWith("-512") || sid.EndsWith("-516") || sid.EndsWith("-519") ||
                             sid.EndsWith("-520") || sid.Equals("S-1-5-32-544") || sid.Equals("S-1-5-32-550") ||
@@ -153,7 +153,7 @@ namespace Sharphound2.Enumeration
 
 
                         obj.Properties.Add("domain", domain);
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", false);
                         var hasLaps = entry.GetProp("ms-mcs-admpwdexpirationtime") != null;
                         obj.Properties.Add("haslaps", hasLaps);
@@ -183,7 +183,7 @@ namespace Sharphound2.Enumeration
                             Name = resolved.BloodHoundDisplay,
                         };
 
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", true);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
@@ -230,7 +230,6 @@ namespace Sharphound2.Enumeration
 
                         obj.Properties.Add("name", resolved.BloodHoundDisplay.ToUpper());
                         obj.Properties.Add("highvalue", false);
-                        obj.Properties.Add("objectid", obj.Guid);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
 
@@ -281,7 +280,7 @@ namespace Sharphound2.Enumeration
                     };
 
                     obj.Properties.Add("domain", d);
-                    obj.Properties.Add("objectid", "S-1-5-9");
+                    obj.Properties.Add("objectsid", "S-1-5-9");
                     obj.Properties.Add("highvalue", true);
 
                     output.Add(new Wrapper<JsonBase>
@@ -672,7 +671,7 @@ namespace Sharphound2.Enumeration
                     };
 
                     obj.Properties.Add("domain", d);
-                    obj.Properties.Add("objectid", "S-1-5-9");
+                    obj.Properties.Add("objectsid", "S-1-5-9");
                     obj.Properties.Add("highvalue", true);
 
                     output.Add(new Wrapper<JsonBase>
@@ -1027,7 +1026,7 @@ namespace Sharphound2.Enumeration
                         };
 
                         obj.Properties.Add("domain", domain);
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", false);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
@@ -1058,7 +1057,7 @@ namespace Sharphound2.Enumeration
                         }
 
                         obj.Properties.Add("domain", domain);
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
 
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
                         GroupHelpers.GetGroupInfo(entry, resolved, domainSid, ref obj);
@@ -1079,7 +1078,7 @@ namespace Sharphound2.Enumeration
 
                         var hasLaps = entry.GetProp("ms-mcs-admpwdexpirationtime") != null;
                         obj.Properties.Add("haslaps", hasLaps);
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", false);
                         obj.Properties.Add("domain", domain);
 
@@ -1187,7 +1186,7 @@ namespace Sharphound2.Enumeration
                             Name = resolved.BloodHoundDisplay
                         };
 
-                        obj.Properties.Add("objectid", sid);
+                        obj.Properties.Add("objectsid", sid);
                         obj.Properties.Add("highvalue", true);
                         obj.Properties.Add("domain", domain);
 
@@ -1236,7 +1235,6 @@ namespace Sharphound2.Enumeration
                         obj.Properties.Add("name", resolved.BloodHoundDisplay.ToUpper());
                         obj.Properties.Add("highvalue", false);
                         obj.Properties.Add("domain", domain);
-                        obj.Properties.Add("objectid", obj.Guid);
 
                         ContainerHelpers.ResolveContainer(entry, resolved, ref obj);
                         ObjectPropertyHelpers.GetProps(entry, resolved, ref obj);
