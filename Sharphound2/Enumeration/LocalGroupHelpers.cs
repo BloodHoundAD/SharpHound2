@@ -254,6 +254,9 @@ namespace Sharphound2.Enumeration
             if (rid.Equals(LocalGroupRids.DcomUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.DCOM))
                 yield break;
 
+            if (rid.Equals(LocalGroupRids.RemoteManagementUsers) && !Utils.IsMethodSet(ResolvedCollectionMethod.LocalAdmin)) //TODO add proper collection method
+                yield break;
+
             Utils.Debug("Starting GetSamAdmins");
             string machineSid = null;
             Utils.Debug("Starting Task");
@@ -785,6 +788,11 @@ namespace Sharphound2.Enumeration
                     {
                         Name = x.Name,
                         Type = x.Type
+                    }).ToArray(),
+                    RemoteManagementUsers = resolvedList.Where((x) => x.RID == 580).Select((x) => new LocalMember
+                    {
+                        Name = x.Name,
+                        Type = x.Type
                     }).ToArray()
                 };
 
@@ -848,7 +856,8 @@ namespace Sharphound2.Enumeration
         {
             Administrators = 544,
             RemoteDesktopUsers = 555,
-            DcomUsers = 562
+            DcomUsers = 562,
+            RemoteManagementUsers = 580
         }
 
         #region LSA Imports

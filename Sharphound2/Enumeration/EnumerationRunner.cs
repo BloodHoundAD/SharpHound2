@@ -949,6 +949,14 @@ namespace Sharphound2.Enumeration
                     {
                         timeout = true;
                     }
+                    try
+                    {
+                        obj.RemoteManagementUsers = LocalGroupHelpers.GetGroupMembers(full, LocalGroupHelpers.LocalGroupRids.RemoteManagementUsers).ToArray();
+                    }
+                    catch (TimeoutException)
+                    {
+                        timeout = true;
+                    }
 
                     try
                     {
@@ -1131,6 +1139,16 @@ namespace Sharphound2.Enumeration
                             {
                                 obj.DcomUsers = LocalGroupHelpers.GetGroupMembers(resolved,
                                     LocalGroupHelpers.LocalGroupRids.DcomUsers).ToArray();
+                            }
+                            catch (TimeoutException)
+                            {
+                                timeout = true;
+                            }
+
+                            try
+                            {
+                                obj.RemoteManagementUsers = LocalGroupHelpers.GetGroupMembers(resolved,
+                                    LocalGroupHelpers.LocalGroupRids.RemoteManagementUsers).ToArray();
                             }
                             catch (TimeoutException)
                             {
