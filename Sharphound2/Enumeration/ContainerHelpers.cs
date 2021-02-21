@@ -29,7 +29,7 @@ namespace Sharphound2.Enumeration
 
             domain = d.Name;
             foreach (var entry in _utils.DoSearch("(&(objectCategory=groupPolicyContainer)(name=*)(gpcfilesyspath=*))",
-                SearchScope.Subtree, new[] { "displayname", "name" }, domain))
+                SearchScope.Subtree, new[] { "displayname", "name" }))
             {
                 var name = entry.GetProp("name").ToUpper();
                 var dName = entry.GetProp("displayname")?.ToUpper() ?? name;
@@ -66,13 +66,16 @@ namespace Sharphound2.Enumeration
                     var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
                     var name = dn.Substring(index, index + 25).ToUpper();
 
+                    var dc = dn.Split(new string[] { ",DC=" }, StringSplitOptions.None).Skip(1);
+                    var gpoDomain = string.Join(".", dc.ToArray());
+
                     if (!_gpoCache.ContainsKey(name)) continue;
 
                     var dName = _gpoCache[name];
                     links.Add(new GpLink
                     {
                         IsEnforced = enforced,
-                        Name = $"{dName}@{domain}"
+                        Name = $"{dName}@{gpoDomain}"
                     });
                 }
 
@@ -142,13 +145,17 @@ namespace Sharphound2.Enumeration
                     var enforced = status.Equals("2");
                     var index = dn.IndexOf("CN=", StringComparison.OrdinalIgnoreCase) + 4;
                     var name = dn.Substring(index, index + 25).ToUpper();
+
+                    var dc = dn.Split(new string[] { ",DC=" }, StringSplitOptions.None).Skip(1);
+                    var gpoDomain = string.Join(".", dc.ToArray());
+
                     if (!_gpoCache.ContainsKey(name)) continue;
 
                     var dName = _gpoCache[name];
                     links.Add(new GpLink
                     {
                         IsEnforced = enforced,
-                        Name = $"{dName}@{domain}"
+                        Name = $"{dName}@{gpoDomain}"
                     });
                 }
 
